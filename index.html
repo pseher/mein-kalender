@@ -46,43 +46,57 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="Kalender">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-  :root { --teal: #0f6e73; --ink: #0b0d0f; --muted: #3d454d; --line: #d5dade; --bg: #f4f5f6; }
+  :root { --ink: #111317; --muted: #626a73; --line: #e7e8ea; --bg: #fbfbfa; --card: #ffffff; --accent: #0f6e73; }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
-  h1, h2, h3 { font-family: Fraunces, Georgia, serif; font-weight: 600; margin: 0; }
-  a { color: var(--teal); }
-  .btn { display: inline-block; background: #fff; color: var(--teal); text-decoration: none; font-weight: 600; padding: 15px 28px; border-radius: 999px; font-size: 17px; border: 0; cursor: pointer; }
-  .btn.teal { background: var(--teal); color: #fff; }
-  header { background: var(--teal); color: #fff; padding: max(28px, env(safe-area-inset-top)) 20px 44px; }
-  .hero { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; align-items: center; }
-  .kick { font-size: 12.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #bfe3e3; }
-  header h1 { font-size: clamp(36px, 6vw, 58px); line-height: 1.05; margin: 14px 0 16px; }
-  header p { font-size: 17px; color: #d3eaea; margin: 0 0 24px; max-width: 34em; }
-  .phone { justify-self: center; width: 250px; aspect-ratio: 9/16; border-radius: 34px; border: 8px solid var(--ink); background: var(--ink); overflow: hidden; box-shadow: 0 24px 50px rgba(0,0,0,.35); }
-  .phone video { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .note { font-size: 13.5px; color: #bfe3e3; margin-top: 12px; }
-  section { max-width: 1080px; margin: 0 auto; padding: 44px 16px 8px; }
-  .center { text-align: center; } .center h2 { font-size: clamp(26px, 4vw, 36px); line-height: 1.15; } .center > p { color: var(--muted); max-width: 36em; margin: 12px auto 0; }
-  .grid { display: grid; gap: 16px; margin-top: 28px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-  .card { background: #fff; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; }
-  .shot { height: 210px; overflow: hidden; display: flex; justify-content: center; padding-top: 20px; background: var(--tint); }
-  .shot img { width: 190px; border-radius: 18px 18px 0 0; border: 5px solid var(--ink); border-bottom: 0; align-self: flex-start; object-fit: cover; object-position: top; }
-  .card div.t { padding: 16px 18px 20px; } .card h3 { font-family: inherit; font-size: 17px; margin-bottom: 4px; } .card p { margin: 0; color: var(--muted); font-size: 15px; }
-  .steps { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 24px; text-align: left; }
-  .step { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; } .step b { display: block; color: var(--teal); font-family: Fraunces, Georgia, serif; font-size: 26px; }
-  .cta { background: var(--teal); color: #fff; border-radius: 26px; padding: 36px 22px; margin: 40px 0 20px; text-align: center; }
-  .cta h2 { font-size: clamp(26px, 4vw, 34px); } .cta p { color: #d3eaea; margin: 10px auto 22px; max-width: 32em; }
-  .a2 { position: fixed; inset: 0; z-index: 50; background: rgba(11,13,15,.45); display: flex; align-items: flex-end; justify-content: center; }
-  .a2[hidden] { display: none; }
-  .a2-box { background: #fff; width: min(480px, 100%); border-radius: 24px 24px 0 0; padding: 24px 22px max(24px, env(safe-area-inset-bottom)); text-align: center; }
-  .a2-box img { border-radius: 16px; } .a2-box h3 { font-size: 23px; margin: 10px 0 6px; } .a2-box p { color: var(--muted); margin: 0 0 18px; } .a2-box p.sm { font-size: 14px; margin: 12px 0 16px; }
-  .a2-box .btn { width: 100%; } .lnk { display: block; width: 100%; margin-top: 8px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 15px; padding: 10px; cursor: pointer; }
-  .a2-box ol { text-align: left; margin: 6px auto 0; max-width: 300px; padding-left: 1.2rem; line-height: 1.9; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-weight: 700; margin: 0; letter-spacing: -0.025em; }
+  a { color: inherit; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; text-decoration: none; font-weight: 600; padding: 14px 26px; border-radius: 999px; font-size: 16px; border: 0; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 0 6px 18px rgba(17,19,23,.18); }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(17,19,23,.22); }
+  .btn.teal { background: var(--ink); color: #fff; }
+  .nav { max-width: 1120px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 20px 0; display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
+  .nav img { width: 28px; height: 28px; border-radius: 8px; }
+  .nav a.nb { margin-left: auto; font-size: 14px; font-weight: 600; text-decoration: none; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  header { padding: 40px 20px 30px; background: radial-gradient(1200px 500px at 70% -10%, #eaf4f4 0%, rgba(234,244,244,0) 60%); }
+  .hero { max-width: 1120px; margin: 0 auto; display: grid; gap: 36px; align-items: center; }
+  .kick { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--accent); background: #fff; border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; }
+  .kick i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  header h1 { font-size: clamp(38px, 6.2vw, 64px); line-height: 1.04; margin: 18px 0 16px; }
+  header h1 span { color: var(--muted); }
+  header p { font-size: 18px; color: var(--muted); margin: 0 0 28px; max-width: 32em; }
+  .phone { justify-self: center; width: 260px; aspect-ratio: 9/16; border-radius: 40px; border: 9px solid #15171b; background: #15171b; overflow: hidden; box-shadow: 0 40px 80px rgba(17,19,23,.18), 0 8px 20px rgba(17,19,23,.08); }
+  .phone { background: #fff; position: relative; }
+  .slides img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; animation: sl 12s infinite; }
+  .slides img:nth-child(1) { animation-delay: 0s; } .slides img:nth-child(2) { animation-delay: 3s; } .slides img:nth-child(3) { animation-delay: 6s; } .slides img:nth-child(4) { animation-delay: 9s; }
+  @keyframes sl { 0% { opacity: 0; } 4% { opacity: 1; } 25% { opacity: 1; } 29% { opacity: 0; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .slides img { animation: none; } .slides img:first-child { opacity: 1; } }
+  @media (max-width: 859px) { .phone { width: 230px; } }
+  .note { font-size: 13.5px; color: var(--muted); margin-top: 14px; }
+  section { max-width: 1120px; margin: 0 auto; padding: 56px 16px 8px; }
+  .center { text-align: center; } .center h2 { font-size: clamp(28px, 4.2vw, 40px); line-height: 1.12; } .center > p { color: var(--muted); max-width: 34em; margin: 12px auto 0; font-size: 17px; }
+  .grid { display: grid; gap: 18px; margin-top: 34px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow .2s, transform .2s; }
+  .card:hover { box-shadow: 0 18px 40px rgba(17,19,23,.07); transform: translateY(-2px); }
+  .shot { height: 210px; overflow: hidden; display: flex; justify-content: center; padding-top: 22px; background: #f3f4f5; }
+  .shot img { width: 190px; border-radius: 20px 20px 0 0; border: 6px solid #15171b; border-bottom: 0; align-self: flex-start; object-fit: cover; object-position: top; box-shadow: 0 10px 30px rgba(17,19,23,.12); }
+  .card div.t { padding: 18px 20px 22px; } .card h3 { font-size: 17px; margin-bottom: 4px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; } .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .card h3 i { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
+  .steps { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 28px; text-align: left; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; color: var(--muted); } .step b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 14px; margin-bottom: 10px; }
+  .cta { background: var(--ink); color: #fff; border-radius: 28px; padding: 44px 22px; margin: 48px 0 20px; text-align: center; }
+  .cta h2 { font-size: clamp(28px, 4vw, 38px); } .cta p { color: #b8bec6; margin: 10px auto 24px; max-width: 32em; }
+  .cta .btn { background: #fff; color: var(--ink); box-shadow: none; }
   footer { text-align: center; color: var(--muted); font-size: 13px; padding: 10px 16px max(36px, env(safe-area-inset-bottom)); }
-  @media (min-width: 820px) { .hero { grid-template-columns: 1.2fr .8fr; } .phone { width: 280px; } }
+  @media (min-width: 860px) { .hero { grid-template-columns: 1.25fr .75fr; } .phone { width: 290px; } header { padding-top: 64px; } }
+  .a2 { position: fixed; inset: 0; z-index: 50; background: rgba(17,19,23,.4); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; }
+  .a2[hidden] { display: none; }
+  .a2-box { background: #fff; width: min(480px, 100%); border-radius: 26px 26px 0 0; padding: 26px 22px max(24px, env(safe-area-inset-bottom)); text-align: center; }
+  .a2-box img { border-radius: 16px; box-shadow: 0 8px 20px rgba(17,19,23,.15); } .a2-box h3 { font-size: 22px; margin: 14px 0 6px; } .a2-box p { color: var(--muted); margin: 0 0 18px; } .a2-box p.sm { font-size: 14px; margin: 12px 0 16px; }
+  .a2-box .btn { width: 100%; justify-content: center; } .lnk { display: block; width: 100%; margin-top: 8px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 15px; padding: 10px; cursor: pointer; }
+  .a2-box ol { text-align: left; margin: 6px auto 0; max-width: 300px; padding-left: 1.2rem; line-height: 1.9; }
 </style>
 </head>
 <body>
@@ -96,16 +110,17 @@
   <div id="a2-ios" hidden><h3>So geht’s in Safari</h3><ol><li>Unten auf <b>Teilen</b> tippen <span aria-hidden="true">(□↑)</span></li><li><b>„Zum Home-Bildschirm“</b> wählen</li><li>Oben rechts <b>Hinzufügen</b></li></ol>
     <p class="sm">Das Symbol „Kalender“ öffnet danach direkt deinen Kalender.</p><button class="btn teal" onclick="go()">Fertig – Kalender öffnen</button></div>
 </div></div>
+<div class="nav"><img src="icon-192.png" alt=""> Mein Kalender<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div>
 <header>
   <div class="hero">
     <div>
-      <div class="kick">Mein Kalender</div>
-      <h1>Der Kalender, der an das denkt, was du vergisst.</h1>
-      <p>Erinnert rechtzeitig an Geburtstage, Geschenke, Reisen und Fristen, teilt Termine mit deinen Liebsten – und zeigt, wann ihr gemeinsam frei habt.</p>
-      <a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kalender öffnen</a>
-      <div class="note">Kostenlos · läuft im Browser und auf dem Handy · mit deinem Claude-Konto</div>
+      <span class="kick"><i></i>Kostenlos · für Familien gemacht</span>
+      <h1>Der Kalender, der an das denkt, <span>was du vergisst.</span></h1>
+      <p>Geburtstage, Geschenke, Reisen und Fristen – rechtzeitig erinnert. Termine mit deinen Liebsten teilen und sehen, wann ihr gemeinsam frei habt.</p>
+      <a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kalender öffnen <span aria-hidden="true">→</span></a>
+      <div class="note">Im Browser und auf dem Handy · mit deinem Claude-Konto · arbeitet mit Google Kalender</div>
     </div>
-    <div class="phone"><video src="img/reel.mp4" poster="img/poster.jpg" autoplay muted loop playsinline aria-label="Kurzvideo: Mein Kalender in 20 Sekunden"></video></div>
+    <div class="phone" aria-label="Ansichten von Mein Kalender"><div class="slides"><img src="img/heute.jpg" alt="Heute-Seite"><img src="img/monat.jpg" alt="Monatsansicht"><img src="img/reise.jpg" alt="Reise mit Hinweisen"><img src="img/geschenke.jpg" alt="Geschenkeliste"></div></div>
   </div>
 </header>
 
@@ -113,12 +128,12 @@
   <h2>Weniger dran denken. Mehr Zeit füreinander.</h2>
   <p>Die meisten Kalender merken sich, was du einträgst. Dieser kümmert sich auch um das, was sonst durchrutscht.</p>
   <div class="grid" style="text-align:left">
-    <article class="card"><div class="shot" style="--tint:#e0f1f1"><img src="img/heute.jpg" alt="Heute-Seite mit Countdowns und Erinnerungen" loading="lazy"></div><div class="t"><h3>Morgens ein Blick</h3><p>Countdowns bis zum Urlaub, deine Woche zum Wischen, Aufgaben und was heute ansteht.</p></div></article>
-    <article class="card"><div class="shot" style="--tint:#e6f0fa"><img src="img/assistent.jpg" alt="Nachricht wird zum Termin" loading="lazy" style="height:330px;object-position:0 60%"></div><div class="t"><h3>Text rein, Termin raus</h3><p>Einfach schreiben oder eine WhatsApp bzw. Mail hineinkopieren – Datum, Uhrzeit und Ort werden erkannt.</p></div></article>
-    <article class="card"><div class="shot" style="--tint:#ece7f8"><img src="img/reise.jpg" alt="Reise mit Hinweisen" loading="lazy" style="height:330px;object-position:0 100%"></div><div class="t"><h3>Reisen ohne Checklisten-Stress</h3><p>Vignette, Maut, Visum, Online-Check-in, Ausweise für die Kinder – rechtzeitig erinnert, Route mit einem Tipp.</p></div></article>
-    <article class="card"><div class="shot" style="--tint:#f3ecdf"><img src="img/packliste.jpg" alt="Automatische Packliste" loading="lazy"></div><div class="t"><h3>Die Packliste macht er selbst</h3><p>Passend zu Ziel, Jahreszeit und Mitreisenden. Eigenes ergänzt du mit einem Tipp.</p></div></article>
-    <article class="card"><div class="shot" style="--tint:#f8e4ec"><img src="img/geschenke.jpg" alt="Geschenkeliste" loading="lazy"></div><div class="t"><h3>Geburtstage &amp; Geschenke im Griff</h3><p>Früher erinnert bei Kindern und runden Geburtstagen. Weihnachten, Ostern, Nikolaus: offen, Idee, besorgt.</p></div></article>
-    <article class="card"><div class="shot" style="--tint:#d3eaea"><img src="img/ueberblick.jpg" alt="Gemeinsam freie Zeiträume" loading="lazy"></div><div class="t"><h3>Teilen &amp; gemeinsam frei</h3><p>Termine mit Familie teilen – verschlüsselt. Ferien, Feiertage und Brückentage für jedes Bundesland.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/heute.jpg" alt="Heute-Seite mit Countdowns und Erinnerungen" loading="lazy"></div><div class="t"><h3><i style="--dot:#0f6e73"></i>Morgens ein Blick</h3><p>Countdowns bis zum Urlaub, deine Woche zum Wischen, Aufgaben und was heute ansteht.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/assistent.jpg" alt="Nachricht wird zum Termin" loading="lazy" style="height:330px;object-position:0 60%"></div><div class="t"><h3><i style="--dot:#2f6fe0"></i>Text rein, Termin raus</h3><p>Einfach schreiben oder eine WhatsApp bzw. Mail hineinkopieren – Datum, Uhrzeit und Ort werden erkannt.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/reise.jpg" alt="Reise mit Hinweisen" loading="lazy" style="height:330px;object-position:0 100%"></div><div class="t"><h3><i style="--dot:#6a4bc4"></i>Reisen ohne Checklisten-Stress</h3><p>Vignette, Maut, Visum, Online-Check-in, Ausweise für die Kinder – rechtzeitig erinnert, Route mit einem Tipp.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/packliste.jpg" alt="Automatische Packliste" loading="lazy"></div><div class="t"><h3><i style="--dot:#c45d00"></i>Die Packliste macht er selbst</h3><p>Passend zu Ziel, Jahreszeit und Mitreisenden. Eigenes ergänzt du mit einem Tipp.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/geschenke.jpg" alt="Geschenkeliste" loading="lazy"></div><div class="t"><h3><i style="--dot:#c0306f"></i>Geburtstage &amp; Geschenke im Griff</h3><p>Früher erinnert bei Kindern und runden Geburtstagen. Weihnachten, Ostern, Nikolaus: offen, Idee, besorgt.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/ueberblick.jpg" alt="Gemeinsam freie Zeiträume" loading="lazy"></div><div class="t"><h3><i style="--dot:#2f8a43"></i>Teilen &amp; gemeinsam frei</h3><p>Termine mit Familie teilen – verschlüsselt. Ferien, Feiertage und Brückentage für jedes Bundesland.</p></div></article>
   </div>
 </section>
 
