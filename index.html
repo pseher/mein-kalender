@@ -51,7 +51,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-  :root { --ink: #111317; --muted: #626a73; --line: #e7e8ea; --bg: #fbfbfa; --card: #ffffff; --accent: #0f6e73; }
+  :root { --ink: #111317; --muted: #22272c; --line: #e7e8ea; --bg: #fbfbfa; --card: #ffffff; --accent: #0f6e73; }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
@@ -68,7 +68,7 @@
   .kick { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--accent); background: #fff; border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; }
   .kick i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
   header h1 { font-size: clamp(38px, 6.2vw, 64px); line-height: 1.04; margin: 18px 0 16px; }
-  header h1 span { color: var(--muted); }
+  header h1 span { color: #4a5159; }
   header p { font-size: 18px; color: var(--muted); margin: 0 0 28px; max-width: 32em; }
   .phone { justify-self: center; width: 260px; aspect-ratio: 9/16; border-radius: 40px; border: 9px solid #15171b; background: #15171b; overflow: hidden; box-shadow: 0 40px 80px rgba(17,19,23,.18), 0 8px 20px rgba(17,19,23,.08); }
   .phone { background: #fff; position: relative; }
@@ -76,15 +76,15 @@
   .slides img:nth-child(1) { animation-delay: 0s; } .slides img:nth-child(2) { animation-delay: 3s; } .slides img:nth-child(3) { animation-delay: 6s; } .slides img:nth-child(4) { animation-delay: 9s; }
   @keyframes sl { 0% { opacity: 0; } 4% { opacity: 1; } 25% { opacity: 1; } 29% { opacity: 0; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .slides img { animation: none; } .slides img:first-child { opacity: 1; } }
-  @media (max-width: 859px) { .phone { width: 230px; } }
+  @media (max-width: 859px) { .phone { width: min(78vw, 330px); } }
   .note { font-size: 13.5px; color: var(--muted); margin-top: 14px; }
   section { max-width: 1120px; margin: 0 auto; padding: 56px 16px 8px; }
   .center { text-align: center; } .center h2 { font-size: clamp(28px, 4.2vw, 40px); line-height: 1.12; } .center > p { color: var(--muted); max-width: 34em; margin: 12px auto 0; font-size: 17px; }
-  .grid { display: grid; gap: 18px; margin-top: 34px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+  .grid { display: grid; gap: 18px; margin-top: 34px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow .2s, transform .2s; }
   .card:hover { box-shadow: 0 18px 40px rgba(17,19,23,.07); transform: translateY(-2px); }
-  .shot { height: 210px; overflow: hidden; display: flex; justify-content: center; padding-top: 22px; background: #f3f4f5; }
-  .shot img { width: 190px; border-radius: 20px 20px 0 0; border: 6px solid #15171b; border-bottom: 0; align-self: flex-start; object-fit: cover; object-position: top; box-shadow: 0 10px 30px rgba(17,19,23,.12); }
+  .shot { height: 300px; overflow: hidden; display: flex; justify-content: center; padding-top: 22px; background: #f3f4f5; }
+  .shot img { width: 250px; border-radius: 20px 20px 0 0; border: 6px solid #15171b; border-bottom: 0; align-self: flex-start; object-fit: cover; object-position: top; box-shadow: 0 10px 30px rgba(17,19,23,.12); }
   .card div.t { padding: 18px 20px 22px; } .card h3 { font-size: 17px; margin-bottom: 4px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; } .card p { margin: 0; color: var(--muted); font-size: 15px; }
   .card h3 i { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
   .steps { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 28px; text-align: left; }
@@ -134,8 +134,8 @@
   <p>Die meisten Kalender merken sich, was du einträgst. Dieser kümmert sich auch um das, was sonst durchrutscht.</p>
   <div class="grid" style="text-align:left">
     <article class="card"><div class="shot"><img src="img/heute.jpg" alt="Heute-Seite mit Countdowns und Erinnerungen" loading="lazy"></div><div class="t"><h3><i style="--dot:#0f6e73"></i>Morgens ein Blick</h3><p>Countdowns bis zum Urlaub, deine Woche zum Wischen, Aufgaben und was heute ansteht.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/assistent.jpg" alt="Nachricht wird zum Termin" loading="lazy" style="height:330px;object-position:0 60%"></div><div class="t"><h3><i style="--dot:#2f6fe0"></i>Text rein, Termin raus</h3><p>Einfach schreiben oder eine WhatsApp bzw. Mail hineinkopieren – Datum, Uhrzeit und Ort werden erkannt.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/reise.jpg" alt="Reise mit Hinweisen" loading="lazy" style="height:330px;object-position:0 100%"></div><div class="t"><h3><i style="--dot:#6a4bc4"></i>Reisen ohne Checklisten-Stress</h3><p>Vignette, Maut, Visum, Online-Check-in, Ausweise für die Kinder – rechtzeitig erinnert, Route mit einem Tipp.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/assistent.jpg" alt="Nachricht wird zum Termin" loading="lazy" style="height:440px;object-position:0 60%"></div><div class="t"><h3><i style="--dot:#2f6fe0"></i>Text rein, Termin raus</h3><p>Einfach schreiben oder eine WhatsApp bzw. Mail hineinkopieren – Datum, Uhrzeit und Ort werden erkannt.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/reise.jpg" alt="Reise mit Hinweisen" loading="lazy" style="height:440px;object-position:0 100%"></div><div class="t"><h3><i style="--dot:#6a4bc4"></i>Reisen ohne Checklisten-Stress</h3><p>Vignette, Maut, Visum, Online-Check-in, Ausweise für die Kinder – rechtzeitig erinnert, Route mit einem Tipp.</p></div></article>
     <article class="card"><div class="shot"><img src="img/packliste.jpg" alt="Automatische Packliste" loading="lazy"></div><div class="t"><h3><i style="--dot:#c45d00"></i>Die Packliste macht er selbst</h3><p>Passend zu Ziel, Jahreszeit und Mitreisenden. Eigenes ergänzt du mit einem Tipp.</p></div></article>
     <article class="card"><div class="shot"><img src="img/geschenke.jpg" alt="Geschenkeliste" loading="lazy"></div><div class="t"><h3><i style="--dot:#c0306f"></i>Geburtstage &amp; Geschenke im Griff</h3><p>Früher erinnert bei Kindern und runden Geburtstagen. Weihnachten, Ostern, Nikolaus: offen, Idee, besorgt.</p></div></article>
     <article class="card"><div class="shot"><img src="img/ueberblick.jpg" alt="Gemeinsam freie Zeiträume" loading="lazy"></div><div class="t"><h3><i style="--dot:#2f8a43"></i>Teilen &amp; gemeinsam frei</h3><p>Termine mit Familie teilen – verschlüsselt. Ferien, Feiertage und Brückentage für jedes Bundesland.</p></div></article>
