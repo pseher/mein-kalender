@@ -8,11 +8,12 @@
   // Wer den Kalender schon einmal geöffnet hat (oder vom Startbildschirm kommt), landet direkt im Kalender.
   var CAL = "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1";
   (function () { var q = new URLSearchParams(location.search), seen = false;
-    try { seen = localStorage.getItem("mk-open") === "1"; } catch (e) {}
+    try { seen = localStorage.getItem("mk-consent") === "yes" && localStorage.getItem("mk-open") === "1"; } catch (e) {}
     window.MK_INSTALL = q.has("install");
     if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
-  function go() { try { localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
+  function go() { try { if (localStorage.getItem("mk-consent") === "yes") localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
+  function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; }
   function openCal() { go(); return false; }
 </script>
 <meta name="description" content="Der Kalender, der an das denkt, was du vergisst: Er erinnert nicht nur an Termine, sondern auch an das Drumherum – für Paare und Familien.">
@@ -29,8 +30,7 @@
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="Kalender">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/site.css">
 <style>
   :root { --ink: #111317; --muted: #22272c; --soft: #4a5159; --line: #e7e8ea; --bg: #fbfbfa; --card: #ffffff; --accent: #0f6e73; }
   * { box-sizing: border-box; }
@@ -160,6 +160,12 @@
 </section>
 
 <div class="cta"><h2>Probier’s aus</h2><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kalender öffnen <span aria-hidden="true">→</span></a></div>
-<footer>Hinweise zu Maut, Vignette und Einreise sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen.<br>Mein Kalender ist ein unabhängiges Projekt und nutzt Claude von Anthropic für Anmeldung, Speicherung und Texterkennung.</footer>
+<footer>Hinweise zu Maut, Vignette und Einreise sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen.<br>
+  Mein Kalender ist ein privates Projekt und nutzt Claude von Anthropic für Anmeldung, Speicherung und KI-Funktionen.
+  <div class="foot-links"><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="/ki-hinweise.html">KI-Hinweise</a><a href="#" onclick="document.getElementById('consent').hidden=false;return false">Speicher-Einstellungen</a></div></footer>
+<div class="consent" id="consent" hidden role="dialog" aria-label="Speicher-Einstellungen">
+  <b>Keine Cookies, kein Tracking.</b> Darf sich dein Browser nur merken, dass du den Kalender schon geöffnet hast? Dann geht es beim nächsten Besuch direkt weiter. <a href="/datenschutz.html">Mehr dazu</a>
+  <div class="row"><button class="ok" onclick="consent('yes')">Ja, merken</button><button onclick="consent('no')">Nein danke</button></div></div>
+<script>try { if (!localStorage.getItem("mk-consent")) document.getElementById("consent").hidden = false; } catch (e) {}</script>
 </body>
 </html>
