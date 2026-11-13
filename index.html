@@ -14,15 +14,15 @@
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
   var IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   // Android/Chrome: Manifest nur dort einbinden (iPhone öffnet den Kalender so weiter in Safari – mit deiner Claude-Anmeldung)
-  if (!IOS) { var l = document.createElement("link"); l.rel = "manifest"; l.href = "/manifest.webmanifest"; document.head.appendChild(l);
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function () {}); }
+  // Kein eigenes App-Manifest: Auf den Startbildschirm kommt direkt die Kalender-Seite auf claude.ai (sonst zeigt Android eine Browser-Leiste mit ✕)
+  if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
   var deferred = null; window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; });
   function asked() { try { return localStorage.getItem("mk-a2hs"); } catch (e) { return null; } }
   function setAsked(v) { try { localStorage.setItem("mk-a2hs", v); } catch (e) {} }
   function go() { try { localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
   function openCal() {
     var standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    if (standalone || asked() || !(IOS || deferred)) { go(); return false; }
+    if (standalone || asked() || !IOS || true) { go(); return false; }
     document.getElementById("a2").hidden = false; return false;
   }
   async function a2Yes() { setAsked("yes");
