@@ -9,6 +9,8 @@
   var CAL = "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1";
   (function () { var q = new URLSearchParams(location.search), seen = false;
     try { seen = localStorage.getItem("mk-open") === "1"; } catch (e) {}
+    window.MK_INSTALL = q.has("install");
+    if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
   function openCal() { try { localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; return false; }
 </script>
@@ -62,6 +64,9 @@
 </style>
 </head>
 <body>
+<div id="inst" hidden style="background:#fff7e0;color:#4a3a00;padding:14px 18px;font-size:15px;line-height:1.5;text-align:center"><b>Jetzt auf den Startbildschirm legen:</b><br><span id="inst-t"></span></div>
+<script>if (window.MK_INSTALL) { var ios = /iphone|ipad|ipod/i.test(navigator.userAgent); document.getElementById("inst").hidden = false;
+  document.getElementById("inst-t").innerHTML = ios ? "Unten auf <b>Teilen</b> (□↑) → <b>„Zum Home-Bildschirm“</b> → <b>Hinzufügen</b>." : "Oben rechts auf <b>⋮</b> → <b>„Zum Startbildschirm hinzufügen“</b>."; }</script>
 <header>
   <div class="hero">
     <div>
