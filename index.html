@@ -26,7 +26,10 @@
     document.getElementById("a2").hidden = false; return false;
   }
   async function a2Yes() { setAsked("yes");
-    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; go(); return; }
+    if (deferred) { deferred.prompt(); let ok = false; try { ok = (await deferred.userChoice).outcome === "accepted"; } catch (e) {} deferred = null;
+      if (!ok) { go(); return; }
+      try { localStorage.setItem("mk-open", "1"); } catch (e) {}
+      document.getElementById("a2-ask").hidden = true; document.getElementById("a2-done").hidden = false; return; }
     try { history.replaceState(null, "", "/?app=1"); localStorage.setItem("mk-open", "1"); } catch (e) {}
     document.getElementById("a2-ask").hidden = true; document.getElementById("a2-ios").hidden = false; }
   function a2No() { setAsked("no"); go(); }
@@ -107,6 +110,8 @@
   <img src="icon-192.png" alt="" width="64" height="64">
   <div id="a2-ask"><h3>Auf den Startbildschirm legen?</h3><p>Dann öffnest du deinen Kalender künftig mit einem Tipp – wie eine App.</p>
     <button class="btn teal" onclick="a2Yes()">Ja, hinzufügen</button><button class="lnk" onclick="a2No()">Nein, nur öffnen</button></div>
+  <div id="a2-done" hidden><h3>Installiert ✓</h3><p>Tippe jetzt auf deinem Startbildschirm auf <b>„Kalender“</b> – oder in der Meldung oben auf „Öffnen“. Ab dann startet dein Kalender immer von dort.</p>
+    <button class="lnk" onclick="go()">Lieber hier im Browser weiter</button></div>
   <div id="a2-ios" hidden><h3>So geht’s in Safari</h3><ol><li>Unten auf <b>Teilen</b> tippen <span aria-hidden="true">(□↑)</span></li><li><b>„Zum Home-Bildschirm“</b> wählen</li><li>Oben rechts <b>Hinzufügen</b></li></ol>
     <p class="sm">Das Symbol „Kalender“ öffnet danach direkt deinen Kalender.</p><button class="btn teal" onclick="go()">Fertig – Kalender öffnen</button></div>
 </div></div>
