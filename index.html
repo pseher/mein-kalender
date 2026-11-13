@@ -12,7 +12,24 @@
     window.MK_INSTALL = q.has("install");
     if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
-  function openCal() { try { localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; return false; }
+  var IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // Android/Chrome: Manifest nur dort einbinden (iPhone öffnet den Kalender so weiter in Safari – mit deiner Claude-Anmeldung)
+  if (!IOS) { var l = document.createElement("link"); l.rel = "manifest"; l.href = "/manifest.webmanifest"; document.head.appendChild(l);
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function () {}); }
+  var deferred = null; window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; });
+  function asked() { try { return localStorage.getItem("mk-a2hs"); } catch (e) { return null; } }
+  function setAsked(v) { try { localStorage.setItem("mk-a2hs", v); } catch (e) {} }
+  function go() { try { localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
+  function openCal() {
+    var standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    if (standalone || asked() || !(IOS || deferred)) { go(); return false; }
+    document.getElementById("a2").hidden = false; return false;
+  }
+  async function a2Yes() { setAsked("yes");
+    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; go(); return; }
+    try { history.replaceState(null, "", "/?app=1"); localStorage.setItem("mk-open", "1"); } catch (e) {}
+    document.getElementById("a2-ask").hidden = true; document.getElementById("a2-ios").hidden = false; }
+  function a2No() { setAsked("no"); go(); }
 </script>
 <meta name="description" content="Erinnert rechtzeitig an Geburtstage, Geschenke, Reisen und Fristen, teilt Termine mit der Familie und zeigt, wann ihr gemeinsam frei habt.">
 <meta name="theme-color" content="#0f6e73">
@@ -25,7 +42,6 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://mein-kalender.onrender.com/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="Kalender">
@@ -59,6 +75,12 @@
   .step { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 18px; } .step b { display: block; color: var(--teal); font-family: Fraunces, Georgia, serif; font-size: 26px; }
   .cta { background: var(--teal); color: #fff; border-radius: 26px; padding: 36px 22px; margin: 40px 0 20px; text-align: center; }
   .cta h2 { font-size: clamp(26px, 4vw, 34px); } .cta p { color: #d3eaea; margin: 10px auto 22px; max-width: 32em; }
+  .a2 { position: fixed; inset: 0; z-index: 50; background: rgba(11,13,15,.45); display: flex; align-items: flex-end; justify-content: center; }
+  .a2[hidden] { display: none; }
+  .a2-box { background: #fff; width: min(480px, 100%); border-radius: 24px 24px 0 0; padding: 24px 22px max(24px, env(safe-area-inset-bottom)); text-align: center; }
+  .a2-box img { border-radius: 16px; } .a2-box h3 { font-size: 23px; margin: 10px 0 6px; } .a2-box p { color: var(--muted); margin: 0 0 18px; } .a2-box p.sm { font-size: 14px; margin: 12px 0 16px; }
+  .a2-box .btn { width: 100%; } .lnk { display: block; width: 100%; margin-top: 8px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 15px; padding: 10px; cursor: pointer; }
+  .a2-box ol { text-align: left; margin: 6px auto 0; max-width: 300px; padding-left: 1.2rem; line-height: 1.9; }
   footer { text-align: center; color: var(--muted); font-size: 13px; padding: 10px 16px max(36px, env(safe-area-inset-bottom)); }
   @media (min-width: 820px) { .hero { grid-template-columns: 1.2fr .8fr; } .phone { width: 280px; } }
 </style>
@@ -67,6 +89,13 @@
 <div id="inst" hidden style="background:#fff7e0;color:#4a3a00;padding:14px 18px;font-size:15px;line-height:1.5;text-align:center"><b>Jetzt auf den Startbildschirm legen:</b><br><span id="inst-t"></span></div>
 <script>if (window.MK_INSTALL) { var ios = /iphone|ipad|ipod/i.test(navigator.userAgent); document.getElementById("inst").hidden = false;
   document.getElementById("inst-t").innerHTML = ios ? "Unten auf <b>Teilen</b> (□↑) → <b>„Zum Home-Bildschirm“</b> → <b>Hinzufügen</b>." : "Oben rechts auf <b>⋮</b> → <b>„Zum Startbildschirm hinzufügen“</b>."; }</script>
+<div id="a2" class="a2" hidden><div class="a2-box">
+  <img src="icon-192.png" alt="" width="64" height="64">
+  <div id="a2-ask"><h3>Auf den Startbildschirm legen?</h3><p>Dann öffnest du deinen Kalender künftig mit einem Tipp – wie eine App.</p>
+    <button class="btn teal" onclick="a2Yes()">Ja, hinzufügen</button><button class="lnk" onclick="a2No()">Nein, nur öffnen</button></div>
+  <div id="a2-ios" hidden><h3>So geht’s in Safari</h3><ol><li>Unten auf <b>Teilen</b> tippen <span aria-hidden="true">(□↑)</span></li><li><b>„Zum Home-Bildschirm“</b> wählen</li><li>Oben rechts <b>Hinzufügen</b></li></ol>
+    <p class="sm">Das Symbol „Kalender“ öffnet danach direkt deinen Kalender.</p><button class="btn teal" onclick="go()">Fertig – Kalender öffnen</button></div>
+</div></div>
 <header>
   <div class="hero">
     <div>

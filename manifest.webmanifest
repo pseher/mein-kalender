@@ -3,7 +3,7 @@
   "short_name": "Kalender",
   "start_url": "/?app=1",
   "scope": "/",
-  "display": "browser",
+  "display": "minimal-ui",
   "background_color": "#0f6e73",
   "theme_color": "#0f6e73",
   "icons": [
