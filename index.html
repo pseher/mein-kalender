@@ -12,29 +12,10 @@
     window.MK_INSTALL = q.has("install");
     if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
-  var IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  // Android/Chrome: Manifest nur dort einbinden (iPhone öffnet den Kalender so weiter in Safari – mit deiner Claude-Anmeldung)
-  // Kein eigenes App-Manifest: Auf den Startbildschirm kommt direkt die Kalender-Seite auf claude.ai (sonst zeigt Android eine Browser-Leiste mit ✕)
-  if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
-  var deferred = null; window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; });
-  function asked() { try { return localStorage.getItem("mk-a2hs"); } catch (e) { return null; } }
-  function setAsked(v) { try { localStorage.setItem("mk-a2hs", v); } catch (e) {} }
   function go() { try { localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
-  function openCal() {
-    var standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    if (standalone || asked() || !IOS || true) { go(); return false; }
-    document.getElementById("a2").hidden = false; return false;
-  }
-  async function a2Yes() { setAsked("yes");
-    if (deferred) { deferred.prompt(); let ok = false; try { ok = (await deferred.userChoice).outcome === "accepted"; } catch (e) {} deferred = null;
-      if (!ok) { go(); return; }
-      try { localStorage.setItem("mk-open", "1"); } catch (e) {}
-      document.getElementById("a2-ask").hidden = true; document.getElementById("a2-done").hidden = false; return; }
-    try { history.replaceState(null, "", "/?app=1"); localStorage.setItem("mk-open", "1"); } catch (e) {}
-    document.getElementById("a2-ask").hidden = true; document.getElementById("a2-ios").hidden = false; }
-  function a2No() { setAsked("no"); go(); }
+  function openCal() { go(); return false; }
 </script>
-<meta name="description" content="Erinnert rechtzeitig an Geburtstage, Geschenke, Reisen und Fristen, teilt Termine mit der Familie und zeigt, wann ihr gemeinsam frei habt.">
+<meta name="description" content="Der Kalender, der an das denkt, was du vergisst: Er erinnert nicht nur an Termine, sondern auch an das Drumherum – für Paare und Familien.">
 <meta name="theme-color" content="#0f6e73">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Mein Kalender">
@@ -51,110 +32,134 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-  :root { --ink: #111317; --muted: #22272c; --line: #e7e8ea; --bg: #fbfbfa; --card: #ffffff; --accent: #0f6e73; }
+  :root { --ink: #111317; --muted: #22272c; --soft: #4a5159; --line: #e7e8ea; --bg: #fbfbfa; --card: #ffffff; --accent: #0f6e73; }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
   h1, h2, h3 { font-weight: 700; margin: 0; letter-spacing: -0.025em; }
-  a { color: inherit; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; text-decoration: none; font-weight: 600; padding: 14px 26px; border-radius: 999px; font-size: 16px; border: 0; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 0 6px 18px rgba(17,19,23,.18); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; text-decoration: none; font-weight: 600; padding: 15px 28px; border-radius: 999px; font-size: 16.5px; border: 0; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 0 6px 18px rgba(17,19,23,.18); }
   .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(17,19,23,.22); }
-  .btn.teal { background: var(--ink); color: #fff; }
-  .nav { max-width: 1120px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 20px 0; display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
-  .nav img { width: 28px; height: 28px; border-radius: 8px; }
-  .nav a.nb { margin-left: auto; font-size: 14px; font-weight: 600; text-decoration: none; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
-  header { padding: 40px 20px 30px; background: radial-gradient(1200px 500px at 70% -10%, #eaf4f4 0%, rgba(234,244,244,0) 60%); }
-  .hero { max-width: 1120px; margin: 0 auto; display: grid; gap: 36px; align-items: center; }
-  .kick { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--accent); background: #fff; border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; }
+  .nav { max-width: 1120px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 20px 0; display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+  .nav img { width: 30px; height: 30px; border-radius: 9px; }
+  .nav a.nb { margin-left: auto; font-size: 14px; font-weight: 600; text-decoration: none; color: var(--ink); padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  header { padding: 40px 20px 20px; background: radial-gradient(1200px 520px at 75% -10%, #eaf4f4 0%, rgba(234,244,244,0) 60%); }
+  .hero { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; align-items: center; }
+  .kick { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--accent); background: #fff; border: 1px solid var(--line); padding: 5px 13px; border-radius: 999px; }
   .kick i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
   header h1 { font-size: clamp(38px, 6.2vw, 64px); line-height: 1.04; margin: 18px 0 16px; }
-  header h1 span { color: #4a5159; }
-  header p { font-size: 18px; color: var(--muted); margin: 0 0 28px; max-width: 32em; }
-  .phone { justify-self: center; width: 260px; aspect-ratio: 9/16; border-radius: 40px; border: 9px solid #15171b; background: #15171b; overflow: hidden; box-shadow: 0 40px 80px rgba(17,19,23,.18), 0 8px 20px rgba(17,19,23,.08); }
-  .phone { background: #fff; position: relative; }
+  header h1 span { color: var(--soft); }
+  .lead { font-size: 19px; line-height: 1.5; color: var(--muted); margin: 0 0 8px; max-width: 30em; font-weight: 500; }
+  .lead2 { font-size: 16.5px; color: var(--muted); margin: 0 0 28px; max-width: 32em; }
+  .phone { justify-self: center; position: relative; width: 290px; aspect-ratio: 9/18.5; border-radius: 42px; border: 9px solid #15171b; background: #fff; overflow: hidden; box-shadow: 0 40px 80px rgba(17,19,23,.18), 0 8px 20px rgba(17,19,23,.08); }
   .slides img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; animation: sl 12s infinite; }
-  .slides img:nth-child(1) { animation-delay: 0s; } .slides img:nth-child(2) { animation-delay: 3s; } .slides img:nth-child(3) { animation-delay: 6s; } .slides img:nth-child(4) { animation-delay: 9s; }
+  .slides img:nth-child(2) { animation-delay: 3s; } .slides img:nth-child(3) { animation-delay: 6s; } .slides img:nth-child(4) { animation-delay: 9s; }
   @keyframes sl { 0% { opacity: 0; } 4% { opacity: 1; } 25% { opacity: 1; } 29% { opacity: 0; } 100% { opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .slides img { animation: none; } .slides img:first-child { opacity: 1; } }
-  @media (max-width: 859px) { .phone { width: min(78vw, 330px); } }
-  .note { font-size: 13.5px; color: var(--muted); margin-top: 14px; }
   section { max-width: 1120px; margin: 0 auto; padding: 56px 16px 8px; }
-  .center { text-align: center; } .center h2 { font-size: clamp(28px, 4.2vw, 40px); line-height: 1.12; } .center > p { color: var(--muted); max-width: 34em; margin: 12px auto 0; font-size: 17px; }
-  .grid { display: grid; gap: 18px; margin-top: 34px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow .2s, transform .2s; }
+  .center { text-align: center; } .center h2 { font-size: clamp(28px, 4.2vw, 42px); line-height: 1.12; } .sub { color: var(--muted); max-width: 34em; margin: 12px auto 0; font-size: 17px; }
+  /* Beispiel-Ablauf */
+  .flow { display: grid; gap: 14px; margin: 30px auto 0; max-width: 980px; grid-template-columns: 1fr; align-items: stretch; }
+  .fl { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px 18px 20px; text-align: left; opacity: 0; transform: translateY(10px); animation: fin 9s infinite; }
+  .fl:nth-child(2) { animation-delay: .9s; } .fl:nth-child(3) { animation-delay: 1.8s; }
+  @keyframes fin { 0% { opacity: 0; transform: translateY(10px); } 6%, 82% { opacity: 1; transform: none; } 92%, 100% { opacity: 0; transform: translateY(-6px); } }
+  @media (prefers-reduced-motion: reduce) { .fl, .slides img { animation: none; opacity: 1; transform: none; } .slides img:not(:first-child) { opacity: 0; } }
+  .fl small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); margin-bottom: 10px; }
+  .bub { background: #e7f8e9; border-radius: 14px 14px 14px 4px; padding: 10px 14px; font-size: 15.5px; display: inline-block; }
+  .bub b { display: block; font-size: 12.5px; color: #1d7a35; }
+  .evc { display: flex; gap: 12px; align-items: flex-start; } .evc i { width: 4px; align-self: stretch; border-radius: 4px; background: var(--accent); }
+  .evc div b { display: block; font-size: 16px; } .evc div span { color: var(--muted); font-size: 14.5px; }
+  .rem { display: flex; gap: 10px; align-items: center; background: #f3f4f5; border-radius: 12px; padding: 10px 12px; font-size: 15px; } .rem em { font-style: normal; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  @media (min-width: 860px) { .flow { grid-template-columns: 1fr 1fr 1fr; } }
+  /* Kernkarten */
+  .grid { display: grid; gap: 20px; margin-top: 34px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); text-align: left; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow .2s, transform .2s; }
   .card:hover { box-shadow: 0 18px 40px rgba(17,19,23,.07); transform: translateY(-2px); }
-  .shot { height: 300px; overflow: hidden; display: flex; justify-content: center; padding-top: 22px; background: #f3f4f5; }
-  .shot img { width: 250px; border-radius: 20px 20px 0 0; border: 6px solid #15171b; border-bottom: 0; align-self: flex-start; object-fit: cover; object-position: top; box-shadow: 0 10px 30px rgba(17,19,23,.12); }
-  .card div.t { padding: 18px 20px 22px; } .card h3 { font-size: 17px; margin-bottom: 4px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; } .card p { margin: 0; color: var(--muted); font-size: 15px; }
-  .card h3 i { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
-  .steps { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 28px; text-align: left; }
-  .step { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; color: var(--muted); } .step b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 14px; margin-bottom: 10px; }
-  .cta { background: var(--ink); color: #fff; border-radius: 28px; padding: 44px 22px; margin: 48px 0 20px; text-align: center; }
-  .cta h2 { font-size: clamp(28px, 4vw, 38px); } .cta p { color: #b8bec6; margin: 10px auto 24px; max-width: 32em; }
-  .cta .btn { background: #fff; color: var(--ink); box-shadow: none; }
-  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 10px 16px max(36px, env(safe-area-inset-bottom)); }
-  @media (min-width: 860px) { .hero { grid-template-columns: 1.25fr .75fr; } .phone { width: 290px; } header { padding-top: 64px; } }
-  .a2 { position: fixed; inset: 0; z-index: 50; background: rgba(17,19,23,.4); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; }
-  .a2[hidden] { display: none; }
-  .a2-box { background: #fff; width: min(480px, 100%); border-radius: 26px 26px 0 0; padding: 26px 22px max(24px, env(safe-area-inset-bottom)); text-align: center; }
-  .a2-box img { border-radius: 16px; box-shadow: 0 8px 20px rgba(17,19,23,.15); } .a2-box h3 { font-size: 22px; margin: 14px 0 6px; } .a2-box p { color: var(--muted); margin: 0 0 18px; } .a2-box p.sm { font-size: 14px; margin: 12px 0 16px; }
-  .a2-box .btn { width: 100%; justify-content: center; } .lnk { display: block; width: 100%; margin-top: 8px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 15px; padding: 10px; cursor: pointer; }
-  .a2-box ol { text-align: left; margin: 6px auto 0; max-width: 300px; padding-left: 1.2rem; line-height: 1.9; }
+  .shot { height: 320px; overflow: hidden; display: flex; justify-content: center; padding-top: 24px; background: #f3f4f5; }
+  .shot img { width: 260px; border-radius: 22px 22px 0 0; border: 6px solid #15171b; border-bottom: 0; align-self: flex-start; object-fit: cover; object-position: top; box-shadow: 0 10px 30px rgba(17,19,23,.12); }
+  .card .t { padding: 20px 22px 24px; } .card h3 { font-size: 19px; margin-bottom: 6px; letter-spacing: -0.015em; } .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+  .card .q { display: block; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  /* Slogan */
+  .claim { background: var(--ink); color: #fff; border-radius: 30px; padding: 56px 24px; text-align: center; margin-top: 56px; }
+  .claim h2 { font-size: clamp(32px, 5.4vw, 58px); line-height: 1.06; } .claim h2 span { color: #8fd3d0; }
+  .claim p { color: #c9ced4; max-width: 34em; margin: 16px auto 0; font-size: 17px; }
+  /* weitere Funktionen */
+  .more { display: grid; gap: 12px; margin-top: 28px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); text-align: left; }
+  .mf { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; }
+  .mf .ic { font-size: 22px; width: 40px; height: 40px; border-radius: 12px; background: #f3f4f5; display: grid; place-items: center; flex: none; }
+  .mf b { display: block; font-size: 15.5px; } .mf span { color: var(--muted); font-size: 14.5px; line-height: 1.45; }
+  /* Schritte */
+  .steps { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 28px; text-align: left; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px; color: var(--muted); } .step b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 14px; margin-bottom: 12px; }
+  .step strong { display: block; color: var(--ink); font-size: 16.5px; margin-bottom: 4px; }
+  .trust { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; margin-top: 22px; color: var(--muted); font-size: 14.5px; } .trust span::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+  .cta { text-align: center; padding: 48px 16px 20px; } .cta h2 { font-size: clamp(28px, 4vw, 38px); margin-bottom: 18px; }
+  footer { text-align: center; color: var(--soft); font-size: 13px; padding: 16px 16px max(36px, env(safe-area-inset-bottom)); line-height: 1.6; }
+  @media (min-width: 860px) { .grid { grid-template-columns: 1fr 1fr; } .more { grid-template-columns: repeat(3, 1fr); } .shot { height: 360px; } .shot img { width: 290px; } .hero { grid-template-columns: 1.25fr .75fr; } header { padding-top: 64px; } .phone { width: 300px; } }
+  @media (max-width: 859px) { .phone { width: min(78vw, 330px); } }
 </style>
 </head>
 <body>
-<div id="inst" hidden style="background:#fff7e0;color:#4a3a00;padding:14px 18px;font-size:15px;line-height:1.5;text-align:center"><b>Jetzt auf den Startbildschirm legen:</b><br><span id="inst-t"></span></div>
-<script>if (window.MK_INSTALL) { var ios = /iphone|ipad|ipod/i.test(navigator.userAgent); document.getElementById("inst").hidden = false;
-  document.getElementById("inst-t").innerHTML = ios ? "Unten auf <b>Teilen</b> (□↑) → <b>„Zum Home-Bildschirm“</b> → <b>Hinzufügen</b>." : "Oben rechts auf <b>⋮</b> → <b>„Zum Startbildschirm hinzufügen“</b>."; }</script>
-<div id="a2" class="a2" hidden><div class="a2-box">
-  <img src="icon-192.png" alt="" width="64" height="64">
-  <div id="a2-ask"><h3>Auf den Startbildschirm legen?</h3><p>Dann öffnest du deinen Kalender künftig mit einem Tipp – wie eine App.</p>
-    <button class="btn teal" onclick="a2Yes()">Ja, hinzufügen</button><button class="lnk" onclick="a2No()">Nein, nur öffnen</button></div>
-  <div id="a2-done" hidden><h3>Installiert ✓</h3><p>Tippe jetzt auf deinem Startbildschirm auf <b>„Kalender“</b> – oder in der Meldung oben auf „Öffnen“. Ab dann startet dein Kalender immer von dort.</p>
-    <button class="lnk" onclick="go()">Lieber hier im Browser weiter</button></div>
-  <div id="a2-ios" hidden><h3>So geht’s in Safari</h3><ol><li>Unten auf <b>Teilen</b> tippen <span aria-hidden="true">(□↑)</span></li><li><b>„Zum Home-Bildschirm“</b> wählen</li><li>Oben rechts <b>Hinzufügen</b></li></ol>
-    <p class="sm">Das Symbol „Kalender“ öffnet danach direkt deinen Kalender.</p><button class="btn teal" onclick="go()">Fertig – Kalender öffnen</button></div>
-</div></div>
 <div class="nav"><img src="icon-192.png" alt=""> Mein Kalender<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div>
 <header>
   <div class="hero">
     <div>
-      <span class="kick"><i></i>Kostenlos · für Familien gemacht</span>
+      <span class="kick"><i></i>Kostenlos · für Paare und Familien</span>
       <h1>Der Kalender, der an das denkt, <span>was du vergisst.</span></h1>
-      <p>Geburtstage, Geschenke, Reisen und Fristen – rechtzeitig erinnert. Termine mit deinen Liebsten teilen und sehen, wann ihr gemeinsam frei habt.</p>
+      <p class="lead">Er erinnert nicht nur an Termine – sondern auch an das Drumherum.</p>
+      <p class="lead2">Nachrichten werden zu Terminen, Reisen bekommen automatisch ihre To-dos, und du siehst sofort, wann ihr wirklich gemeinsam frei habt.</p>
       <a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kalender öffnen <span aria-hidden="true">→</span></a>
-      <div class="note">Im Browser und auf dem Handy · mit deinem Claude-Konto · arbeitet mit Google Kalender</div>
     </div>
     <div class="phone" aria-label="Ansichten von Mein Kalender"><div class="slides"><img src="img/heute.jpg" alt="Heute-Seite"><img src="img/monat.jpg" alt="Monatsansicht"><img src="img/reise.jpg" alt="Reise mit Hinweisen"><img src="img/geschenke.jpg" alt="Geschenkeliste"></div></div>
   </div>
 </header>
 
 <section class="center">
-  <h2>Weniger dran denken. Mehr Zeit füreinander.</h2>
-  <p>Die meisten Kalender merken sich, was du einträgst. Dieser kümmert sich auch um das, was sonst durchrutscht.</p>
-  <div class="grid" style="text-align:left">
-    <article class="card"><div class="shot"><img src="img/heute.jpg" alt="Heute-Seite mit Countdowns und Erinnerungen" loading="lazy"></div><div class="t"><h3><i style="--dot:#0f6e73"></i>Morgens ein Blick</h3><p>Countdowns bis zum Urlaub, deine Woche zum Wischen, Aufgaben und was heute ansteht.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/assistent.jpg" alt="Nachricht wird zum Termin" loading="lazy" style="height:440px;object-position:0 60%"></div><div class="t"><h3><i style="--dot:#2f6fe0"></i>Text rein, Termin raus</h3><p>Einfach schreiben oder eine WhatsApp bzw. Mail hineinkopieren – Datum, Uhrzeit und Ort werden erkannt.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/reise.jpg" alt="Reise mit Hinweisen" loading="lazy" style="height:440px;object-position:0 100%"></div><div class="t"><h3><i style="--dot:#6a4bc4"></i>Reisen ohne Checklisten-Stress</h3><p>Vignette, Maut, Visum, Online-Check-in, Ausweise für die Kinder – rechtzeitig erinnert, Route mit einem Tipp.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/packliste.jpg" alt="Automatische Packliste" loading="lazy"></div><div class="t"><h3><i style="--dot:#c45d00"></i>Die Packliste macht er selbst</h3><p>Passend zu Ziel, Jahreszeit und Mitreisenden. Eigenes ergänzt du mit einem Tipp.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/geschenke.jpg" alt="Geschenkeliste" loading="lazy"></div><div class="t"><h3><i style="--dot:#c0306f"></i>Geburtstage &amp; Geschenke im Griff</h3><p>Früher erinnert bei Kindern und runden Geburtstagen. Weihnachten, Ostern, Nikolaus: offen, Idee, besorgt.</p></div></article>
-    <article class="card"><div class="shot"><img src="img/ueberblick.jpg" alt="Gemeinsam freie Zeiträume" loading="lazy"></div><div class="t"><h3><i style="--dot:#2f8a43"></i>Teilen &amp; gemeinsam frei</h3><p>Termine mit Familie teilen – verschlüsselt. Ferien, Feiertage und Brückentage für jedes Bundesland.</p></div></article>
+  <h2>Aus einer Nachricht wird ein Termin</h2>
+  <p class="sub">Einfach eine WhatsApp oder Mail hineinkopieren – oder in eigenen Worten schreiben.</p>
+  <div class="flow" aria-label="Beispiel">
+    <div class="fl"><small>1 · Nachricht</small><div class="bub"><b>Anna</b>Samstag 19 Uhr Essen bei Antonio? 🍝</div></div>
+    <div class="fl"><small>2 · Erkannt &amp; eingetragen</small><div class="evc"><i></i><div><b>Essen bei Antonio</b><span>Sa 21.11. · 19:00 · mit Anna</span></div></div></div>
+    <div class="fl"><small>3 · Rechtzeitig erinnert</small><div class="rem"><em>Fr 20.11.</em> Morgen: Essen bei Antonio · Tisch reserviert?</div></div>
+  </div>
+</section>
+
+<section class="center">
+  <h2>Alles, was sonst durchrutscht</h2>
+  <div class="grid">
+    <article class="card"><div class="shot"><img src="img/heute.jpg" alt="Heute-Seite mit Countdowns, Aufgaben und Erinnerungen" loading="lazy"></div><div class="t"><span class="q">Jeden Morgen</span><h3>Ein Blick – alles im Griff</h3><p>Countdowns bis zum Urlaub, deine Woche, Aufgaben und was heute wichtig ist.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/assistent.jpg" alt="Nachricht wird zum Termin" loading="lazy" style="height:440px;object-position:0 60%"></div><div class="t"><span class="q">Text rein, Termin raus</span><h3>Kein Abtippen mehr</h3><p>Datum, Uhrzeit, Ort und Personen werden erkannt – auch aus kopierten Nachrichten.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/reise.jpg" alt="Reise mit Hinweisen zu Vignette und Route" loading="lazy" style="height:440px;object-position:0 100%"></div><div class="t"><span class="q">Reisen</span><h3>Du trägst die Reise ein – er denkt an den Rest</h3><p>Vignette, Maut, Visum, Online-Check-in und Ausweise für die Kinder: rechtzeitig erinnert. Route mit einem Tipp.</p></div></article>
+    <article class="card"><div class="shot"><img src="img/ueberblick.jpg" alt="Gemeinsame freie Zeiträume" loading="lazy"></div><div class="t"><span class="q">Gemeinsame Zeit</span><h3>Wann haben wir eigentlich beide frei?</h3><p>Freie Wochenenden, Ferien und Brückentage auf einen Blick – auch für zwei Bundesländer.</p></div></article>
+  </div>
+</section>
+
+<section>
+  <div class="claim"><h2>Weniger dran denken.<br><span>Mehr Zeit füreinander.</span></h2>
+    <p>Die meisten Kalender merken sich, was du einträgst. Dieser kümmert sich auch um das, was du sonst im Kopf behalten müsstest.</p></div>
+</section>
+
+<section class="center">
+  <h2>Und noch mehr</h2>
+  <div class="more">
+    <div class="mf"><span class="ic">🎂</span><div><b>Geburtstage mit Vorlauf</b><span>Früher erinnert bei Kindern und runden Geburtstagen – mit „Was wünschst du dir?“ per WhatsApp.</span></div></div>
+    <div class="mf"><span class="ic">🎁</span><div><b>Geschenke im Blick</b><span>Weihnachten, Ostern, Nikolaus: Ideen merken, Status sehen – offen, Idee, besorgt.</span></div></div>
+    <div class="mf"><span class="ic">🎒</span><div><b>Deine Packliste entsteht automatisch</b><span>Passend zu Reiseziel, Jahreszeit und Mitreisenden.</span></div></div>
+    <div class="mf"><span class="ic">✅</span><div><b>Aufgaben mit Frist</b><span>„Reifen wechseln bis Ende Oktober“ – wird erkannt und rechtzeitig angezeigt.</span></div></div>
+    <div class="mf"><span class="ic">👥</span><div><b>Termine teilen</b><span>Mit Partner oder Familie – verschlüsselt, nur ihr seht sie.</span></div></div>
+    <div class="mf"><span class="ic">📅</span><div><b>Mit Google Kalender</b><span>Deine Termine bleiben, wo sie sind – neue landen auf Wunsch auch dort.</span></div></div>
   </div>
 </section>
 
 <section class="center">
   <h2>In zwei Minuten startklar</h2>
   <div class="steps">
-    <div class="step"><b>1</b>Kalender öffnen und kostenlos bei Claude anmelden.</div>
-    <div class="step"><b>2</b>Google Kalender verbinden – Termine und Geburtstage werden übernommen.</div>
-    <div class="step"><b>3</b>Bundesland wählen, Liebste bestätigen – fertig.</div>
+    <div class="step"><b>1</b><strong>Kostenloses Konto anlegen</strong>Mit E-Mail oder Google. Mein Kalender läuft über Claude von Anthropic – darüber sind deine Daten privat gespeichert.</div>
+    <div class="step"><b>2</b><strong>Google Kalender verbinden</strong>Du entscheidest, welche Kalender erscheinen. Geburtstage und Reisen werden übernommen.</div>
+    <div class="step"><b>3</b><strong>Bundesland &amp; Liebste</strong>Ferien und Feiertage stimmen sofort, wichtige Menschen werden vorgeschlagen – fertig.</div>
   </div>
-  <div class="cta">
-    <h2>Probier’s aus</h2>
-    <p>Danach geht es von hier aus immer direkt in deinen Kalender. Tipp: Diese Seite auf den Startbildschirm legen.</p>
-    <a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kalender öffnen</a>
-  </div>
+  <div class="trust"><span>Deine Termine siehst nur du</span><span>Geteiltes ist verschlüsselt</span><span>Kostenlos</span></div>
 </section>
-<footer>Hinweise zu Maut, Vignette und Einreise sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen.</footer>
+
+<div class="cta"><h2>Probier’s aus</h2><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kalender öffnen <span aria-hidden="true">→</span></a></div>
+<footer>Hinweise zu Maut, Vignette und Einreise sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen.<br>Mein Kalender ist ein unabhängiges Projekt und nutzt Claude von Anthropic für Anmeldung, Speicherung und Texterkennung.</footer>
 </body>
 </html>
