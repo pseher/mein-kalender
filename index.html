@@ -14,7 +14,10 @@
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
   function go() { try { if (localStorage.getItem("mk-consent") === "yes") localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
   function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; }
-  function openCal() { go(); return false; }
+  var BACK = new URLSearchParams(location.search).has("back"); // aus dem Kalender heraus geöffnet
+  function openCal() { if (BACK) { backToApp(); return false; } go(); return false; }
+  function backToApp() { try { window.close(); } catch (e) {}
+    setTimeout(function () { var h = document.getElementById("backhint"); if (h) h.hidden = false; }, 300); }
 </script>
 <meta name="description" content="Der Kalender, der an das denkt, was du vergisst: Er erinnert nicht nur an Termine, sondern auch an das Drumherum – für Paare und Familien.">
 <meta name="theme-color" content="#0f6e73">
@@ -98,6 +101,7 @@
 </style>
 </head>
 <body>
+<div id="backhint" hidden style="position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:60;max-width:520px;margin:0 auto;background:#111317;color:#fff;border-radius:16px;padding:14px 16px;font-size:15px;line-height:1.5;box-shadow:0 12px 30px rgba(0,0,0,.25)">Tippe oben links auf <b>✕</b> bzw. „Zurück“ – dann bist du wieder in deinem Kalender.</div>
 <div class="nav"><img src="icon-192.png" alt=""> Mein Kalender<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div>
 <header>
   <div class="hero">
@@ -167,5 +171,6 @@
   <b>Keine Cookies, kein Tracking.</b> Darf sich dein Browser nur merken, dass du den Kalender schon geöffnet hast? Dann geht es beim nächsten Besuch direkt weiter. <a href="/datenschutz.html">Mehr dazu</a>
   <div class="row"><button class="ok" onclick="consent('yes')">Ja, merken</button><button onclick="consent('no')">Nein danke</button></div></div>
 <script>try { if (!localStorage.getItem("mk-consent")) document.getElementById("consent").hidden = false; } catch (e) {}</script>
+<script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
 </body>
 </html>
