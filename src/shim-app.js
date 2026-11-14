@@ -135,12 +135,12 @@ window.MK_APP = true;
   let refreshing = null;
   async function gToken(force) {
     if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
-    const rt = lsGet(GK.rt); if (!rt) throw gErr("needs_reauth");
+    const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Kein Google-Schlüssel in diesem Browser – bitte ab- und wieder anmelden"; throw gErr("needs_reauth"); }
     refreshing ??= (async () => {
       const s = session || await ready;
       const r = await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) });
       const b = await r.json().catch(() => ({}));
-      if (!r.ok || !b.access_token) { if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
+      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}`; if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
       lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
     })().finally(() => { refreshing = null; });
     return refreshing;
@@ -152,6 +152,7 @@ window.MK_APP = true;
     if (r.status === 401 && retry) { lsSet(GK.exp, "0"); await gToken(true); return gFetch(path, { method, body, signal }, false); }
     if (r.status === 204) return {};
     const b = await r.json().catch(() => ({}));
+    if (!r.ok) window.mkGLast = `Google ${r.status}: ${b?.error?.message || b?.error?.status || ""}`.slice(0, 300);
     if (r.status === 401 || (r.status === 403 && /insufficient|scope|PERMISSION/i.test(JSON.stringify(b)))) throw gErr("needs_reauth");
     if (r.status === 429 || r.status >= 500) throw gErr("upstream_error");
     if (!r.ok) throw gErr("tool_error", b?.error?.message);

@@ -2765,6 +2765,7 @@ function showGoogleSheet() {
   const sel = gState === "ok" ? new Set(selectedCals()) : new Set();
   openSheet("Google Kalender", "Welche Google-Kalender hier erscheinen", `
     ${st ? `<p class="note" style="margin-top:10px">${esc(st)}</p>` : ""}
+    ${APP && gState !== "ok" && window.mkGLast ? `<p class="note" style="margin-top:6px;font-size:12px">Technisch: ${esc(window.mkGLast)}</p>` : ""}
     ${gState !== "ok" ? `<button type="button" class="btn accent wide" id="g-retry">${APP && FATAL.includes(gState) ? "Mit Google verbinden" : "Erneut verbinden"}</button>` : ""}
     ${gState === "ok" ? `<button type="button" class="btn accent wide" id="g-sync" style="margin-top:12px">↻ Jetzt mit Google abgleichen</button>
       <label class="tog" style="margin-top:12px;color:var(--fg);font-weight:600"><input type="checkbox" id="g-show"${gShow ? " checked" : ""}> Google-Termine anzeigen</label>
