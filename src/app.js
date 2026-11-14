@@ -2325,7 +2325,10 @@ async function gDelete(v) {
 }
 const gWritable = () => mcp && gState === "ok";
 function gCalOptions(cur) {
-  const cals = [{ id: "primary", summary: "Mein Kalender" }, ...gCals.filter(c => c.summary !== gPrimarySummary && c.id !== gPrimarySummary)];
+  // nur Kalender, die unter ☰ → Google Kalender zur Anzeige ausgewählt sind (und in die man schreiben darf)
+  const sel = new Set(selectedCals()), canW = c => !c.accessRole || ["owner", "writer"].includes(c.accessRole);
+  const cals = [{ id: "primary", summary: "Mein Kalender" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary && canW(c))]
+    .filter(c => sel.has(c.id) || c.id === cur);
   return `<option value=""${!cur ? " selected" : ""}>Nein, nur hier</option>` + cals.map(c => `<option value="${esc(c.id)}"${cur === c.id ? " selected" : ""}>${esc(c.summary)}</option>`).join("");
 }
 
@@ -2750,7 +2753,7 @@ async function initGoogle() {
   try {
     const r = await withTimeout(mcp.callTool(GSERVER, "list_calendars", {}, { cache: { staleTime: 10 * 60e3, gcTime: 24 * 3600e3 } }), 15000);
     const list = Array.isArray(r?.payload?.calendars) ? r.payload.calendars : [];
-    gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}) }));
+    gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}), ...(c.accessRole ? { accessRole: String(c.accessRole) } : {}) }));
     store.set("ft-gcals", JSON.stringify(gCals));
     gState = "ok"; gTry = 0; gLiveAt = Date.now();
     { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
