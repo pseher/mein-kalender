@@ -1813,8 +1813,8 @@ function renderOverview() {
     (PB ? `<span class="lab">Ferien ${PB}</span><div class="row">${dlist.map(d => cell(d.fST ? "--st-strong" : "--line")).join("")}</div>` : "") +
     XST.filter(c => !XHIDE.includes(c)).map(c => `<span class="lab">Ferien ${XNAME[c].length > 14 ? c : XNAME[c]}</span><div class="row">${dlist.map(d => `<i style="background:${FXM[c].has(d.k) ? xColor(c) : "var(--line)"}"></i>`).join("")}</div>`).join("") +
     (JOINT.length >= 2 ? `<span class="lab" style="color:var(--both);font-weight:600">${jointTxt()[0].toUpperCase() + jointTxt().slice(1)}</span><div class="row">${dlist.map(d => cell(winOf(d.dt) ? "--both" : "--line")).join("")}</div>` : "") + `</div>`;
-  // Mina
-  renderMina(); renderBdays(); renderShareBox(); renderStats();
+  // Betreuungsplan
+  renderCare(); renderBdays(); renderShareBox(); renderStats();
   // Ferien
   const stList = (c, color) => { const ls = FERX[c].filter(([, a, b]) => parseIso(b) >= yS && parseIso(a) <= yE);
     return `<h3><i class="sw" style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${color};margin-right:6px"></i>${stName(c)}${JOINT.length >= 2 && JOINT.includes(c) ? ` <small class="note">· zählt für gemeinsam frei</small>` : ""}</h3>` + (ls.length ? `<div class="scroll"><table>${ls.map(([n, a, b]) => `<tr><td>${esc(n)}</td><td class="date">${rng([parseIso(a), parseIso(b)])}</td></tr>`).join("")}</table></div>` : `<p class="tip">Keine Daten für ${selYear}.</p>`); };
@@ -1962,7 +1962,7 @@ Einige Termine: ${tops.join("; ")}`, { modelTier: "default", cache: false, onTex
 }
 
 function kidOcc(y) { return OCC.filter(o => isKidOcc(o.ev) && (o.a.getFullYear() === y || o.b.getFullYear() === y)); }
-function renderMina() {
+function renderCare() {
   if (!$("b-mina")) return;
   const y = selYear, list = kidOcc(y), n = list.filter(o => o.ev.type === "mina").length;
   $("c-mina").textContent = dbState === "ready" ? (n === 1 ? "1 Termin" : `${n} Termine`) : "";
@@ -2553,7 +2553,7 @@ async function shareOcc(id, a) {
   const text = [evName(e), rngTxt(o.a, o.b, true) + (timeTxt(e) ? `, ${timeTxt(e)} Uhr` : ""), ageTxt(o), e.note].filter(Boolean).join("\n");
   showShare(evName(e), { kicker: TYPES[e.type].label, title: evName(e), rows, footer: `Mein Kalender · ${[nameA(), nameB()].filter(Boolean).join(" & ")}` }, text, `${evName(e).replace(/[^\wäöüÄÖÜß-]+/g, "-")}-${iso(o.a)}`);
 }
-function shareMina(y) {
+function shareCare(y) {
   const list = kidOcc(y);
   const rows = list.map(o => ({ l: rngTxt(o.a, o.b, o.b.getFullYear() !== y), r: o.ev.type === "info" ? o.ev.title.replace(/^Weihnachten:\s*/, "") : "", n: o.ev.type === "info" ? "" : o.ev.note }));
   const text = `Umgangstermine – ${y}\n` + list.map(o => `• ${rngTxt(o.a, o.b, o.b.getFullYear() !== y)}${o.ev.type === "info" ? ` – ${o.ev.title}` : ""}${o.ev.note && o.ev.type !== "info" ? ` (${o.ev.note})` : ""}`).join("\n");
