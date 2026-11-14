@@ -2614,6 +2614,16 @@ function gColor(id) {
   const i = Math.max(0, gCals.findIndex(c => c.id === id)); return GPAL[i % GPAL.length];
 }
 function calLabel(id) { if (id === "primary") return "Mein Kalender"; const c = gCals.find(x => x.id === id); return c ? c.summary : "Google"; }
+// Kalender-Auswahl als große Karten (Einrichtung und nach dem Verbinden)
+function gPickList() {
+  const cals = [{ id: "primary", summary: "Mein Kalender", sub: gPrimarySummary || "dein Hauptkalender" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary)], sel = new Set(selectedCals());
+  return `<div class="wz-picks" style="--accent:var(--both)">${cals.map(c => `<button type="button" class="wz-pick${sel.has(c.id) ? " on" : ""}" data-wzcal="${esc(c.id)}" aria-pressed="${sel.has(c.id)}"><i style="background:${gColor(c.id)[0]}"></i><span>${esc(c.summary)}${c.sub ? `<small style="display:block;font-size:13px;color:var(--muted);font-weight:400">${esc(c.sub)}</small>` : ""}</span><em>${sel.has(c.id) ? "✓" : ""}</em></button>`).join("")}</div>
+    <p class="note" style="margin-top:10px">${sel.size} von ${cals.length} ausgewählt · Ändern kannst du das später jederzeit unter <b>☰ → Google Kalender</b>.</p>`;
+}
+function showGCalPick() {
+  openSheet("Welche Kalender möchtest du sehen?", "Google ist verbunden – tippe an, was hier erscheinen soll", `${gPickList()}
+    <button type="button" class="btn accent wide" id="gpick-done" style="margin-top:12px">Fertig</button>`, "gpick");
+}
 function selectedCals() {
   if (!gSel) { gSel = new Set(["primary"]); }
   return [...gSel];
@@ -2718,6 +2728,9 @@ async function initGoogle() {
     gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}) }));
     store.set("ft-gcals", JSON.stringify(gCals));
     gState = "ok"; gTry = 0; gLiveAt = Date.now();
+    { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
+      const wzOff = () => !$("wz") || $("wz").hidden;
+      if (wzOff() && PROFILE.setupDone && canWrite && (back || (!store.get("ft-gcal-asked") && !store.get("ft-gcal-sel")))) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} store.set("ft-gcal-asked", "1"); setTimeout(() => { if (wzOff() && ($("sheet").hidden || sheetMode === "google")) showGCalPick(); }, 500); } }
     setTimeout(scanOthers, 800); clearInterval(othersT); othersT = setInterval(() => { if (!document.hidden) scanOthers(); }, 60 * 60e3);
   } catch (e) {
     const code = e?.code || "upstream_error";
@@ -2962,9 +2975,9 @@ function renderWz() {
       ${mcp ? `<p class="note">Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen.</p>` : ""}</div>`;
   }
   if (W.step === "cals") {
-    const cals = [{ id: "primary", summary: "Mein Kalender" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary)], sel = new Set(selectedCals());
-    el.innerHTML = `${top}<div class="wz-card"><h1>Welche Kalender sollen erscheinen?</h1><p class="wz-lead">Tippe an, was du sehen möchtest. Das lässt sich später jederzeit ändern.</p>
-      <div class="wz-picks">${cals.map(c => `<button type="button" class="wz-pick${sel.has(c.id) ? " on" : ""}" data-wzcal="${esc(c.id)}" aria-pressed="${sel.has(c.id)}"><i style="background:${gColor(c.id)[0]}"></i><span>${esc(c.summary)}</span><em>${sel.has(c.id) ? "✓" : ""}</em></button>`).join("")}</div>
+    const cals = [{ id: "primary" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary)]; store.set("ft-gcal-asked", "1");
+    el.innerHTML = `${top}<div class="wz-card"><h1>Welche Kalender möchtest du sehen?</h1><p class="wz-lead">Tippe an, was hier erscheinen soll – zum Beispiel deinen eigenen und einen gemeinsamen Familienkalender.</p>
+      ${gPickList()}
       ${false ? `<div class="form" style="text-align:left"><label for="wz-famcal">Gemeinsamer Familienkalender (optional)</label><select id="wz-famcal"><option value="">Keiner</option>${cals.filter(c => c.id !== "primary").map(c => `<option value="${esc(c.id)}"${PROFILE.famCal === c.id || (!PROFILE.famCal && /famil/i.test(c.summary)) ? " selected" : ""}>${esc(c.summary)}</option>`).join("")}</select>
         <p class="note" style="text-align:left">Ein in Google geteilter Kalender, z. B. „Familie“. Was du dort einträgst, sehen alle, mit denen er geteilt ist – alles andere bleibt privat.</p></div>` : ""}
       <button type="button" class="wz-big accent" id="wz-cals-next">Weiter</button></div>`;
@@ -3252,7 +3265,7 @@ document.addEventListener("click", ev => {
   if ((el = q("#menu [data-mi]"))) { closeMenu(); }
   if (!q("#menu") && !q("#menu-btn")) closeMenu();
   if ((el = q("[data-wzdel]"))) { WZ.manual.splice(+el.dataset.wzdel, 1); renderWz(); return; }
-  if ((el = q("[data-wzcal]"))) { const s2 = new Set(selectedCals()), c = el.dataset.wzcal; s2.has(c) ? s2.delete(c) : s2.add(c); if (!s2.size) s2.add("primary"); gSel = s2; store.set("ft-gcal-sel", JSON.stringify([...s2])); resetGoogleWatches(); renderWz(); return; }
+  if ((el = q("[data-wzcal]"))) { const s2 = new Set(selectedCals()), c = el.dataset.wzcal; s2.has(c) ? s2.delete(c) : s2.add(c); if (!s2.size) s2.add("primary"); gSel = s2; store.set("ft-gcal-sel", JSON.stringify([...s2])); resetGoogleWatches(); if (sheetMode === "gpick" && !$("sheet").hidden) { showGCalPick(); return; } renderWz(); return; }
   if ((el = q("[data-wzpick]"))) { const k = el.dataset.wzpick; WZ.picked[k] = !WZ.picked[k]; renderWz(); return; }
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
@@ -3379,6 +3392,7 @@ document.addEventListener("click", ev => {
     case "set-test": showSettings("test"); break;
     case "trip-dec": tripStep(-1); break;
     case "trip-inc": tripStep(1); break;
+    case "gpick-done": closeSheet(); toast(`${selectedCals().length} Google-Kalender werden angezeigt`); break;
     case "g-retry": if (APP && FATAL.includes(gState) && gState !== "api_disabled") { window.mkConnectGoogle?.(); break; } gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
   }
 });
