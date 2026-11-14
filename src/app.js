@@ -2940,7 +2940,8 @@ function showGate() {
     <div class="wz-box"><b>Kostenlos mit Google anmelden.</b><span>Kein neues Passwort. Deine Termine sind privat gespeichert – nur du siehst sie.</span></div>
     <button type="button" class="wz-big accent" id="app-login">Mit Google anmelden</button>
     <p class="note">Danach geht die Einrichtung direkt weiter.</p>
-    <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button></div>`; return; }
+    <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
+    <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
     <div class="wz-logo" aria-hidden="true"><svg viewBox="0 0 48 48" width="56" height="56"><rect x="6" y="9" width="36" height="33" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M6 19h36M16 5v8M32 5v8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="30" r="4" fill="currentColor"/></svg></div>
     <h1>Mein Kalender</h1>
