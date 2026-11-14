@@ -1150,8 +1150,8 @@ function renderFocus() {
   $("n-focus").textContent = all.length || "";
   // Rest auf Wunsch
   const openTasks = TASKS.filter(t => !t.done && t.state !== "no").length, remN = rems.length, weekN = UPN.next || 0;
-  const link = (k, n, lbl) => `<button type="button" class="link" data-focus="${k}">${FOCUS_OPEN[k] ? "Weniger" : `${lbl}${n ? ` (${n})` : ""}`}</button>`;
-  $("focus-more").innerHTML = [weekN ? link("week", weekN, "Nächste 14 Tage") : "", canWrite ? link("tasks", openTasks, openTasks ? "Alle Aufgaben" : "+ Aufgabe") : "", remN ? link("rem", remN, "Alle Erinnerungen") : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
+  const link = (k, n, lbl) => `<button type="button" class="fchip${FOCUS_OPEN[k] ? " on" : ""}" data-focus="${k}" aria-expanded="${FOCUS_OPEN[k]}">${lbl}${n ? ` <b>${n}</b>` : ""}<span class="chev" aria-hidden="true">${FOCUS_OPEN[k] ? "▴" : "▾"}</span></button>`;
+  $("focus-more").innerHTML = [weekN ? link("week", weekN, "14 Tage") : "", canWrite ? link("tasks", openTasks, openTasks ? "Aufgaben" : "+ Aufgabe") : "", remN ? link("rem", remN, "Erinnerungen") : ""].join("");
   sec.hidden = false;
   if (!(wkSel || !sameDay(wkStart, monday(TODAY)))) $("sec-next").hidden = !FOCUS_OPEN.week || !weekN;
   $("sec-soon").hidden = !FOCUS_OPEN.rem || !remN;
@@ -1189,7 +1189,7 @@ function next3() {
   return { ev, tk, rem, all: [...ev, ...tk, ...rem].sort((a, b) => a.d - b.d) };
 }
 function countdowns() {
-  const C = [], dn = d => dayDiff(TODAY, d), push = (n, x) => C.push({ ...cdWhen(n), ...x });
+  const C = [], dn = d => dayDiff(TODAY, d), push = (n, x) => C.push({ ...cdWhen(n), k: n, ...x });
   const N = next3(), cnt = N.all.length;
   if (!SHOW.full) {} else if (cnt) { const parts = [N.ev.length ? `${N.ev.length} Termin${N.ev.length > 1 ? "e" : ""}` : "", N.tk.length ? `${N.tk.length} Aufgabe${N.tk.length > 1 ? "n" : ""}` : "", N.rem.length ? `${N.rem.length} Erinnerung${N.rem.length > 1 ? "en" : ""}` : ""].filter(Boolean);
     C.push({ pre: "", n: cnt, unit: "in 3 Tagen", t: N.all.slice(0, 3).map(x => x.t.replace(/ · .*$/, "")).join(" · "), sub: parts.join(", "), c: "var(--both)", n3: true }); }
@@ -1204,7 +1204,13 @@ function countdowns() {
   const bd = OCC.filter(o => o.ev.type === "birthday" && o.a >= TODAY).sort((a, b) => a.a - b.a)[0];
   if (bd) push(dn(bd.a), { t: bd.ev.title, sub: `Geburtstag ${fmt(bd.a)}${bd.ev.birthYear ? ` · wird ${bd.a.getFullYear() - bd.ev.birthYear}` : ""}`, c: "var(--event)", day: iso(bd.a) });
   tripTile(top.filter(isUrl), "Urlaub");
-  const hol = [...HOL.values()].filter(h => h.be && h.dt >= TODAY).sort((a, b) => a.dt - b.dt)[0];
+  // Festtage: Heiligabend, Silvester, Ostern – der nächste davon
+  const y0 = TODAY.getFullYear(), FEST = [y0, y0 + 1].flatMap(y => [[ymd(y, 12, 24), "Weihnachten", "Heiligabend"], [ymd(y, 12, 31), "Silvester", "Silvester"], [easter(y), "Ostern", "Ostersonntag"]])
+    .filter(([d]) => d >= TODAY).sort((a, b) => a[0] - b[0]);
+  const fest = FEST[0];
+  if (fest) push(dn(fest[0]), { t: fest[1], sub: `${fest[2]} · ${fmt(fest[0])}`, c: "var(--st-strong)", day: iso(fest[0]) });
+  const near = d => fest && Math.abs(dayDiff(fest[0], d)) <= 2;   // 1. Weihnachtstag/Ostermontag nicht doppelt
+  const hol = [...HOL.values()].filter(h => h.be && h.dt >= TODAY && !near(h.dt)).sort((a, b) => a.dt - b.dt)[0];
   if (hol) push(dn(hol.dt), { t: hol.name, sub: `Feiertag · ${fmt(hol.dt)}`, c: "var(--holiday)", day: iso(hol.dt) });
   const FA = FERX[PA].map(([n, a, b]) => ({ n, be: [parseIso(a), parseIso(b)] }));
   const fNow = FA.find(f => f.be[0] <= TODAY && f.be[1] >= TODAY && dayDiff(f.be[0], f.be[1]) > 2);
@@ -1213,7 +1219,8 @@ function countdowns() {
   else if (fNext) push(dn(fNext.be[0]), { t: fNext.n.replace(/ \d\d\/\d\d$/, "").replace("Weihnachten", "Weihnachtsferien"), sub: `Ferien ${PA} ab ${fmt(fNext.be[0])}`, c: "var(--be-strong)", day: iso(fNext.be[0]) });
   const br = [...BRIDGES.values()].filter(b => b.dt > TODAY && b.name.startsWith("Brückentag")).sort((a, b) => a.dt - b.dt)[0];
   if (br && dn(br.dt) <= 60) push(dn(br.dt), { t: "Brückentag", sub: `${fmt(br.dt)} · 1 Tag Urlaub, 4 frei`, c: "var(--bridge)", day: iso(br.dt) });
-  return C;
+  // nach Tagen sortieren: laufende („noch …“) zuerst, dann das Nächste
+  return C.map((x, i) => ({ x, i, k: x.n3 ? -2 : x.pre === "noch" ? -1 : x.k ?? 999 })).sort((a, b) => a.k - b.k || a.i - b.i).map(o => o.x);
 }
 function showNext3() {
   const N = next3(), days = [0, 1, 2].map(i => addDays(TODAY, i));

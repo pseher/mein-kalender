@@ -564,10 +564,13 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .ago { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; margin-top: 10px; }
 .ago h3 { margin: 4px 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .upsec h3 { display: flex; align-items: center; gap: 8px; margin: 4px 6px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-#sec-focus .nx { grid-template-columns: 44px 1fr; } #sec-focus .ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+.up #sec-focus .nx { grid-template-columns: 44px 1fr; gap: 6px; } .up #sec-focus .nx .when:empty { visibility: hidden; } #sec-focus .ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 .fx-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 8px 2px; } .fx-day:first-child { margin-top: 2px; }
 #sec-focus .tk.fx { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 14px; } #sec-focus .tk.fx .tk-t { flex: 1; }
-.focus-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 8px 2px; font-size: 13.5px; color: var(--muted); } .focus-more:empty { display: none; }
+.focus-more { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 4px 2px; } .focus-more:empty { display: none; }
+.fchip { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg); background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px; cursor: pointer; }
+.fchip b { font-size: 11.5px; font-weight: 600; color: var(--muted); } .fchip .chev { font-size: 10px; color: var(--muted); }
+.fchip.on { background: color-mix(in srgb, var(--both) 14%, var(--surface)); border-color: color-mix(in srgb, var(--both) 45%, var(--line)); color: var(--both); } .fchip.on b, .fchip.on .chev { color: var(--both); }
 .upsec h3 b { font-size: 11px; color: var(--muted); } .upsec h3 b.hot { background: var(--holiday); color: #fff; border-radius: 999px; padding: 0 6px; }
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
