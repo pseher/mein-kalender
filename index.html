@@ -13,9 +13,13 @@
     if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
     if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
   function go() { try { if (localStorage.getItem("mk-consent") === "yes") localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
-  function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; }
+  var GO_AFTER = false;
+  function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; if (GO_AFTER) go(); }
   var BACK = new URLSearchParams(location.search).has("back"); // aus dem Kalender heraus geöffnet
-  function openCal() { if (BACK) { backToApp(); return false; } go(); return false; }
+  function openCal() { if (BACK) { backToApp(); return false; }
+    var asked = true; try { asked = !!localStorage.getItem("mk-consent"); } catch (e) {}
+    if (!asked) { GO_AFTER = true; document.getElementById("consent").hidden = false; return false; } // erst beim Öffnen fragen – nichts verdeckt den Button
+    go(); return false; }
   function backToApp() { try { window.close(); } catch (e) {}
     setTimeout(function () { var h = document.getElementById("backhint"); if (h) h.hidden = false; }, 300); }
 </script>
@@ -168,9 +172,8 @@
   Mein Kalender ist ein privates Projekt und nutzt Claude von Anthropic für Anmeldung, Speicherung und KI-Funktionen.
   <div class="foot-links"><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="/ki-hinweise.html">KI-Hinweise</a><a href="#" onclick="document.getElementById('consent').hidden=false;return false">Speicher-Einstellungen</a></div></footer>
 <div class="consent" id="consent" hidden role="dialog" aria-label="Speicher-Einstellungen">
-  <b>Keine Cookies, kein Tracking.</b> Darf sich dein Browser nur merken, dass du den Kalender schon geöffnet hast? Dann geht es beim nächsten Besuch direkt weiter. <a href="/datenschutz.html">Mehr dazu</a>
-  <div class="row"><button class="ok" onclick="consent('yes')">Ja, merken</button><button onclick="consent('no')">Nein danke</button></div></div>
-<script>try { if (!localStorage.getItem("mk-consent")) document.getElementById("consent").hidden = false; } catch (e) {}</script>
+  <b>Nächstes Mal direkt zum Kalender?</b> Dein Browser merkt sich nur, dass du ihn schon geöffnet hast – keine Cookies, kein Tracking. <a href="/datenschutz.html">Mehr dazu</a>
+  <div class="row"><button class="ok" onclick="consent('yes')">Ja, direkt öffnen</button><button onclick="consent('no')">Nein, nur jetzt</button></div></div>
 <script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
 </body>
 </html>
