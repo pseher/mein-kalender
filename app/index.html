@@ -3910,7 +3910,7 @@ async function initGoogle() {
     gState = "ok"; gTry = 0; gLiveAt = Date.now();
     { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
       const wzOff = () => !$("wz") || $("wz").hidden;
-      if (wzOff() && PROFILE.setupDone && canWrite && (back || (!store.get("ft-gcal-asked") && !store.get("ft-gcal-sel")))) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} store.set("ft-gcal-asked", "1"); setTimeout(() => { if (wzOff() && ($("sheet").hidden || sheetMode === "google")) showGCalPick(); }, 500); } }
+      if (wzOff() && PROFILE.setupDone && canWrite && (back || (!store.get("ft-gcal-asked") && !store.get("ft-gcal-sel")))) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} store.set("ft-gcal-asked", "1"); setTimeout(() => { if (wzOff() && ($("sheet").hidden || sheetMode === "google")) { closeSheet(); startGoogleSetup(); } }, 500); } }
     setTimeout(scanOthers, 800); clearInterval(othersT); othersT = setInterval(() => { if (!document.hidden) scanOthers(); }, 60 * 60e3);
   } catch (e) {
     const code = e?.code || "upstream_error";
@@ -4140,8 +4140,12 @@ function startSetup(fresh) {
   if (WZ.editing) WZ.step = "state";
   wzOpen(); renderWz();
 }
+// Google später verbunden: restliche Einrichtung anbieten (Kalender → Liebste → Bundesland → Seiten → Übernahme), jeder Schritt überspringbar
+function startGoogleSetup() {
+  startSetup(true); Object.assign(WZ, { step: "cals", useG: true, later: true }); renderWz();
+}
 const wzDots = keys => { const i = keys.indexOf(WZ.step); return `<div class="wz-dots">${keys.map((k, j) => `<i class="${j === i ? "on" : j < i ? "done" : ""}"></i>`).join("")}</div>`; };
-const STEPS = () => WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", "import", "done"] : ["google", "manual", "state", "pages", "import", "done"];
+const STEPS = () => WZ.later ? ["cals", "family", "state", "pages", "import", "done"] : WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", "import", "done"] : ["google", "manual", "state", "pages", "import", "done"];
 function renderWz() {
   const W = WZ, el = wzEl(); if (!el) return;
   const top = `<div class="wz-top">${wzDots(STEPS())}</div>`;
@@ -4161,7 +4165,7 @@ function renderWz() {
       ${gPickList()}
       ${false ? `<div class="form" style="text-align:left"><label for="wz-famcal">Gemeinsamer Familienkalender (optional)</label><select id="wz-famcal"><option value="">Keiner</option>${cals.filter(c => c.id !== "primary").map(c => `<option value="${esc(c.id)}"${PROFILE.famCal === c.id || (!PROFILE.famCal && /famil/i.test(c.summary)) ? " selected" : ""}>${esc(c.summary)}</option>`).join("")}</select>
         <p class="note" style="text-align:left">Ein in Google geteilter Kalender, z. B. „Familie“. Was du dort einträgst, sehen alle, mit denen er geteilt ist – alles andere bleibt privat.</p></div>` : ""}
-      <button type="button" class="wz-big accent" id="wz-cals-next">Weiter</button></div>`;
+      <button type="button" class="wz-big accent" id="wz-cals-next">Weiter</button><button type="button" class="link" id="wz-cals-skip">Überspringen</button></div>`;
   }
   if (W.step === "scan") {
     el.innerHTML = `${top}<div class="wz-card wz-center"><h1>Ich schaue mir deinen Kalender an …</h1><div class="wz-bar"><i style="width:${W.prog || 5}%"></i></div><p class="wz-lead">${esc(W.progTxt || "Termine werden geladen")}</p></div>`;
@@ -4176,7 +4180,7 @@ function renderWz() {
       ${C.length > 8 && !W.showAll ? `<button type="button" class="link" id="wz-more">Alle ${C.length} anzeigen</button>` : ""}
       <p class="note">Geburtstage aus deinen Google-Kontakten fehlen hier – die gibt Google nicht weiter. Die kannst du danach per Kontakte-Datei oder Screenshot übernehmen.</p>
       <details class="wz-add"><summary>Jemand fehlt?</summary><div class="wz-row"><input type="text" id="wz-an" placeholder="Name"><input type="date" id="wz-ad" aria-label="Geburtstag"><button type="button" class="btn ghost small" id="wz-addp">Hinzufügen</button></div></details>
-      <button type="button" class="wz-big accent" id="wz-fam-next">Weiter</button></div>`;
+      <button type="button" class="wz-big accent" id="wz-fam-next">Weiter</button><button type="button" class="link" id="wz-fam-skip">Überspringen</button></div>`;
   }
   if (W.step === "manual") {
     if (!W.manual.length) W.manual = [{ name: "", role: "partner", birthday: "" }];
@@ -4206,7 +4210,7 @@ function renderWz() {
         ${card("p1", "Kalender", "Monat, Woche, Liste oder Jahr – alle Termine im Raster", kal)}
         ${card("p2", "Überblick", "Geburtstage, Ferien, Feiertage, Brückentage und Statistik", ueb)}
       </div>
-      <button type="button" class="wz-big accent" id="wz-pages-next">Weiter</button></div>`;
+      <button type="button" class="wz-big accent" id="wz-pages-next">Weiter</button><button type="button" class="link" id="wz-pages-skip">Überspringen</button></div>`;
     return;
   }
   if (W.step === "state") {
@@ -4231,7 +4235,7 @@ function renderWz() {
       ["var(--be-strong)", "Wann habt ihr gemeinsam frei?", "Ferien, Feiertage und Brückentage für jedes Bundesland, Urlaubstage richtig gezählt."]];
     el.innerHTML = `${top}<div class="wz-card wz-center"><div class="wz-logo ok" aria-hidden="true">✓</div><h1>${W.editing ? "Gespeichert" : "Dein Kalender ist eingerichtet!"}</h1>
       ${W.summary ? `<p class="wz-lead">${esc(W.summary)}</p>` : ""}
-      ${W.editing ? "" : `<button type="button" class="link" id="wz-invite" style="margin:0 0 6px">Jemand hat dich eingeladen? Code eingeben</button>`}
+      ${W.editing || W.later ? "" : `<button type="button" class="link" id="wz-invite" style="margin:0 0 6px">Jemand hat dich eingeladen? Code eingeben</button>`}
       ${W.editing ? "" : `<div class="wz-feat">${F.map(([c, t, d]) => `<div class="wf"><i class="dotc" style="--c:${c}"></i><div><b>${t}</b><span>${d}</span></div></div>`).join("")}</div>
       <p class="note wz-hint">Alles Weitere – Familie, Ferien, Google, Geburtstage aus Kontakten oder Screenshots – findest du oben unter <b>☰</b>.</p>`}
       <button type="button" class="wz-big accent" id="wz-finish">Zum Kalender</button></div>`;
@@ -4337,7 +4341,7 @@ async function wzImport() {
       const d = new Date(TODAY.getFullYear(), pb.m - 1, pb.d); await COLL("events").add(plain({ type: "birthday", title: p.name.trim(), from: iso(d), to: iso(d), repeat: "yearly", birthYear: pb.y >= 1900 && pb.y < TODAY.getFullYear() ? pb.y : 0, gcal: "", fam: true })); nB++; }
     return fam.length ? `${fam.length} Personen` : "";
   });
-  await step(k++, async () => { const prof = { ...PROFILE, name: W.name, state: PA, state2: PB || "", joint: !!W.joint, family: W.editing && !fam.length ? FAM() : fam, setupDone: true, ...(W.famCal !== undefined ? { famCal: W.famCal, shareGroups: W.famCal ? (famGroups().some(g => g.cal === W.famCal) ? famGroups() : [...famGroups(), { cal: W.famCal, members: [], std: !famGroups().length }]) : famGroups() } : {}) };
+  await step(k++, async () => { const prof = { ...PROFILE, name: W.name, state: PA, state2: PB || "", joint: !!W.joint, family: W.later ? [...FAM(), ...fam.filter(f => !FAM().some(x => x.name.toLowerCase() === f.name.toLowerCase()))] : W.editing && !fam.length ? FAM() : fam, setupDone: true, ...(W.famCal !== undefined ? { famCal: W.famCal, shareGroups: W.famCal ? (famGroups().some(g => g.cal === W.famCal) ? famGroups() : [...famGroups(), { cal: W.famCal, members: [], std: !famGroups().length }]) : famGroups() } : {}) };
     await COLL("prefs").doc("profile").set(prof); applyProfile(prof); });
   W.prog = 100; W.summary = [nB ? `${nB} ${nB === 1 ? "Geburtstag" : "Geburtstage"} übernommen` : "", nT ? `${nT} ${nT === 1 ? "Reise" : "Reisen"}` : "", `Ferien für ${[stName(PA), PB && stName(PB)].filter(Boolean).join(" & ")}`].filter(Boolean).join(" · ");
   wzGo("done");
@@ -4357,12 +4361,15 @@ function wzClick(id, el) {
     case "app-login": window.mkSignIn?.(); return true;
     case "wz-g-yes": wzConnectGoogle(); return true;
     case "wz-g-no": W.useG = false; wzGo("manual"); return true;
+    case "wz-cals-skip": wzScan(); return true;
     case "wz-cals-next": { const f = $("wz-famcal")?.value || ""; W.famCal = f; PROFILE.famCal = f; if (f) { const s2 = new Set(selectedCals()); s2.add(f); gSel = s2; store.set("ft-gcal-sel", JSON.stringify([...s2])); } wzScan(); return true; }
     case "wz-more": W.showAll = true; renderWz(); return true;
     case "wz-addp": { const n = $("wz-an").value.trim(), d = parseIso($("wz-ad").value); if (!n) return true; const key = n.toLowerCase();
       if (!W.cands.some(c => c.key === key)) W.cands.unshift({ key, name: n, year: d ? d.getFullYear() : 0, dt: d, role: "", hint: "", score: 9, gid: "", cal: "" });
       W.picked[key] = true; renderWz(); return true; }
     case "wz-fam-next": wzGo("state"); return true;
+    case "wz-fam-skip": W.picked = {}; wzGo("state"); return true;
+    case "wz-pages-skip": wzImport(); return true;
     case "wz-add": W.manual.push({ name: "", role: "kind", birthday: "" }); renderWz(); return true;
     case "wz-man-next": if (W.editing) wzSaveEdit(); else wzGo("state"); return true;
     case "wz-man-skip": if (W.editing) { wzSaveEdit(); } else wzGo("state"); return true;
