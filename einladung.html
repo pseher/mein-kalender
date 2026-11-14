@@ -42,8 +42,8 @@
   <div class="ok" id="ok" aria-live="polite"></div>
   <ol>
     <li>Tippe oben auf <b>„Code kopieren &amp; Kalender öffnen“</b>.</li>
-    <li>Melde dich kostenlos an (über Claude) und richte den Kalender kurz ein.</li>
-    <li>Am Ende der Einrichtung auf <b>„Jemand hat dich eingeladen? Code eingeben“</b> tippen und den Code einfügen. Später geht das auch über <b>☰ → „Teilen mit …“ → „Einladung annehmen“</b>.</li>
+    <li id="step2">Melde dich kostenlos <span id="via">mit Google</span> an und richte den Kalender kurz ein.</li>
+    <li id="step3">Danach ist die Einladung schon ausgefüllt – du bestätigst sie nur noch mit einem Tipp.</li>
   </ol>
 </main>
 <script>
@@ -55,7 +55,11 @@
   async function copy() { try { await navigator.clipboard.writeText(fmt); document.getElementById("ok").textContent = "Code kopiert ✓"; return true; }
     catch (e) { var r = document.createRange(); r.selectNodeContents(document.getElementById("c")); var s = getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand("copy"); document.getElementById("ok").textContent = "Code kopiert ✓"; return true; } catch (e2) { document.getElementById("ok").textContent = "Bitte den Code lange drücken und kopieren."; return false; } } }
   document.getElementById("cp").onclick = copy;
-  document.getElementById("go").onclick = async function () { await copy(); setTimeout(function () { location.href = CAL; }, 500); };
+  var OLD = /onrender\.com$/.test(location.hostname);
+  if (OLD) { document.getElementById("via").textContent = "(über Claude)"; document.getElementById("step3").innerHTML = "Am Ende der Einrichtung auf <b>„Jemand hat dich eingeladen? Code eingeben“</b> tippen und den Code einfügen. Später geht das auch über <b>☰ → „Teilen mit …“ → „Einladung annehmen“</b>."; }
+  else { document.getElementById("go").textContent = "Einladung annehmen →"; }
+  // Neue App: Code gleich mitgeben, dort wird er nach der Anmeldung automatisch angenommen
+  document.getElementById("go").onclick = async function () { await copy(); setTimeout(function () { location.href = OLD ? CAL : "/app/#invite=" + encodeURIComponent(code) + (von ? "&von=" + encodeURIComponent(von) : ""); }, OLD ? 500 : 200); };
 </script>
 </body>
 </html>

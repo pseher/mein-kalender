@@ -902,7 +902,14 @@ function shrChips(attr, sel) {
     ${SHR.groups.filter(g => g.members.length).map(g => `<label class="xchip" style="--c:var(--trip)"><input type="checkbox" ${attr}="g:${esc(g.id)}"${g.members.every(L => S.has(L)) ? " checked" : ""}><i></i>👥 ${esc(g.name)}</label>`).join("")}</div>`; }
 function chipSel(attr, root = document) { const out = new Set(); root.querySelectorAll(`[${attr}]:checked`).forEach(i => { const v = i.getAttribute(attr); if (v.startsWith("g:")) (SHR.groups.find(g => g.id === v.slice(2))?.members || []).forEach(L => out.add(L)); else out.add(v); }); return [...out]; }
 // ---- Verwaltung: Personen & Gruppen ----
-const INVITE_URL = "https://mein-kalender.onrender.com"; // Weiterleitung mit eigenem Vorschaubild
+const INVITE_URL = APP ? location.origin : "https://mein-kalender.onrender.com"; // Einladungsseite mit eigenem Vorschaubild (eigene App: gleiche Domain)
+// Eigene App: Einladungscode aus dem Link merken (überlebt die Google-Anmeldung) und nach der Einrichtung automatisch annehmen
+const INVITE_KEY = "mk-invite";
+if (APP) { const h = new URLSearchParams(location.hash.slice(1)); const c = (h.get("invite") || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  if (c.length === 12) { try { localStorage.setItem(INVITE_KEY, c); } catch {} history.replaceState(null, "", location.pathname + location.search); } }
+const pendingInvite = () => { try { return localStorage.getItem(INVITE_KEY) || ""; } catch { return ""; } };
+function takeInvite() { const c = pendingInvite(); if (!c || !canWrite) return false; try { localStorage.removeItem(INVITE_KEY); } catch {}
+  shrAcc = { code: c.replace(/(.{4})(?=.)/g, "$1-") }; showShareMgr(); setTimeout(() => shrCheck(c), 150); return true; }
 let shrNew = null, shrAcc = null, shrGrp = null;
 function showShareMgr() {
   const C = SHR.contacts, me = myName();
@@ -2950,7 +2957,8 @@ function applyProfile(v) {
   if (pa !== PA || pb !== PB) { PA = pa; PB = pb; store.set("ft-pa", PA); store.set("ft-pb", PB || ""); if (!JOINT.length) JOINT = [PA, PB].filter(Boolean); rebuildStates(); }
   renderAll();
 }
-function maybeSetup() { if (!PROFILE.setupDone && !setupShown && canWrite && dbState !== "error") { setupShown = true; startSetup(); } }
+function maybeSetup() { if (!PROFILE.setupDone && !setupShown && canWrite && dbState !== "error") { setupShown = true; startSetup(); }
+  else if (APP && PROFILE.setupDone && canWrite && pendingInvite() && !setupShown) { setupShown = true; setTimeout(takeInvite, 600); } }
 const stOpts = (cur, none) => (none ? `<option value=""${!cur ? " selected" : ""}>${none}</option>` : "") + STATES.map(([c, n]) => `<option value="${c}"${cur === c ? " selected" : ""}>${n}</option>`).join("");
 const ROLES = [["partner", "Partner/in"], ["kind", "Kind"], ["mutter", "Mutter"], ["vater", "Vater"], ["geschwister", "Geschwister"], ["andere", "Familie"], ["freund", "Freund/in"]];
 let WZ = null;
@@ -3230,7 +3238,7 @@ function wzClick(id, el) {
       if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
     case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
       PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); wzImport(); return true; }
-    case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
+    case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (takeInvite()) return true; setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
     case "wz-invite": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 80); return true;
   }
   return false;
