@@ -1475,8 +1475,10 @@ let osmT = null, osmAbort = null, osmLast = "";
 const osmLine = f => { const p = f.properties || {}, street = [p.street, p.housenumber].filter(Boolean).join(" "), city = [p.postcode, p.city || p.town || p.village || p.district].filter(Boolean).join(" ");
   const name = p.name && p.name !== p.street ? p.name : ""; return { name, addr: [street, city].filter(Boolean).join(", "), full: [name, street, city].filter(Boolean).join(", ") }; };
 const osmWords = t => String(t).toLowerCase().normalize("NFKD").replace(/[^a-z0-9äöüß ]/g, " ").split(/\s+/).filter(w => w.length > 2);
+const osmOk = () => ["termin", "trip"].includes($("f-type")?.value);
 async function osmSearch(q, fromTitle) {
   const box = $("f-place-sug"); if (!box) return;
+  if (!osmOk()) { box.hidden = true; return; }
   q = q.trim(); if (q.length < 3 || q === osmLast) return; osmLast = q;
   osmAbort?.abort(); osmAbort = new AbortController();
   const [lat, lon] = STATE_LL[PA] || STATE_LL.BE;
@@ -2127,14 +2129,16 @@ let editing = null;
 let formVis = "me", formVisManual = false, formShManual = false;
 function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; document.querySelectorAll("#f-vis [data-vis]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.vis === v)));
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
+let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
 function showForm(e, preset) {
   editing = e && e.id ? e : null;
   const v = e || { type: "termin", title: "", from: preset || iso(TODAY), to: preset || iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: gWritable() ? "primary" : "" };
+  fTimeOpen = !!(v.time || v.endTime);
   const rd = v.remindDays === undefined || v.remindDays === "" ? "" : v.remindDays;
   openSheet(editing ? "Bearbeiten" : "Neu eintragen", editing ? TYPES[v.type]?.label || "" : "Felder ausfüllen und speichern", `
     <form id="f" class="form" novalidate>
       <div class="two"><div><label for="f-type">Art</label>
-      <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google").map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
+      <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}</select></div></div>
       <label for="f-title" id="f-title-l">Titel</label>
@@ -2148,6 +2152,7 @@ function showForm(e, preset) {
         <p class="note" style="margin:2px 0 0">Ohne Jahr wird trotzdem jedes Jahr erinnert – nur das Alter fehlt.</p>
         ${canWrite ? `<label class="tog setrow" style="margin-top:6px"><input type="checkbox" id="f-fam"${v.fam || FAM().some(p => famKey(p.name) === famKey(v.title)) ? " checked" : ""}> Gehört zu meinen Liebsten (frühere Erinnerung, Geschenkeliste)</label>` : ""}</div>
       <div class="shift" id="f-shift"><span>Verschieben</span><button type="button" class="btn ghost small" data-shift="-7">−1 Wo</button><button type="button" class="btn ghost small" data-shift="-1">−1 Tag</button><button type="button" class="btn ghost small" data-shift="1">+1 Tag</button><button type="button" class="btn ghost small" data-shift="7">+1 Wo</button></div>
+      <button type="button" class="link f-time-add" id="f-time-add">🕒 Uhrzeit hinzufügen</button>
       <div class="two" id="f-time-wrap"><div><label for="f-time">Uhrzeit</label><input id="f-time" type="time" value="${esc(v.time)}"></div>
       <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div></div>
       <div class="two" id="f-extra">
@@ -2185,7 +2190,7 @@ function syncFormFields() {
   $("f-rem-wrap").hidden = !["birthday", "anniversary", "deadline"].includes(ty);
   $("f-rem").placeholder = `Standard ${REMIND_DEF[ty] ?? ""}`;
   $("f-extra").hidden = !["birthday", "anniversary", "deadline", "contact"].includes(ty);
-  $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact; $("f-time-wrap").hidden = contact || ty === "birthday" || ty === "anniversary"; $("f-shift").hidden = contact;
+  $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact; { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; } $("f-shift").hidden = contact;
   $("f-until-wrap").hidden = contact || !["weekly", "monthly"].includes(r.value);
   $("f-thx-wrap").hidden = !["termin", "trip"].includes(ty);
   $("f-trip-wrap").hidden = ty !== "trip";
@@ -3300,6 +3305,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
+  if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
   if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
   if ((el = q("[data-docsback]"))) { showDocs(); return; }
