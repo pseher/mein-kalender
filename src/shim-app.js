@@ -9,9 +9,15 @@ window.MK_APP = true;
   window.mkSupabase = sb;
   let session = null;
   const ready = sb.auth.getSession().then(r => { session = r.data.session; return session; }).catch(() => null);
+  // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),
+  // nie während die Seite selbst die Anmeldung aus der Adresse übernimmt – sonst lädt sie endlos neu.
+  let startedWith = undefined;   // undefined = Start läuft noch, sonst: true/false
+  ready.then(s => { startedWith = !!s; });
   sb.auth.onAuthStateChange((ev, s) => {
-    const had = !!session; session = s;
-    if (ev === "SIGNED_OUT" || (ev === "SIGNED_IN" && !had)) location.reload();
+    if (s) session = s; else if (ev === "SIGNED_OUT") session = null;
+    if (startedWith === undefined) return;
+    if (ev === "SIGNED_OUT" && startedWith) location.reload();
+    if (ev === "SIGNED_IN" && !startedWith && s) location.reload();
   });
   window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
