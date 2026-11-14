@@ -2947,7 +2947,7 @@ function startSetup(fresh) {
   wzOpen(); renderWz();
 }
 const wzDots = keys => { const i = keys.indexOf(WZ.step); return `<div class="wz-dots">${keys.map((k, j) => `<i class="${j === i ? "on" : j < i ? "done" : ""}"></i>`).join("")}</div>`; };
-const STEPS = () => WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "import", "done"] : ["google", "manual", "state", "import", "done"];
+const STEPS = () => WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", "import", "done"] : ["google", "manual", "state", "pages", "import", "done"];
 function renderWz() {
   const W = WZ, el = wzEl(); if (!el) return;
   const top = `<div class="wz-top">${wzDots(STEPS())}</div>`;
@@ -2992,6 +2992,28 @@ function renderWz() {
         <input type="text" data-wzf="${i}|bd" value="${esc(p.bd ?? bdShow(p.birthday))}" placeholder="Geburtstag TT.MM." aria-label="Geburtstag (TT.MM., Jahr optional)" autocomplete="off"><button type="button" class="link del" data-wzdel="${i}" aria-label="Entfernen">✕</button></div>`).join("")}</div>
       <button type="button" class="btn ghost small" id="wz-add" style="margin-top:8px">+ Person</button>
       <button type="button" class="wz-big accent" id="wz-man-next">Weiter</button><button type="button" class="link" id="wz-man-skip">Überspringen</button></div>`;
+  }
+  if (W.step === "pages") {
+    const pg = W.pages || PAGES;
+    const card = (k, name, txt, prev) => `<label class="pv-card${pg[k] ? " on" : ""}"><input type="checkbox" data-wzpage="${k}"${pg[k] ? " checked" : ""}>
+      <div class="pv-shot" aria-hidden="true">${prev}</div><div class="pv-txt"><b>${name}</b><span>${txt}</span></div><i class="pv-ck" aria-hidden="true"></i></label>`;
+    const tile = (c, n, l) => `<div class="pv-tile" style="--c:${c}"><em>${n}</em><i></i><i class="s"></i></div>`;
+    const heute = `<div class="pv-row">${tile("var(--both)", "3")}${tile("var(--trip)", "14")}${tile("var(--event)", "2")}</div>
+      <div class="pv-week">${[0, 1, 2, 3, 4, 5, 6].map(i => `<span${i === 5 ? ' class="t"' : ""}>${i === 1 || i === 5 ? "<b></b>" : ""}</span>`).join("")}</div>
+      <div class="pv-line"><b style="--c:var(--event)"></b><i></i></div><div class="pv-line"><b style="--c:var(--both)"></b><i class="s"></i></div><div class="pv-line"><u></u><i></i></div>`;
+    const bars = { 3: ["var(--trip)", 3], 9: ["var(--event)", 1], 16: ["var(--holiday)", 1], 22: ["var(--both)", 2], 29: ["var(--be-strong)", 4] };
+    const kal = `<div class="pv-cal">${Array.from({ length: 35 }, (_, i) => `<span>${bars[i] ? `<b style="--c:${bars[i][0]};width:calc(${bars[i][1] * 100}% + ${(bars[i][1] - 1) * 3}px)"></b>` : ""}</span>`).join("")}</div>`;
+    const ueb = `<div class="pv-list">${[["var(--event)", 0.7], ["var(--be-strong)", 0.9], ["var(--holiday)", 0.55], ["var(--bridge, var(--both))", 0.8]].map(([c, w]) => `<div><em></em><b style="--c:${c}"></b><i style="width:${w * 100}%"></i></div>`).join("")}</div>
+      <div class="pv-chart">${[5, 8, 4, 9, 6, 3, 7, 10, 6, 4, 8, 5].map(h => `<i style="height:${h * 10}%"></i>`).join("")}</div>`;
+    el.innerHTML = `${top}<div class="wz-card"><h1>Was möchtest du sehen?</h1>
+      <p class="wz-lead">Der Kalender hat drei Seiten. Behalte, was dir hilft – ändern kannst du das jederzeit unter ☰ → Anzeigen → Seiten.</p>
+      <div class="pv-grid">
+        ${card("p0", "Heute", "Countdowns, die nächsten 3 Tage, deine Woche und Aufgaben", heute)}
+        ${card("p1", "Kalender", "Monat, Woche, Liste oder Jahr – alle Termine im Raster", kal)}
+        ${card("p2", "Überblick", "Geburtstage, Ferien, Feiertage, Brückentage und Statistik", ueb)}
+      </div>
+      <button type="button" class="wz-big accent" id="wz-pages-next">Weiter</button></div>`;
+    return;
   }
   if (W.step === "state") {
     el.innerHTML = `${top}<div class="wz-card"><h1>Wo wohnst du?</h1><p class="wz-lead">Für Schulferien, Feiertage und Brückentage.</p>
@@ -3151,7 +3173,9 @@ function wzClick(id, el) {
     case "wz-man-next": if (W.editing) wzSaveEdit(); else wzGo("state"); return true;
     case "wz-man-skip": if (W.editing) { wzSaveEdit(); } else wzGo("state"); return true;
     case "wz-state-next": case "wz-state-skip": wzReadState(); if (id === "wz-state-skip" && !W.editing) { W.state = PA; W.state2 = ""; }
-      if (W.editing) wzGo("manual"); else wzImport(); return true;
+      if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
+    case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
+      PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); wzImport(); return true; }
     case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
     case "wz-invite": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 80); return true;
   }
@@ -3360,6 +3384,7 @@ document.addEventListener("click", ev => {
 });
 document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { statsOpen = ev.target.open; if (statsOpen) { if (ensureGoogle()) renderAll(); else renderStats(); } } }, true);
 document.addEventListener("change", ev => {
+  if (ev.target.dataset?.wzpage && WZ) { WZ.pages = { ...(WZ.pages || PAGES), [ev.target.dataset.wzpage]: ev.target.checked }; ev.target.closest(".pv-card")?.classList.toggle("on", ev.target.checked); return; }
   if (ev.target.dataset?.docsel) { const id = ev.target.dataset.docsel; ev.target.checked ? DOCSEL.add(id) : DOCSEL.delete(id); docDelArm = false; showDocs(); return; }
   if (ev.target.dataset?.docadd) { const e = EV.find(x => x.id === ev.target.dataset.docadd), fs = [...(ev.target.files || [])]; ev.target.value = ""; if (e && fs.length) docUpload(e, fs); return; }
   if (ev.target.dataset?.page) { setPage(ev.target.dataset.page, ev.target.checked); return; }

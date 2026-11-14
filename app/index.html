@@ -794,6 +794,38 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .wz-card { flex: 1; display: flex; flex-direction: column; gap: 14px; }
 .wz-center { justify-content: center; text-align: center; align-items: stretch; }
 .wz-card h1 { margin: 0; font-family: var(--f-display); font-size: 28px; line-height: 1.15; }
+/* Einrichtung: Seiten wählen mit Mini-Vorschau */
+.pv-grid { display: grid; gap: 10px; }
+.pv-card { position: relative; display: grid; grid-template-columns: 112px 1fr; gap: 12px; align-items: center; padding: 10px 40px 10px 10px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; transition: border-color .15s, opacity .15s; }
+.pv-card input { position: absolute; opacity: 0; width: 1px; height: 1px; left: 0; top: 0; }
+.pv-card:not(.on) { opacity: .55; }
+.pv-card.on { border-color: var(--fg); }
+.pv-card:focus-within { outline: 2px solid var(--fg); outline-offset: 2px; }
+.pv-txt { display: grid; gap: 3px; } .pv-txt b { font-size: 16px; } .pv-txt span { font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+.pv-ck { position: absolute; right: 12px; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 50%; border: 2px solid var(--line); }
+.pv-card.on .pv-ck { background: var(--fg); border-color: var(--fg); }
+.pv-card.on .pv-ck::after { content: ""; position: absolute; left: 6px; top: 2px; width: 6px; height: 11px; border: solid var(--bg, #fff); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.pv-shot { height: 112px; border-radius: 10px; background: var(--soft); padding: 7px; overflow: hidden; display: flex; flex-direction: column; gap: 5px; }
+.pv-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.pv-tile { border-radius: 4px; background: color-mix(in srgb, var(--c) 16%, transparent); border-left: 2px solid var(--c); padding: 3px 3px 4px; display: grid; gap: 2px; }
+.pv-tile em { font-style: normal; font-weight: 700; font-size: 11px; line-height: 1; color: var(--c); }
+.pv-tile i, .pv-line i, .pv-list i { display: block; height: 3px; border-radius: 2px; background: var(--fg); opacity: .35; }
+.pv-tile i.s, .pv-line i.s { width: 60%; }
+.pv-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.pv-week span { height: 14px; border-radius: 3px; background: var(--surface); position: relative; }
+.pv-week span.t { outline: 1.5px solid var(--fg); }
+.pv-week span b { position: absolute; left: 50%; bottom: 2px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--trip); }
+.pv-line { display: grid; grid-template-columns: 5px 1fr; gap: 4px; align-items: center; }
+.pv-line b { width: 5px; height: 5px; border-radius: 50%; background: var(--c); } .pv-line u { width: 5px; height: 5px; border: 1px solid var(--fg); border-radius: 1px; opacity: .5; }
+.pv-cal { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(5, 1fr); gap: 3px; }
+.pv-cal span { position: relative; border-radius: 3px; background: var(--surface); }
+.pv-cal span b { position: absolute; left: 1px; top: 45%; height: 4px; border-radius: 2px; background: var(--c); z-index: 1; }
+.pv-list { display: grid; gap: 5px; }
+.pv-list div { display: grid; grid-template-columns: 14px 5px 1fr; gap: 4px; align-items: center; }
+.pv-list em { height: 3px; border-radius: 2px; background: var(--fg); opacity: .5; }
+.pv-list b { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
+.pv-chart { flex: 1; display: flex; align-items: flex-end; gap: 2px; padding-top: 4px; }
+.pv-chart i { flex: 1; border-radius: 2px 2px 0 0; background: var(--be-strong); opacity: .55; }
 .wz-lead { margin: 0; font-size: 17px; line-height: 1.5; color: var(--muted); }
 .wz-logo { align-self: center; color: var(--accent); font-size: 44px; font-weight: 700; } .wz-logo.ok { width: 76px; height: 76px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .wz-box { display: flex; flex-direction: column; gap: 6px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; font-size: 15px; line-height: 1.5; } .wz-box.warn { border-color: #d9a53a; }
@@ -4054,7 +4086,7 @@ function startSetup(fresh) {
   wzOpen(); renderWz();
 }
 const wzDots = keys => { const i = keys.indexOf(WZ.step); return `<div class="wz-dots">${keys.map((k, j) => `<i class="${j === i ? "on" : j < i ? "done" : ""}"></i>`).join("")}</div>`; };
-const STEPS = () => WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "import", "done"] : ["google", "manual", "state", "import", "done"];
+const STEPS = () => WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", "import", "done"] : ["google", "manual", "state", "pages", "import", "done"];
 function renderWz() {
   const W = WZ, el = wzEl(); if (!el) return;
   const top = `<div class="wz-top">${wzDots(STEPS())}</div>`;
@@ -4099,6 +4131,28 @@ function renderWz() {
         <input type="text" data-wzf="${i}|bd" value="${esc(p.bd ?? bdShow(p.birthday))}" placeholder="Geburtstag TT.MM." aria-label="Geburtstag (TT.MM., Jahr optional)" autocomplete="off"><button type="button" class="link del" data-wzdel="${i}" aria-label="Entfernen">✕</button></div>`).join("")}</div>
       <button type="button" class="btn ghost small" id="wz-add" style="margin-top:8px">+ Person</button>
       <button type="button" class="wz-big accent" id="wz-man-next">Weiter</button><button type="button" class="link" id="wz-man-skip">Überspringen</button></div>`;
+  }
+  if (W.step === "pages") {
+    const pg = W.pages || PAGES;
+    const card = (k, name, txt, prev) => `<label class="pv-card${pg[k] ? " on" : ""}"><input type="checkbox" data-wzpage="${k}"${pg[k] ? " checked" : ""}>
+      <div class="pv-shot" aria-hidden="true">${prev}</div><div class="pv-txt"><b>${name}</b><span>${txt}</span></div><i class="pv-ck" aria-hidden="true"></i></label>`;
+    const tile = (c, n, l) => `<div class="pv-tile" style="--c:${c}"><em>${n}</em><i></i><i class="s"></i></div>`;
+    const heute = `<div class="pv-row">${tile("var(--both)", "3")}${tile("var(--trip)", "14")}${tile("var(--event)", "2")}</div>
+      <div class="pv-week">${[0, 1, 2, 3, 4, 5, 6].map(i => `<span${i === 5 ? ' class="t"' : ""}>${i === 1 || i === 5 ? "<b></b>" : ""}</span>`).join("")}</div>
+      <div class="pv-line"><b style="--c:var(--event)"></b><i></i></div><div class="pv-line"><b style="--c:var(--both)"></b><i class="s"></i></div><div class="pv-line"><u></u><i></i></div>`;
+    const bars = { 3: ["var(--trip)", 3], 9: ["var(--event)", 1], 16: ["var(--holiday)", 1], 22: ["var(--both)", 2], 29: ["var(--be-strong)", 4] };
+    const kal = `<div class="pv-cal">${Array.from({ length: 35 }, (_, i) => `<span>${bars[i] ? `<b style="--c:${bars[i][0]};width:calc(${bars[i][1] * 100}% + ${(bars[i][1] - 1) * 3}px)"></b>` : ""}</span>`).join("")}</div>`;
+    const ueb = `<div class="pv-list">${[["var(--event)", 0.7], ["var(--be-strong)", 0.9], ["var(--holiday)", 0.55], ["var(--bridge, var(--both))", 0.8]].map(([c, w]) => `<div><em></em><b style="--c:${c}"></b><i style="width:${w * 100}%"></i></div>`).join("")}</div>
+      <div class="pv-chart">${[5, 8, 4, 9, 6, 3, 7, 10, 6, 4, 8, 5].map(h => `<i style="height:${h * 10}%"></i>`).join("")}</div>`;
+    el.innerHTML = `${top}<div class="wz-card"><h1>Was möchtest du sehen?</h1>
+      <p class="wz-lead">Der Kalender hat drei Seiten. Behalte, was dir hilft – ändern kannst du das jederzeit unter ☰ → Anzeigen → Seiten.</p>
+      <div class="pv-grid">
+        ${card("p0", "Heute", "Countdowns, die nächsten 3 Tage, deine Woche und Aufgaben", heute)}
+        ${card("p1", "Kalender", "Monat, Woche, Liste oder Jahr – alle Termine im Raster", kal)}
+        ${card("p2", "Überblick", "Geburtstage, Ferien, Feiertage, Brückentage und Statistik", ueb)}
+      </div>
+      <button type="button" class="wz-big accent" id="wz-pages-next">Weiter</button></div>`;
+    return;
   }
   if (W.step === "state") {
     el.innerHTML = `${top}<div class="wz-card"><h1>Wo wohnst du?</h1><p class="wz-lead">Für Schulferien, Feiertage und Brückentage.</p>
@@ -4258,7 +4312,9 @@ function wzClick(id, el) {
     case "wz-man-next": if (W.editing) wzSaveEdit(); else wzGo("state"); return true;
     case "wz-man-skip": if (W.editing) { wzSaveEdit(); } else wzGo("state"); return true;
     case "wz-state-next": case "wz-state-skip": wzReadState(); if (id === "wz-state-skip" && !W.editing) { W.state = PA; W.state2 = ""; }
-      if (W.editing) wzGo("manual"); else wzImport(); return true;
+      if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
+    case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
+      PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); wzImport(); return true; }
     case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
     case "wz-invite": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 80); return true;
   }
@@ -4467,6 +4523,7 @@ document.addEventListener("click", ev => {
 });
 document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { statsOpen = ev.target.open; if (statsOpen) { if (ensureGoogle()) renderAll(); else renderStats(); } } }, true);
 document.addEventListener("change", ev => {
+  if (ev.target.dataset?.wzpage && WZ) { WZ.pages = { ...(WZ.pages || PAGES), [ev.target.dataset.wzpage]: ev.target.checked }; ev.target.closest(".pv-card")?.classList.toggle("on", ev.target.checked); return; }
   if (ev.target.dataset?.docsel) { const id = ev.target.dataset.docsel; ev.target.checked ? DOCSEL.add(id) : DOCSEL.delete(id); docDelArm = false; showDocs(); return; }
   if (ev.target.dataset?.docadd) { const e = EV.find(x => x.id === ev.target.dataset.docadd), fs = [...(ev.target.files || [])]; ev.target.value = ""; if (e && fs.length) docUpload(e, fs); return; }
   if (ev.target.dataset?.page) { setPage(ev.target.dataset.page, ev.target.checked); return; }
