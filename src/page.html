@@ -564,6 +564,10 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .ago { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; margin-top: 10px; }
 .ago h3 { margin: 4px 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .upsec h3 { display: flex; align-items: center; gap: 8px; margin: 4px 6px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+#sec-focus .nx { grid-template-columns: 44px 1fr; } #sec-focus .ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+.fx-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 8px 2px; } .fx-day:first-child { margin-top: 2px; }
+#sec-focus .tk.fx { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 14px; } #sec-focus .tk.fx .tk-t { flex: 1; }
+.focus-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 8px 2px; font-size: 13.5px; color: var(--muted); } .focus-more:empty { display: none; }
 .upsec h3 b { font-size: 11px; color: var(--muted); } .upsec h3 b.hot { background: var(--holiday); color: #fff; border-radius: 999px; padding: 0 6px; }
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
@@ -819,6 +823,7 @@ html.rg-on #bigmonth, html.rg-on #year { touch-action: none; }
     <div class="wkbox"><div class="wk-head" id="wk-lbl"></div><div class="wk" id="wk"></div></div>
   </div>
   <section class="up" id="up" aria-label="Heute und demnächst">
+    <div class="upsec" id="sec-focus" hidden><h3>Heute &amp; Morgen <b id="n-focus"></b></h3><div id="focus-list"></div><div class="focus-more" id="focus-more"></div></div>
     <div class="upsec" id="sec-next" hidden><h3><span id="next-ttl">Nächste 14 Tage</span> <b id="n-next"></b><button type="button" class="link" id="wk-back" hidden>Zurück zu heute</button></h3><div id="next" class="soon"><div id="next-list"></div></div></div>
     <div class="upsec" id="sec-others" hidden><h3>Neu von anderen <b id="n-others" class="hot"></b><button type="button" class="link" id="others-ok">Gesehen</button></h3><div id="others" class="soon"><div id="others-list"></div></div></div>
     <div class="upsec" id="sec-tasks" hidden><h3>Aufgaben <b id="n-tasks"></b></h3><div id="tasks-list"></div>

@@ -277,7 +277,7 @@ let weekStart = monday(TODAY < START ? START : TODAY > END ? END : TODAY);
 let selDay = null, moving = null, sheetMode = null, sheetCtx = null;
 
 // =================== Anzeigen (ein-/ausblenden) ===================
-const SHOW_DEF = { be: true, st: true, both: true, hol: true, br: true, own: true, bday: true, season: true, bundle: true };
+const SHOW_DEF = { be: true, st: true, both: true, hol: true, br: true, own: true, bday: true, season: true, bundle: true, full: false };
 let SHOW = (() => { try { return { ...SHOW_DEF, ...JSON.parse(store.get("ft-show") || "{}") }; } catch { return { ...SHOW_DEF }; } })();
 function tintOf(d) {
   if (!d) return "";
@@ -1020,7 +1020,7 @@ function showSettings(sub) {
     html = `<div class="sg-t">Seiten</div><div class="sg">${pg("p0", "Heute <small>Countdowns, Woche, Aufgaben, Erinnerungen</small>", "var(--both)")}${pg("p1", "Kalender <small>Monat, Woche, Liste, Jahr</small>", "var(--be-strong)")}${pg("p2", "Überblick <small>Gemeinsam frei, Geburtstage, Statistik</small>", "var(--trip)")}</div>
       <div class="sg-t">Im Kalender</div><div class="sg">
       ${sw("hol", "Feiertage", "var(--holiday)")}${sw("br", "Brückentage", "var(--bridge)")}${sw("bday", "Geburtstage", "var(--event)")}
-      ${sw("own", "Eigene Termine", "var(--c-termin)")}${sw("season", "Saison-Hinweise", "var(--c-season)")}${sw("bundle", "Hotels & Flüge in der Reise bündeln", "var(--trip)")}
+      ${sw("own", "Eigene Termine", "var(--c-termin)")}${sw("season", "Saison-Hinweise", "var(--c-season)")}${sw("bundle", "Hotels & Flüge in der Reise bündeln", "var(--trip)")}${sw("full", "Heute ausführlich (alle Listen auf einmal)", "var(--muted)")}
       ${mcp && gState === "ok" ? `<label class="sr2"><i class="dotc" style="--c:var(--gcal)"></i><span>Google-Termine</span><input type="checkbox" class="swi" id="g-show"${gShow ? " checked" : ""}></label>` : ""}</div>
       <div class="sg-t">Ferien</div><div class="sg">${nav("set-ferien", "Bundesländer", ALL.map(stName).join(", "), "var(--be-strong)")}</div>
       <div class="sg-t">Erinnerungen</div><div class="sg"><div class="sr2"><i class="dotc" style="--c:var(--trip)"></i><span>Reisen ankündigen</span>
@@ -1126,9 +1126,38 @@ function renderUp() {
   $("up-empty").hidden = !(dbState === "off" || (!any && dbState === "ready"));
   $("up-empty").textContent = dbState === "off" ? (APP ? "Melde dich mit Google an (kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du." : "Melde dich bei Claude an (das Konto ist kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du.") : "In den nächsten 14 Tagen steht nichts Besonderes an.";
   $("today-lbl").textContent = `${WDL[TODAY.getDay()]}, ${TODAY.getDate()}. ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
-  renderToday(); renderHints(); renderTasks();
+  renderToday(); renderHints(); renderTasks(); renderFocus();
   if (canWrite) osmPrefetch();
 }
+// ---- Kompakte Heute-Seite: eine Liste „Heute & Morgen“, der Rest auf Wunsch ----
+const FOCUS_OPEN = { week: false, tasks: false, rem: false };
+function renderFocus() {
+  const sec = $("sec-focus"); if (!sec) return;
+  if (SHOW.full || dbState !== "ready") { sec.hidden = true; return; }
+  const end = addDays(TODAY, 1), seen = new Set();
+  const ev = OCC.filter(o => !o.part && o.a <= end && o.b >= TODAY && o.ev.type !== "info" && !seen.has(o.ev.id + iso(o.a)) && seen.add(o.ev.id + iso(o.a)))
+    .map(o => ({ k: "ev", d: o.a < TODAY ? TODAY : o.a, o }));
+  const tk = TASKS.filter(t => !t.done && t.state !== "no" && t.due && parseIso(t.due) && parseIso(t.due) <= end).map(t => ({ k: "tk", d: parseIso(t.due) < TODAY ? TODAY : parseIso(t.due), t }));
+  let rems = []; try { rems = (REMS = buildReminders()).map((r, i) => ({ r, i })); } catch {}
+  const rm = rems.filter(({ r }) => r.n <= 1 && !(r.o && ev.some(x => x.o === r.o))).map(({ r, i }) => ({ k: "rem", d: addDays(TODAY, Math.max(0, r.n)), r, i }));
+  const all = [...ev, ...tk, ...rm], byTime = x => x.k === "ev" ? (x.o.ev.time || "00:00") : x.k === "tk" ? "99" : "98";
+  const row = x => x.k === "ev" ? `<button type="button" class="nx" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="when">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="what"><span class="ev-dot ${x.o.ev.type}" style="background:${colorOf(x.o.ev)}"></span>${esc(evName(x.o.ev))}${placeHint(x.o)}${ageTxt(x.o) ? ` · ${esc(ageTxt(x.o))}` : ""}</span></button>`
+    : x.k === "tk" ? `<div class="tk fx"><input type="checkbox" class="ckb" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(x.t.id)}"><span>${esc(x.t.title)}</span>${dueLbl(x.t.due)}</button></div>`
+    : `<button type="button" class="nx" data-rem="${x.i}"><span class="when">🔔</span><span class="what">${esc(x.r.t)}<small class="note"> · ${esc(x.r.sub || "")}</small></span></button>`;
+  const day = (d, lbl) => { const L = all.filter(x => sameDay(x.d, d)).sort((a, b) => byTime(a).localeCompare(byTime(b))); return L.length ? `<div class="fx-day">${lbl}</div>${L.map(row).join("")}` : ""; };
+  const html = day(TODAY, "Heute") + day(end, "Morgen");
+  $("focus-list").innerHTML = html || `<p class="tip" style="margin:6px 8px 2px">Heute und morgen steht nichts an.</p>`;
+  $("n-focus").textContent = all.length || "";
+  // Rest auf Wunsch
+  const openTasks = TASKS.filter(t => !t.done && t.state !== "no").length, remN = rems.length, weekN = UPN.next || 0;
+  const link = (k, n, lbl) => `<button type="button" class="link" data-focus="${k}">${FOCUS_OPEN[k] ? "Weniger" : `${lbl}${n ? ` (${n})` : ""}`}</button>`;
+  $("focus-more").innerHTML = [weekN ? link("week", weekN, "Nächste 14 Tage") : "", canWrite ? link("tasks", openTasks, openTasks ? "Alle Aufgaben" : "+ Aufgabe") : "", remN ? link("rem", remN, "Alle Erinnerungen") : ""].filter(Boolean).join('<span aria-hidden="true">·</span>');
+  sec.hidden = false;
+  if (!(wkSel || !sameDay(wkStart, monday(TODAY)))) $("sec-next").hidden = !FOCUS_OPEN.week || !weekN;
+  $("sec-soon").hidden = !FOCUS_OPEN.rem || !remN;
+  $("sec-tasks").hidden = !canWrite || !FOCUS_OPEN.tasks;
+}
+
 // ---- Heute-Seite: Countdowns, Wochenstreifen, vor einem Jahr ----
 let wkStart = monday(TODAY), wkSel = null;
 function setWk(ws, sel) { wkStart = monday(ws); wkSel = sel || null; if (ensureGoogle()) renderAll(); else renderToday(); }
@@ -1162,9 +1191,10 @@ function next3() {
 function countdowns() {
   const C = [], dn = d => dayDiff(TODAY, d), push = (n, x) => C.push({ ...cdWhen(n), ...x });
   const N = next3(), cnt = N.all.length;
-  if (cnt) { const parts = [N.ev.length ? `${N.ev.length} Termin${N.ev.length > 1 ? "e" : ""}` : "", N.tk.length ? `${N.tk.length} Aufgabe${N.tk.length > 1 ? "n" : ""}` : "", N.rem.length ? `${N.rem.length} Erinnerung${N.rem.length > 1 ? "en" : ""}` : ""].filter(Boolean);
+  if (!SHOW.full) {} else if (cnt) { const parts = [N.ev.length ? `${N.ev.length} Termin${N.ev.length > 1 ? "e" : ""}` : "", N.tk.length ? `${N.tk.length} Aufgabe${N.tk.length > 1 ? "n" : ""}` : "", N.rem.length ? `${N.rem.length} Erinnerung${N.rem.length > 1 ? "en" : ""}` : ""].filter(Boolean);
     C.push({ pre: "", n: cnt, unit: "in 3 Tagen", t: N.all.slice(0, 3).map(x => x.t.replace(/ · .*$/, "")).join(" · "), sub: parts.join(", "), c: "var(--both)", n3: true }); }
   else C.push({ pre: "", n: "Frei", unit: "3 Tage", t: "Nichts Dringendes", sub: `bis ${fmt(addDays(TODAY, 2))}`, c: "var(--both)", n3: true });
+  if (!SHOW.full) C.length = 0;   // kompakt: keine 3-Tage-Kachel, die Liste „Heute & Morgen“ zeigt das
   const top = OCC.filter(o => isTrip(o) && !o.part), isUrl = o => URLAUB_RE.test(o.ev.title);
   const tripTile = (list, label) => { const now = list.find(o => o.a <= TODAY && o.b >= TODAY), nx = list.filter(o => o.a > TODAY).sort((a, b) => a.a - b.a)[0];
     const stops = x => tripStops(x).length ? " · " + tripStops(x).join(" → ") : "";
@@ -2994,7 +3024,8 @@ function showA2hs() {
 }
 function renderFirst() { const f = $("first-card"); if (!f) return;
   const n0 = store.get("ft-first"); f.hidden = !n0 || dbState !== "ready" || !canWrite || EV.length > +n0; }
-function renderHints() {
+function renderHints() { renderHints0(); let one = false; document.querySelectorAll(".hint-card").forEach(c => { if (!c.hidden) { if (one) c.hidden = true; one = true; } }); }
+function renderHints0() {
   renderFirst();
   const si = $("signin-card"), a2 = $("a2hs-card"); if (!si || !a2) return;
   si.hidden = dbState !== "off";
@@ -3376,6 +3407,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
   if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
+  if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
   if ((el = q("[data-placeset]"))) { const o = sheetCtx && findOcc(sheetCtx.id, sheetCtx.a); if (o) setPlace(o, el.dataset.placeset); return; }
   if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
@@ -3683,7 +3715,7 @@ renderAll();
     if (nx.join() !== XST.join() || nj.join() !== JOINT.join() || nh.join() !== XHIDE.join()) { XST = nx; JOINT = nj; XHIDE = nh; fixJoint(); recalcJoint();
       store.set("ft-xst", JSON.stringify(XST)); store.set("ft-joint", JSON.stringify(JOINT)); store.set("ft-xhide", JSON.stringify(XHIDE)); renderAll(); if (sheetMode === "settings" && !$("sheet").hidden) showSettings(); } }, () => {});
   COLL("prefs").doc("notify").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; NOTIFY = { cals: Array.isArray(v.cals) ? v.cals.map(String) : null, seenAt: String(v.seenAt || "") }; if (gState === "ok") scanOthers(); }, () => {});
-  COLL("tasks").onSnapshot(snap => { TASKS = snap.docs.map(d => ({ id: d.id, ...JSON.parse(JSON.stringify(d.data() || {})) })).map(t => ({ ...t, title: String(t.title || ""), due: String(t.due || "") })); renderTasks();
+  COLL("tasks").onSnapshot(snap => { TASKS = snap.docs.map(d => ({ id: d.id, ...JSON.parse(JSON.stringify(d.data() || {})) })).map(t => ({ ...t, title: String(t.title || ""), due: String(t.due || "") })); renderTasks(); renderFocus();
     TASKS.filter(t => !t.done && !t.key && !t.fixed).forEach(t => { const p = parseTask(t.title, t.created ? new Date(t.created) : TODAY); // ältere Aufgaben nachträglich mit Frist versehen
       tkSet(t.id, { title: p.title, due: t.due || p.due, fixed: true }); });
     TASKS.filter(t => t.done && t.doneAt && Date.now() - Date.parse(t.doneAt) > 30 * 864e5).forEach(t => COLL("tasks").doc(t.id).delete().catch(() => {})); // Erledigtes nach 30 Tagen aufräumen
