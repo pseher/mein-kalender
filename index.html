@@ -11,7 +11,7 @@
     try { seen = localStorage.getItem("mk-consent") === "yes" && localStorage.getItem("mk-open") === "1"; } catch (e) {}
     window.MK_INSTALL = q.has("install");
     if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
-    if (!q.has("info") && (q.has("app") || seen)) location.replace(CAL); })();
+    if (!q.has("info") && (q.has("app") || seen) && !/^\/app/.test(location.pathname)) location.replace(CAL); })();
   function go() { try { if (localStorage.getItem("mk-consent") === "yes") localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
   var GO_AFTER = false;
   function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; if (GO_AFTER) go(); }
