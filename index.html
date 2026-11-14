@@ -6,7 +6,7 @@
 <title>Mein Kalender – der Kalender, der an das denkt, was du vergisst</title>
 <script>
   // Wer den Kalender schon einmal geöffnet hat (oder vom Startbildschirm kommt), landet direkt im Kalender.
-  var CAL = "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1";
+  var CAL = /onrender\.com$/.test(location.hostname) ? "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" : "/app/";   // neue Domain: eigene App
   (function () { var q = new URLSearchParams(location.search), seen = false;
     try { seen = localStorage.getItem("mk-consent") === "yes" && localStorage.getItem("mk-open") === "1"; } catch (e) {}
     window.MK_INSTALL = q.has("install");
@@ -178,5 +178,6 @@
   <b>Nächstes Mal direkt zum Kalender?</b> Dein Browser merkt sich nur, dass du ihn schon geöffnet hast – keine Cookies, kein Tracking. <a href="/datenschutz.html">Mehr dazu</a>
   <div class="row"><button class="ok" onclick="consent('yes')">Ja, direkt öffnen</button><button onclick="consent('no')">Nein, nur jetzt</button></div></div>
 <script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
+<script>if (!/onrender\.com$/.test(location.hostname)) document.querySelectorAll('a[href^="https://claude.ai/artifact/"]').forEach(function (a) { a.href = "/app/"; });</script>
 </body>
 </html>

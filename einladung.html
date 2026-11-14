@@ -47,7 +47,7 @@
   </ol>
 </main>
 <script>
-  var CAL = "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1";
+  var CAL = /onrender\.com$/.test(location.hostname) ? "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" : "/app/";   // neue Domain: eigene App
   var q = new URLSearchParams(location.hash.slice(1)), code = (q.get("c") || location.hash.slice(1).split("&")[0] || "").toUpperCase().replace(/[^0-9A-Z]/g, ""), von = q.get("von") || "";
   var fmt = code.replace(/(.{4})(?=.)/g, "$1-");
   document.getElementById("c").textContent = fmt || "–";
