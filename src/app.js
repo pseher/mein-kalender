@@ -2701,7 +2701,7 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
   if (gState !== "ok" && !FATAL.includes(gState)) { gTry = 0; initGoogle(); } else if (Date.now() - gSyncAt > 10 * 60e3) gSync(true); });
 // Google robuster: zuletzt bekannte Kalender und Termine sofort zeigen, im Hintergrund neu laden, bei Hängern erneut versuchen
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), ms))]);
-const FATAL = ["needs_reauth", "server_not_connected", "not_in_manifest", "blocked_by_policy", "approval_required", "selection_required", "not_granted", "capability_disabled", "capability_removed"];
+const FATAL = ["api_disabled", "needs_reauth", "server_not_connected", "not_in_manifest", "blocked_by_policy", "approval_required", "selection_required", "not_granted", "capability_disabled", "capability_removed"];
 let gTry = 0, gRetryT = null, gLiveAt = 0;
 function gCacheGet(k) { try { const v = JSON.parse(store.get("ft-gc-" + k) || "null"); return v && Array.isArray(v.e) ? v : null; } catch { return null; } }
 function gCachePut(k, events) { try {
@@ -2743,6 +2743,7 @@ function renderGPill() {
 function gStatusText() {
   return {
     ok: gLiveAt ? "" : "Zeigt den zuletzt geladenen Stand – Google antwortet gerade nicht, ich versuche es automatisch weiter.", loading: "Verbindung wird hergestellt …", timeout: "Google antwortet gerade nicht. Ich versuche es automatisch weiter.", upstream_error: "Google antwortet gerade nicht. Ich versuche es automatisch weiter.",
+    api_disabled: "Die Google-Kalender-Schnittstelle ist im Google-Projekt noch nicht eingeschaltet. In der Google Cloud Console unter „APIs & Dienste → Bibliothek → Google Calendar API“ auf „Aktivieren“ tippen und ein paar Minuten warten.",
     needs_reauth: APP ? "Google Kalender ist noch nicht verbunden oder die Freigabe ist abgelaufen. Tippe auf „Mit Google verbinden“ und erlaube den Zugriff auf deinen Kalender." : "Die Verbindung zu Google ist abgelaufen. Verbinde Google Kalender in claude.ai unter Einstellungen → Konnektoren neu.",
     server_not_connected: "Google Kalender ist nicht verbunden. Füge ihn in claude.ai unter Einstellungen → Konnektoren hinzu.",
     selection_required: "Es gibt mehrere Google-Kalender-Verbindungen. Wähl in claude.ai aus, welche diese Seite nutzen soll.",
@@ -2766,7 +2767,7 @@ function showGoogleSheet() {
   openSheet("Google Kalender", "Welche Google-Kalender hier erscheinen", `
     ${st ? `<p class="note" style="margin-top:10px">${esc(st)}</p>` : ""}
     ${APP && gState !== "ok" && window.mkGLast ? `<p class="note" style="margin-top:6px;font-size:12px">Technisch: ${esc(window.mkGLast)}</p>` : ""}
-    ${gState !== "ok" ? `<button type="button" class="btn accent wide" id="g-retry">${APP && FATAL.includes(gState) ? "Mit Google verbinden" : "Erneut verbinden"}</button>` : ""}
+    ${gState !== "ok" ? `<button type="button" class="btn accent wide" id="g-retry">${APP && FATAL.includes(gState) && gState !== "api_disabled" ? "Mit Google verbinden" : "Erneut verbinden"}</button>` : ""}
     ${gState === "ok" ? `<button type="button" class="btn accent wide" id="g-sync" style="margin-top:12px">↻ Jetzt mit Google abgleichen</button>
       <label class="tog" style="margin-top:12px;color:var(--fg);font-weight:600"><input type="checkbox" id="g-show"${gShow ? " checked" : ""}> Google-Termine anzeigen</label>
       <div class="lbl" style="margin-top:12px">Kalender</div>
@@ -3008,7 +3009,7 @@ function wzReadState() { if ($("wz-name")) WZ.name = $("wz-name").value.trim(); 
 async function wzConnectGoogle() {
   WZ.gBusy = true; WZ.gMsg = ""; renderWz(); gTry = 0;
   await initGoogle(); WZ.gBusy = false;
-  if (APP && FATAL.includes(gState)) { window.mkConnectGoogle?.(); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
+  if (APP && FATAL.includes(gState) && gState !== "api_disabled") { window.mkConnectGoogle?.(); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
   if (gState === "ok" && !gPrimarySummary) { try { const r = await withTimeout(mcp.callTool(GSERVER, "list_events", { pageSize: 1 }), 12000); gPrimarySummary = String(r?.payload?.summary || ""); } catch {} }
   if (gState === "ok") { WZ.useG = true; gShow = true; store.set("ft-gshow", "1"); wzGo("cals"); }
   else { WZ.gMsg = gStatusText() || "Google antwortet gerade nicht. Versuch es noch einmal oder mach ohne Google weiter."; renderWz(); }
@@ -3336,7 +3337,7 @@ document.addEventListener("click", ev => {
     case "set-test": showSettings("test"); break;
     case "trip-dec": tripStep(-1); break;
     case "trip-inc": tripStep(1); break;
-    case "g-retry": if (APP && FATAL.includes(gState)) { window.mkConnectGoogle?.(); break; } gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
+    case "g-retry": if (APP && FATAL.includes(gState) && gState !== "api_disabled") { window.mkConnectGoogle?.(); break; } gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
   }
 });
 document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { statsOpen = ev.target.open; if (statsOpen) { if (ensureGoogle()) renderAll(); else renderStats(); } } }, true);

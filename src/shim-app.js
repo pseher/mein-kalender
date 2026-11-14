@@ -153,6 +153,7 @@ window.MK_APP = true;
     if (r.status === 204) return {};
     const b = await r.json().catch(() => ({}));
     if (!r.ok) window.mkGLast = `Google ${r.status}: ${b?.error?.message || b?.error?.status || ""}`.slice(0, 300);
+    if (r.status === 403 && /has not been used|is disabled|accessNotConfigured|SERVICE_DISABLED/i.test(JSON.stringify(b))) throw gErr("api_disabled");
     if (r.status === 401 || (r.status === 403 && /insufficient|scope|PERMISSION/i.test(JSON.stringify(b)))) throw gErr("needs_reauth");
     if (r.status === 429 || r.status >= 500) throw gErr("upstream_error");
     if (!r.ok) throw gErr("tool_error", b?.error?.message);
