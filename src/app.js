@@ -1468,6 +1468,30 @@ async function adoptTrip(o, openPack) {
     const ev = { ...doc, id: ref.id, a: o.a, b: o.b }; if (openPack) showPack(ev); else showForm(ev);
   } catch (err) { toast(writeErr(err)); }
 }
+// =================== Orte suchen (OpenStreetMap über Photon von komoot) ===================
+// Vorschläge beim Tippen im Ortsfeld und – wenn das Ortsfeld leer ist – passend zum Titel („Looms Berlin“).
+const STATE_LL = { BW: [48.78, 9.18], BY: [48.14, 11.58], BE: [52.52, 13.40], BB: [52.40, 13.06], HB: [53.08, 8.80], HH: [53.55, 9.99], HE: [50.11, 8.68], MV: [53.63, 11.41], NI: [52.37, 9.74], NW: [51.23, 6.78], RP: [50.00, 8.27], SL: [49.24, 6.99], SN: [51.05, 13.74], ST: [52.13, 11.63], SH: [54.32, 10.14], TH: [50.98, 11.03] };
+let osmT = null, osmAbort = null, osmLast = "";
+const osmLine = f => { const p = f.properties || {}, street = [p.street, p.housenumber].filter(Boolean).join(" "), city = [p.postcode, p.city || p.town || p.village || p.district].filter(Boolean).join(" ");
+  const name = p.name && p.name !== p.street ? p.name : ""; return { name, addr: [street, city].filter(Boolean).join(", "), full: [name, street, city].filter(Boolean).join(", ") }; };
+const osmWords = t => String(t).toLowerCase().normalize("NFKD").replace(/[^a-z0-9äöüß ]/g, " ").split(/\s+/).filter(w => w.length > 2);
+async function osmSearch(q, fromTitle) {
+  const box = $("f-place-sug"); if (!box) return;
+  q = q.trim(); if (q.length < 3 || q === osmLast) return; osmLast = q;
+  osmAbort?.abort(); osmAbort = new AbortController();
+  const [lat, lon] = STATE_LL[PA] || STATE_LL.BE;
+  try {
+    const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=de&limit=6&lat=${lat}&lon=${lon}`, { signal: osmAbort.signal });
+    const j = await r.json(); let hits = (j.features || []).map(osmLine).filter(h => h.addr);
+    if (fromTitle) { const tw = new Set(osmWords(q)); hits = hits.filter(h => h.name && osmWords(h.name).length && osmWords(h.name).every(w => tw.has(w))); }   // nur Orte, deren Name ganz im Titel steht („Looms“ in „Looms Berlin“, nicht „Anna Blume“ bei „Essen mit Anna“)
+    const seen = new Set(); hits = hits.filter(h => !seen.has(h.full) && seen.add(h.full)).slice(0, fromTitle ? 3 : 5);
+    if (!hits.length || ($("f-place")?.value.trim() && fromTitle)) { box.hidden = true; return; }
+    box.innerHTML = `<div class="osm-h">${fromTitle ? "Meinst du diesen Ort?" : "Vorschläge"}</div>${hits.map(h => `<button type="button" data-osm="${esc(h.full)}"><b>${esc(h.name || h.addr)}</b>${h.name ? `<span>${esc(h.addr)}</span>` : ""}</button>`).join("")}<div class="osm-c">Kartendaten © OpenStreetMap-Mitwirkende</div>`;
+    box.hidden = false;
+  } catch (e) { if (e?.name !== "AbortError") box.hidden = true; }
+}
+const osmQueue = (q, fromTitle, ms = 450) => { clearTimeout(osmT); osmT = setTimeout(() => osmSearch(q, fromTitle), ms); };
+
 // =================== Dokumente: Tickets, PDFs, Bilder (privat, in Stücken gespeichert) ===================
 const FILE_MAX = 5e6, CHUNK = 180000, FILECACHE = new Map();
 const isPdfF = f => f.type === "application/pdf";
@@ -2137,7 +2161,8 @@ function showForm(e, preset) {
       <div id="f-trip-wrap"><label style="margin-top:8px">Anreise mit</label><div class="xchips" id="f-mode">${Object.entries(MODES).map(([k, l]) => `<label class="xchip" style="--c:var(--trip)"><input type="radio" name="fmode" value="${k}"${(v.mode || (v.flight ? "flug" : "")) === k ? " checked" : ""}><i></i>${l}</label>`).join("")}</div>
         <label class="tog setrow"><input type="checkbox" id="f-kids"${v.kids ? " checked" : ""}> Kinder reisen mit</label></div>
       <label for="f-place">Ort / Adresse</label>
-      <input id="f-place" type="text" value="${esc(v.place || "")}" placeholder="optional, für die Navigation">
+      <input id="f-place" type="text" value="${esc(v.place || "")}" placeholder="optional, für die Navigation" autocomplete="off">
+      <div id="f-place-sug" class="osm-sug" hidden></div>
       <label for="f-note">Notiz</label>
       <input id="f-note" type="text" value="${esc(v.note)}" placeholder="optional">
       <div id="f-gcal-wrap">${v.gReadOnly ? `<p class="note">Aus Google übernommen – der Google-Termin bleibt unverändert.</p>` : gWritable() ? `<label for="f-gcal">Auch in Google eintragen</label><select id="f-gcal">${gCalOptions(v.gcal)}</select>` : ""}</div>
@@ -3272,6 +3297,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
+  if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
   if ((el = q("[data-docsback]"))) { showDocs(); return; }
   if ((el = q("#docs-all"))) { const q2 = docQ.trim().toLowerCase(), ids = DOCS.filter(d => { const L = docLbl(d); return !q2 || `${d.name} ${L.title} ${L.date}`.toLowerCase().includes(q2); }).map(d => d.id);
@@ -3438,6 +3464,8 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; store.set("ft-gcal-sel", JSON.stringify([...s])); resetGoogleWatches(); return; }
   if (ev.target.id === "f-type" || ev.target.id === "f-rep") syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
 document.addEventListener("input", ev => {
+  if (ev.target.id === "f-place") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(v, false); else { const b = $("f-place-sug"); if (b) b.hidden = true; } }
+  if (ev.target.id === "f-title" && !$("f-place")?.value.trim() && !$("f-place")?.hidden) osmQueue(ev.target.value, true, 900);
   if (ev.target.id === "doc-q") { docQ = ev.target.value; const pos = ev.target.selectionStart; showDocs(); const i = $("doc-q"); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch {} } return; }
   if (ev.target.id === "shr-code") { const c = pickCode(ev.target.value); if (c.length === 12 && /[-\s]|^.{12}$/.test(ev.target.value.trim()) && ev.target.value.length >= 12 && !shrAcc?.checking) { shrAcc = { ...(shrAcc || {}), checking: true }; ev.target.value = fmtCode(c); shrCheck(c); } return; }
   if (ev.target.id === "f-title" && $("f-sh-wrap") && !formShManual && !editing) { const pick = new Set(shrPick(ev.target.value)); $("f-sh-wrap").querySelectorAll("[data-fsh]").forEach(i => { const v = i.dataset.fsh; i.checked = v.startsWith("g:") ? (SHR.groups.find(g => g.id === v.slice(2))?.members || []).every(L => pick.has(L)) && pick.size > 0 : pick.has(v); }); }
