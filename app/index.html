@@ -358,6 +358,8 @@ button { font: inherit; color: inherit; }
 .osm-sug button { border-top-color: color-mix(in srgb, var(--both) 20%, var(--line)); } .osm-sug button:first-of-type { border-top: 0; } .osm-sug button:hover { background: color-mix(in srgb, var(--both) 12%, var(--surface)); }
 .osm-sug button b { display: block; font-size: 14.5px; font-weight: 600; } .osm-sug button span { display: block; font-size: 13px; color: var(--muted); }
 .osm-sug .osm-c { padding: 4px 12px 7px; font-size: 10.5px; color: var(--muted); opacity: .8; }
+.pin { font-size: 12px; margin-left: 2px; }
+#place-sug { margin: 10px 0 2px; }
 .dai-info { margin-top: 6px; padding: 10px 12px; border-radius: 10px; background: var(--soft); font-size: 14px; color: var(--fg); }
 .pk input:checked + span { text-decoration: line-through; color: var(--muted); }
 .soon-h { display: flex; align-items: baseline; justify-content: space-between; padding-right: 8px; }
@@ -1319,6 +1321,8 @@ const APP = !!window.MK_APP;   // true = eigene App (Supabase), false = claude.a
 let db = null, canWrite = false, sample = null, downloads = null, dbState = "loading";
 // Profil des Nutzers (Einrichtung): Name, Länder, Familie
 let PROFILE = {}; // erst nach der Anmeldeprüfung aus dem Zwischenspeicher laden
+let GPLACE_C = null;   // gemerkte Orte für Google-Termine (wenn der Kalender nicht beschreibbar ist)
+const gPlace = () => (GPLACE_C ??= (() => { try { return JSON.parse(localStorage.getItem("ft-gplace") || "{}"); } catch { return {}; } })());
 const KEEP_KEYS = ["ft-a2hs", "ft-view", "ft-theme", "ft-uid"];
 function wipeLocal() { try { Object.keys(localStorage).filter(k => k.startsWith("ft-") && !KEEP_KEYS.includes(k)).forEach(k => localStorage.removeItem(k)); } catch {} }
 const ME = () => (PROFILE.name || "").trim() || "Ich";
@@ -2257,7 +2261,7 @@ function relDay(o) {
 function renderNext() {
   const items = OCC.filter(o => o.b >= TODAY && dayDiff(TODAY, o.a) <= 14).slice(0, 5);
   UPN.next = items.length;
-  $("next-list").innerHTML = items.map(o => `<button type="button" class="nx" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="when">${relDay(o)}</span><span class="what"><span class="ev-dot ${o.ev.type}"${o.ev.type === "google" ? ` style="background:${o.ev.color}"` : ""}></span>${esc(evName(o.ev))}${ageTxt(o) ? ` · ${esc(ageTxt(o))}` : ""}</span><span class="tm">${esc(timeTxt(o.ev))}</span></button>`).join("");
+  $("next-list").innerHTML = items.map(o => `<button type="button" class="nx" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="when">${relDay(o)}</span><span class="what"><span class="ev-dot ${o.ev.type}"${o.ev.type === "google" ? ` style="background:${o.ev.color}"` : ""}></span>${esc(evName(o.ev))}${placeHint(o)}${ageTxt(o) ? ` · ${esc(ageTxt(o))}` : ""}</span><span class="tm">${esc(timeTxt(o.ev))}</span></button>`).join("");
 }
 
 // =================== Demnächst-Karte ===================
@@ -2272,6 +2276,7 @@ function renderUp() {
   $("up-empty").textContent = dbState === "off" ? (APP ? "Melde dich mit Google an (kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du." : "Melde dich bei Claude an (das Konto ist kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du.") : "In den nächsten 14 Tagen steht nichts Besonderes an.";
   $("today-lbl").textContent = `${WDL[TODAY.getDay()]}, ${TODAY.getDate()}. ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
   renderToday(); renderHints(); renderTasks();
+  if (canWrite) osmPrefetch();
 }
 // ---- Heute-Seite: Countdowns, Wochenstreifen, vor einem Jahr ----
 let wkStart = monday(TODAY), wkSel = null;
@@ -2647,6 +2652,56 @@ async function osmSearch(q, fromTitle) {
   } catch (e) { if (e?.name !== "AbortError") box.hidden = true; }
 }
 const osmQueue = (q, fromTitle, ms = 450) => { clearTimeout(osmT); osmT = setTimeout(() => osmSearch(q, fromTitle), ms); };
+// ---- Mitdenken auch für vorhandene Termine (z. B. aus Google): passende Adresse zum Titel vorschlagen ----
+let OSMC = null, osmDead = false;
+const osmCache = () => (OSMC ??= (() => { try { return JSON.parse(store.get("ft-osmc") || "{}"); } catch { return {}; } })());
+const osmKey = t => osmWords(t).join(" ");
+async function osmFind(title) {
+  const k = osmKey(title); if (!k) return []; const C = osmCache(), c = C[k];
+  if (c && Date.now() - c.t < 30 * 864e5) return c.h;
+  if (osmDead) return [];
+  const [lat, lon] = STATE_LL[PA] || STATE_LL.BE;
+  let j; try { j = await (await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(title)}&lang=de&limit=6&lat=${lat}&lon=${lon}`)).json(); } catch { osmDead = true; return []; }
+  const tw = new Set(osmWords(title)), seen = new Set();
+  const h = (j.features || []).map(osmLine).filter(x => x.addr && x.name && osmWords(x.name).length && osmWords(x.name).every(w => tw.has(w))).filter(x => !seen.has(x.full) && seen.add(x.full)).slice(0, 3);
+  C[k] = { t: Date.now(), h }; const ks = Object.keys(C); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => delete C[x]);
+  store.set("ft-osmc", JSON.stringify(C)); return h;
+}
+const placeCand = o => { const e = o.ev; if (e.shared || !["google", "termin", "trip"].includes(e.type) || placeOf(e)) return false;
+  return !/geburtstag|birthday|urlaub|ferien/i.test(e.title) && osmWords(e.title).length > 0; };
+const placeHint = o => { if (!placeCand(o)) return ""; const c = osmCache()[osmKey(o.ev.title)]; return c && c.h.length ? ` <span class="pin" title="Ortsvorschlag – antippen zum Übernehmen">📍</span>` : ""; };
+async function fillPlaceSug(o) {
+  const box = $("place-sug"); if (!box) return; const h = await osmFind(o.ev.title).catch(() => []);
+  if (!h.length || !$("place-sug") || sheetCtx?.id !== o.ev.id) return;
+  box.innerHTML = `<div class="osm-sug"><div class="osm-h">Meinst du diesen Ort?</div>${h.map(x => `<button type="button" data-placeset="${esc(x.full)}"><b>${esc(x.name)}</b><span>${esc(x.addr)}</span></button>`).join("")}<div class="osm-c">Kartendaten © OpenStreetMap-Mitwirkende</div></div>`;
+  box.hidden = false;
+}
+async function setPlace(o, addr) {
+  const e = o.ev;
+  try {
+    if (e.type === "google") {
+      const cal = gCals.find(c => c.id === e.calId || (e.calId === "primary" && c.primary)), canW = !!mcp && gWritable() && (!cal?.accessRole || ["owner", "writer"].includes(cal.accessRole));
+      let ok = false;
+      if (canW) { try { const inp = { eventId: e.gid, location: addr }; if (e.calId !== "primary") inp.calendarId = e.calId; await mcp.callTool(GSERVER, "update_event", inp); ok = true; mcp.invalidate(GSERVER, "list_events").catch(() => {}); } catch {} }
+      const G = gPlace(); G[e.gid] = addr; try { localStorage.setItem("ft-gplace", JSON.stringify(G)); } catch {}
+      e.note = addr; toast(ok ? "Ort in Google eingetragen" : "Ort gemerkt – in Google selbst ist er nicht änderbar");
+    } else { await COLL("events").doc(e.id).update({ place: addr }); e.place = addr; toast("Ort eingetragen"); }
+    renderAll(); const o2 = findOcc(e.id, iso(o.a)) || o; e.type === "google" ? showGoogleEvent(o2) : showEvent(o2);
+  } catch (err) { toast(writeErr(err)); }
+}
+// Für die nächsten 14 Tage im Hintergrund nachsehen (wenige Abfragen pro Tag, jeder Titel nur einmal)
+let osmBgT = null, osmBgRun = false;
+function osmPrefetch() { clearTimeout(osmBgT); osmBgT = setTimeout(async () => {
+  if (osmBgRun || osmDead || document.hidden) return; osmBgRun = true;
+  try {
+    let B = {}; try { B = JSON.parse(store.get("ft-osmb") || "{}"); } catch {}
+    if (B.d !== iso(TODAY)) B = { d: iso(TODAY), n: 0 };
+    const todo = [...new Set(OCC.filter(o => dayDiff(TODAY, o.a) >= 0 && dayDiff(TODAY, o.a) <= 14 && placeCand(o)).map(o => o.ev.title))].filter(t => !osmCache()[osmKey(t)]);
+    let found = false;
+    for (const t of todo) { if (B.n >= 15 || osmDead) break; B.n++; store.set("ft-osmb", JSON.stringify(B)); if ((await osmFind(t)).length) found = true; await new Promise(r => setTimeout(r, 1200)); }
+    if (found) renderUp();
+  } finally { osmBgRun = false; }
+}, 4000); }
 
 // =================== Dokumente: Tickets, PDFs, Bilder (privat, in Stücken gespeichert) ===================
 const FILE_MAX = 5e6, CHUNK = 180000, FILECACHE = new Map();
@@ -3275,7 +3330,8 @@ function showEvent(o) {
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}">Löschen</button>` : "");
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul>${docsBox(e)}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
 // =================== Formular ===================
@@ -3833,7 +3889,7 @@ function mapG(e, calId) {
   } else return null;
   if (!a) return null; if (!b || b < a) b = a;
   const [color, ink] = gColor(calId);
-  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, type: "google", color, ink, title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || ""),
+  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, type: "google", color, ink, title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
     repeat: "none", a, b, cal: calLabel(calId), creator: isMe(e.creator) ? "" : String(e.creator?.displayName || (e.creator?.email || "").split("@")[0] || ""),
     created: String(e.created || ""), updated: String(e.updated || ""), link: /^https:\/\/(www\.)?google\.com\/calendar\//.test(e.htmlLink || "") ? e.htmlLink : "" };
   return { ev, a, b };
@@ -3989,7 +4045,8 @@ function showGoogleEvent(o) {
     routeLinks(placeOf(e)) +
     (canWrite && isTrip(o) ? `<button type="button" class="btn ghost small" data-adopt="${id}|${iso(o.a)}">Als Reise übernehmen</button>` : "") +
     (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
-  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 // ---- Google-Termine direkt ändern ----
 let gEditing = null;
@@ -4165,7 +4222,7 @@ function renderWz() {
       ${W.gMsg ? `<div class="wz-box warn"><span>${esc(W.gMsg)}</span></div>` : ""}
       ${mcp ? `<button type="button" class="wz-big accent" id="wz-g-yes"${busy ? " disabled" : ""}>${busy ? "Verbinde mit Google …" : "Ja, Google verbinden"}</button>` : ""}
       <button type="button" class="wz-big ${mcp ? "ghost" : "accent"}" id="wz-g-no">${mcp ? "Ohne Google weiter" : "Ohne Google starten"}</button>
-      ${mcp ? `<p class="note">Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen.</p>` : ""}</div>`;
+      ${mcp ? `<p class="note">${APP ? "Google fragt dich einmal, ob der Kalender deine Termine sehen und eintragen darf. Bitte beide Häkchen setzen." : "Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen."}</p>` : ""}</div>`;
   }
   if (W.step === "cals") {
     const cals = [{ id: "primary" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary)]; store.set("ft-gcal-asked", "1");
@@ -4468,6 +4525,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
   if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
+  if ((el = q("[data-placeset]"))) { const o = sheetCtx && findOcc(sheetCtx.id, sheetCtx.a); if (o) setPlace(o, el.dataset.placeset); return; }
   if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
   if ((el = q("[data-docsback]"))) { showDocs(); return; }
