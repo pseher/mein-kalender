@@ -1,25 +1,33 @@
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
 // db (Supabase), user (Supabase-Anmeldung), sample (KI über den Worker), downloads (Datei speichern).
-// Google Kalender (mcp) folgt in Phase 3 – bis dahin null.
+// mcp: Google Kalender direkt über die Google-API (Schlüssel aus der Google-Anmeldung, Erneuerung über den Worker).
 window.MK_APP = true;
 (() => {
   const CFG = window.MK_CFG;
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   window.mkSupabase = sb;
   let session = null;
-  const ready = sb.auth.getSession().then(r => { session = r.data.session; return session; }).catch(() => null);
+  const ready = sb.auth.getSession().then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
   // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),
   // nie während die Seite selbst die Anmeldung aus der Adresse übernimmt – sonst lädt sie endlos neu.
   let startedWith = undefined;   // undefined = Start läuft noch, sonst: true/false
   ready.then(s => { startedWith = !!s; });
   sb.auth.onAuthStateChange((ev, s) => {
-    if (s) session = s; else if (ev === "SIGNED_OUT") session = null;
+    if (s) { session = s; keepGoogle(s); } else if (ev === "SIGNED_OUT") { session = null; Object.values(GK).forEach(k => lsSet(k, "")); }
     if (startedWith === undefined) return;
     if (ev === "SIGNED_OUT" && startedWith) location.reload();
     if (ev === "SIGNED_IN" && !startedWith && s) location.reload();
   });
-  window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
+  // Eine Anmeldung für beides: Konto + Zugriff auf Google Kalender (Google fragt die Kalender-Rechte einzeln ab)
+  const G_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
+  window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname, scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } });
+  window.mkConnectGoogle = () => { try { sessionStorage.setItem("mk-wz-g", "1"); } catch {} return window.mkSignIn(); };
+  // Google-Schlüssel aus der Anmeldung merken (nur in diesem Browser)
+  const GK = { at: "mk-g-at", exp: "mk-g-exp", rt: "mk-g-rt" };
+  const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
+  const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
+  const keepGoogle = s => { if (!s?.provider_token) return; lsSet(GK.at, s.provider_token); lsSet(GK.exp, String(Date.now() + 50 * 60e3)); if (s.provider_refresh_token) lsSet(GK.rt, s.provider_refresh_token); };
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
 
   // ---------- db: Pfade wie im Artefakt auf zwei Tabellen abbilden ----------
@@ -120,12 +128,82 @@ window.MK_APP = true;
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   } };
 
+  // ---------- mcp: Google Kalender direkt über die Google-API ----------
+  const GAPI = "https://www.googleapis.com/calendar/v3";
+  const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Berlin";
+  const gErr = (code, message) => Object.assign(new Error(message || code), { code });
+  let refreshing = null;
+  async function gToken(force) {
+    if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
+    const rt = lsGet(GK.rt); if (!rt) throw gErr("needs_reauth");
+    refreshing ??= (async () => {
+      const s = session || await ready;
+      const r = await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok || !b.access_token) { if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
+      lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
+    })().finally(() => { refreshing = null; });
+    return refreshing;
+  }
+  async function gFetch(path, { method = "GET", body, signal } = {}, retry = true) {
+    let r;
+    try { r = await fetch(GAPI + path, { method, signal, headers: { Authorization: "Bearer " + await gToken(), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined }); }
+    catch (e) { if (e?.code) throw e; throw gErr("upstream_error"); }
+    if (r.status === 401 && retry) { lsSet(GK.exp, "0"); await gToken(true); return gFetch(path, { method, body, signal }, false); }
+    if (r.status === 204) return {};
+    const b = await r.json().catch(() => ({}));
+    if (r.status === 401 || (r.status === 403 && /insufficient|scope|PERMISSION/i.test(JSON.stringify(b)))) throw gErr("needs_reauth");
+    if (r.status === 429 || r.status >= 500) throw gErr("upstream_error");
+    if (!r.ok) throw gErr("tool_error", b?.error?.message);
+    return b;
+  }
+  const rfc = local => new Date(local).toISOString();                       // "2026-11-20T00:00:00" (Ortszeit) → UTC
+  const cal = i => encodeURIComponent(i?.calendarId || "primary");
+  const when = (i, k) => i.allDay ? { date: String(i[k]).slice(0, 10) } : { dateTime: i[k], timeZone: TZ };
+  const evBody = (i, partial) => { const b = {};
+    if (i.summary != null) b.summary = i.summary; if (i.description != null) b.description = i.description; if (i.location != null) b.location = i.location;
+    if (i.startTime) b.start = when(i, "startTime"); if (i.endTime) b.end = when(i, "endTime");
+    if (i.recurrenceData) b.recurrence = i.recurrenceData; return b; };
+  const TOOLS = {
+    async list_calendars() { const b = await gFetch("/users/me/calendarList?maxResults=250");
+      return { calendars: (b.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, accessRole: c.accessRole, backgroundColor: c.backgroundColor })) }; },
+    async list_events(i, signal) { const q = new URLSearchParams({ singleEvents: "true", maxResults: String(Math.min(2500, i.pageSize || 250)) });
+      if (i.startTime) q.set("timeMin", rfc(i.startTime)); if (i.endTime) q.set("timeMax", rfc(i.endTime));
+      if (i.orderBy === "startTime") q.set("orderBy", "startTime"); if (i.pageToken) q.set("pageToken", i.pageToken); if (i.query) q.set("q", i.query);
+      (i.eventType || []).forEach(t => q.append("eventTypes", String(t).toLowerCase()));
+      const b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal });
+      return { events: b.items || [], nextPageToken: b.nextPageToken || "", summary: b.summary || "" }; },
+    async create_event(i) { return gFetch(`/calendars/${cal(i)}/events?sendUpdates=none`, { method: "POST", body: evBody(i) }); },
+    async update_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "PATCH", body: evBody(i, true) }); },
+    async delete_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "DELETE" }); },
+  };
+  const CACHE = new Map();                                                   // tool|input → { t, v }
+  async function callTool(_server, tool, input = {}, opts = {}) {
+    const fn = TOOLS[tool]; if (!fn) throw gErr("not_in_manifest");
+    const key = tool + "|" + JSON.stringify(input), st = opts.cache?.staleTime || 0, hit = CACHE.get(key);
+    if (st && hit && Date.now() - hit.t < st) return { payload: hit.v, cache: { storedAt: hit.t } };
+    const v = await fn(input, opts.signal);
+    if (/^list_/.test(tool)) CACHE.set(key, { t: Date.now(), v }); else [...CACHE.keys()].forEach(k => k.startsWith("list_events|") && CACHE.delete(k));
+    return { payload: v };
+  }
+  const mcp = {
+    callTool,
+    invalidate: async (_s, tool) => { [...CACHE.keys()].forEach(k => (!tool || k.startsWith(tool + "|")) && CACHE.delete(k)); },
+    watchTool(server, tool, input, handler, opts = {}) {
+      let off = false; const run = () => callTool(server, tool, input, opts).then(r => !off && handler({ type: "data", result: r })).catch(e => !off && handler({ type: "error", error: { code: e?.code || "upstream_error" } }));
+      run(); const iv = opts.refetchInterval ? setInterval(() => { if (!document.hidden) { CACHE.delete(tool + "|" + JSON.stringify(input)); run(); } }, opts.refetchInterval) : null;
+      return () => { off = true; clearInterval(iv); };
+    },
+    listTools: async () => [{ server: "Google Calendar", tools: Object.keys(TOOLS) }],
+  };
+
   window.claude = { use: async name => {
     const s = await ready;
     if (name === "db") return s ? db : null;
     if (name === "user") return s ? user : null;
     if (name === "sample") return s && CFG.workerUrl ? sample : null;
     if (name === "downloads") return downloads;
-    return null;   // mcp (Google Kalender) folgt in Phase 3
+    if (name === "mcp") return s && CFG.workerUrl ? mcp : null;
+    return null;
   } };
 })();

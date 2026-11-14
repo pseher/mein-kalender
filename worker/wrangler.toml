@@ -10,7 +10,9 @@ MODEL_QUICK = "claude-haiku-4-5-20251001"               # günstig: Einträge, P
 MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente auswerten
 DAILY_LIMIT = "40"                                      # KI-Anfragen pro Nutzer und Tag
 IMAGE_DAILY_LIMIT = "10"                                # davon mit Bildern/Dokumenten
+GOOGLE_CLIENT_ID = "15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"
 
 # Geheime Werte NICHT hier eintragen, sondern:
 #   npx wrangler secret put ANTHROPIC_KEY
 #   npx wrangler secret put SUPABASE_SERVICE_KEY
+#   npx wrangler secret put GOOGLE_CLIENT_SECRET

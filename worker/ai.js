@@ -4,7 +4,8 @@
 //
 // Secrets (wrangler secret put …): ANTHROPIC_KEY, SUPABASE_SERVICE_KEY
 // Variablen (wrangler.toml):       SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_ORIGINS,
-//                                  MODEL_QUICK, MODEL_DEFAULT, DAILY_LIMIT, IMAGE_DAILY_LIMIT
+//                                  MODEL_QUICK, MODEL_DEFAULT, DAILY_LIMIT, IMAGE_DAILY_LIMIT,
+//                                  GOOGLE_CLIENT_ID  (+ Secret GOOGLE_CLIENT_SECRET für /google/token)
 
 const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
@@ -20,7 +21,8 @@ export default {
     };
     const out = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
-    if (req.method !== "POST" || new URL(req.url).pathname !== "/ai") return out(404, { code: "not_found" });
+    const route = new URL(req.url).pathname;
+    if (req.method !== "POST" || !["/ai", "/google/token"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -29,6 +31,17 @@ export default {
     const who = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: auth } });
     if (!who.ok) return out(401, { code: "not_signed_in" });
     const user = await who.json();
+
+    // Google-Zugriffsschlüssel erneuern (der Clientschlüssel bleibt hier; nichts wird gespeichert)
+    if (route === "/google/token") {
+      let rt = ""; try { rt = String((await req.json()).refresh_token || ""); } catch {}
+      if (!rt) return out(400, { code: "bad_request" });
+      const g = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: rt, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET }) });
+      const gb = await g.json().catch(() => ({}));
+      if (!g.ok) return out(g.status === 400 ? 401 : 502, { code: gb.error === "invalid_grant" ? "invalid_grant" : "google_error" });
+      return out(200, { access_token: gb.access_token, expires_in: gb.expires_in || 3600 });
+    }
 
     // 2) Anfrage prüfen
     let body; try { body = await req.json(); } catch { return out(400, { code: "bad_request" }); }

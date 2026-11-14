@@ -2743,7 +2743,7 @@ function renderGPill() {
 function gStatusText() {
   return {
     ok: gLiveAt ? "" : "Zeigt den zuletzt geladenen Stand – Google antwortet gerade nicht, ich versuche es automatisch weiter.", loading: "Verbindung wird hergestellt …", timeout: "Google antwortet gerade nicht. Ich versuche es automatisch weiter.", upstream_error: "Google antwortet gerade nicht. Ich versuche es automatisch weiter.",
-    needs_reauth: "Die Verbindung zu Google ist abgelaufen. Verbinde Google Kalender in claude.ai unter Einstellungen → Konnektoren neu.",
+    needs_reauth: APP ? "Google Kalender ist noch nicht verbunden oder die Freigabe ist abgelaufen. Tippe auf „Mit Google verbinden“ und erlaube den Zugriff auf deinen Kalender." : "Die Verbindung zu Google ist abgelaufen. Verbinde Google Kalender in claude.ai unter Einstellungen → Konnektoren neu.",
     server_not_connected: "Google Kalender ist nicht verbunden. Füge ihn in claude.ai unter Einstellungen → Konnektoren hinzu.",
     selection_required: "Es gibt mehrere Google-Kalender-Verbindungen. Wähl in claude.ai aus, welche diese Seite nutzen soll.",
     not_in_manifest: "Der Zugriff auf Google wurde für diese Seite abgelehnt. Du kannst ihn über das Berechtigungen-Menü der Seite wieder erlauben.",
@@ -2765,7 +2765,7 @@ function showGoogleSheet() {
   const sel = gState === "ok" ? new Set(selectedCals()) : new Set();
   openSheet("Google Kalender", "Welche Google-Kalender hier erscheinen", `
     ${st ? `<p class="note" style="margin-top:10px">${esc(st)}</p>` : ""}
-    ${gState !== "ok" ? `<button type="button" class="btn accent wide" id="g-retry">Erneut verbinden</button>` : ""}
+    ${gState !== "ok" ? `<button type="button" class="btn accent wide" id="g-retry">${APP && FATAL.includes(gState) ? "Mit Google verbinden" : "Erneut verbinden"}</button>` : ""}
     ${gState === "ok" ? `<button type="button" class="btn accent wide" id="g-sync" style="margin-top:12px">↻ Jetzt mit Google abgleichen</button>
       <label class="tog" style="margin-top:12px;color:var(--fg);font-weight:600"><input type="checkbox" id="g-show"${gShow ? " checked" : ""}> Google-Termine anzeigen</label>
       <div class="lbl" style="margin-top:12px">Kalender</div>
@@ -2923,6 +2923,7 @@ function startSetup(fresh) {
   WZ = { step: "google", name: PROFILE.name || (meName || "").split(/\s+/)[0] || "", state: PROFILE.state || PA, state2: PROFILE.state2 || "", joint: PROFILE.joint ?? true,
     cands: [], picked: {}, roles: {}, showAll: false, manual: FAM().map(p => ({ ...p })), trips: [], editing: !!PROFILE.setupDone, gMsg: "" };
   if (fresh) WZ.editing = false;
+  if (APP) { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; sessionStorage.removeItem("mk-wz-g"); } catch {} if (back && !WZ.editing) setTimeout(() => { if (WZ?.step === "google") wzConnectGoogle(); }, 600); }
   if (WZ.editing) WZ.step = "state";
   wzOpen(); renderWz();
 }
@@ -3006,6 +3007,7 @@ function wzReadState() { if ($("wz-name")) WZ.name = $("wz-name").value.trim(); 
 async function wzConnectGoogle() {
   WZ.gBusy = true; WZ.gMsg = ""; renderWz(); gTry = 0;
   await initGoogle(); WZ.gBusy = false;
+  if (APP && FATAL.includes(gState)) { window.mkConnectGoogle?.(); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
   if (gState === "ok" && !gPrimarySummary) { try { const r = await withTimeout(mcp.callTool(GSERVER, "list_events", { pageSize: 1 }), 12000); gPrimarySummary = String(r?.payload?.summary || ""); } catch {} }
   if (gState === "ok") { WZ.useG = true; gShow = true; store.set("ft-gshow", "1"); wzGo("cals"); }
   else { WZ.gMsg = gStatusText() || "Google antwortet gerade nicht. Versuch es noch einmal oder mach ohne Google weiter."; renderWz(); }
@@ -3333,7 +3335,7 @@ document.addEventListener("click", ev => {
     case "set-test": showSettings("test"); break;
     case "trip-dec": tripStep(-1); break;
     case "trip-inc": tripStep(1); break;
-    case "g-retry": gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
+    case "g-retry": if (APP && FATAL.includes(gState)) { window.mkConnectGoogle?.(); break; } gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
   }
 });
 document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { statsOpen = ev.target.open; if (statsOpen) { if (ensureGoogle()) renderAll(); else renderStats(); } } }, true);
