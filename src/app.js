@@ -2847,6 +2847,17 @@ async function gDeleteOcc(btn, o) {
 // =================== Anmelden & Startbildschirm ===================
 const UA = navigator.userAgent || "", IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1), IS_ANDROID = /Android/i.test(UA);
 const IS_MOBILE = IS_IOS || IS_ANDROID;
+const IS_STANDALONE = (() => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch { return false; } })();
+// Eigene App: Installations-Angebot des Browsers (Android/Chrome) merken und selbst anbieten
+let installEvt = null;
+if (APP) { addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; try { renderHints(); } catch {} });
+  addEventListener("appinstalled", () => { installEvt = null; store.set("ft-a2hs", "done"); try { renderHints(); } catch {} }); }
+async function doInstall() {
+  if (!installEvt) { showA2hs(); return; }
+  installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); installEvt = null;
+  if (r?.outcome === "accepted") { store.set("ft-a2hs", "done"); toast("Installiert – du findest Mein Kalender jetzt bei deinen Apps."); }
+  closeSheet(); renderHints();
+}
 function showSignin() {
   if (APP) return openSheet("Kostenlos anmelden", "Damit dein Kalender nur dir gehört", `
     <p class="tip" style="color:var(--fg)">Melde dich mit deinem <b>Google-Konto</b> an – kostenlos, ohne neues Passwort. Deine Einträge sind privat, nur du siehst sie.</p>
@@ -2864,6 +2875,11 @@ function a2hsSteps() {
     : `<p class="tip" style="color:var(--fg)">Am Handy geht das über das Browser-Menü („Zum Startbildschirm hinzufügen“). Am Computer kannst du die Seite einfach als Lesezeichen speichern.</p>`;
 }
 function showA2hs() {
+  if (APP) return openSheet("Als App installieren", "Eigenes Symbol, ohne Browserleiste, startet auch offline", `
+    ${IS_STANDALONE ? `<p class="tip" style="color:var(--fg)">Läuft schon als App. 👍</p>` : installEvt ? `<p class="tip" style="color:var(--fg)">Ein Tipp – dann liegt Mein Kalender bei deinen Apps und auf dem Startbildschirm.</p>
+      <div class="btnrow" style="margin-top:12px"><button type="button" class="btn accent" id="app-install">Jetzt installieren</button><button type="button" class="btn ghost" id="a2hs-later">Später</button></div>`
+    : `${a2hsSteps()}<p class="note" style="margin-top:10px">${IS_IOS ? "Nur in Safari möglich – in anderen Browsern auf dem iPhone fehlt diese Funktion." : "Kein Menüpunkt zu sehen? Dann die Seite einmal in Chrome öffnen."}</p>
+      <div class="btnrow" style="margin-top:12px"><button type="button" class="btn accent" id="a2hs-done">Erledigt</button><button type="button" class="btn ghost" id="a2hs-later">Später</button></div>`}`, "a2hs");
   openSheet("Auf den Startbildschirm", "Dann öffnest du den Kalender mit einem Tipp", `${a2hsSteps()}
     <p class="note" style="margin-top:10px">Geöffnet in der Claude-App? Dann den Link zuerst im Browser öffnen (Safari bzw. Chrome) – nur dort gibt es diese Funktion.</p>
     <div class="btnrow" style="margin-top:12px"><button type="button" class="btn accent" id="a2hs-done">Erledigt</button><button type="button" class="btn ghost" id="a2hs-later">Später</button></div>`, "a2hs");
@@ -2876,7 +2892,8 @@ function renderHints() {
   si.hidden = dbState !== "off";
   const st = store.get("ft-a2hs") || "";   // "", "later:<ts>", "no", "done"
   const later = st.startsWith("later:") && Date.now() - +st.slice(6) < 7 * 864e5;
-  a2.hidden = !IS_MOBILE || dbState !== "ready" || !$("first-card")?.hidden || st === "no" || st === "done" || later || (dbState === "ready" && !PROFILE.setupDone) || !$("sheet").hidden && sheetMode === "setup";
+  if (APP) { a2.querySelector("b").textContent = "Als App installieren?"; a2.querySelector("span").textContent = "Eigenes Symbol, ohne Browserleiste – und der Kalender startet auch ohne Netz."; $("a2hs-yes").textContent = installEvt ? "Jetzt installieren" : "Ja, zeig mir wie"; }
+  a2.hidden = IS_STANDALONE || !(IS_MOBILE || (APP && installEvt)) || dbState !== "ready" || !$("first-card")?.hidden || st === "no" || st === "done" || later || (dbState === "ready" && !PROFILE.setupDone) || !$("sheet").hidden && sheetMode === "setup";
 }
 
 // =================== Profil & Einrichtung (Vollbild) ===================
@@ -3313,7 +3330,8 @@ document.addEventListener("click", ev => {
     case "sheet-close2": closeSheet(); break;
     case "app-login": window.mkSignIn?.(); break;
     case "app-logout": window.mkSignOut?.(); break;
-    case "a2hs-yes": showA2hs(); break;
+    case "a2hs-yes": if (APP && installEvt) doInstall(); else showA2hs(); break;
+    case "app-install": doInstall(); break;
     case "a2hs-no": store.set("ft-a2hs", "no"); renderHints(); toast("Alles klar – du findest die Anleitung unter „Anzeigen“."); break;
     case "a2hs-done": store.set("ft-a2hs", "done"); closeSheet(); renderHints(); toast("Prima!"); break;
     case "a2hs-later": store.set("ft-a2hs", "later:" + Date.now()); closeSheet(); renderHints(); break;
@@ -3502,6 +3520,7 @@ renderAll();
   } else { try { PROFILE = JSON.parse(store.get("ft-profile") || "null") || {}; } catch {} }
   if (mcp) initGoogle(); else renderGPill();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
+  if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforeend", `<button type="button" class="link" id="app-logout" style="font-size:13px;color:var(--muted);padding:4px 0">Abmelden${meName ? " (" + esc(meName.split(/\s+/)[0]) + ")" : ""}</button>`); } }
   BASE = `data/users/${uid}/k`;      // privater Bereich: nur dieser Nutzer kann ihn lesen und schreiben
