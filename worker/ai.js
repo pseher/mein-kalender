@@ -38,7 +38,8 @@ export default {
     if (images.length > MAX_IMAGES || images.some(i => !/^image\/(jpeg|png|webp|gif)$/.test(i?.type || "") || String(i?.data || "").length > MAX_IMAGE_B64)) return out(400, { code: "bad_image" });
 
     // 3) Tageslimit
-    const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`, "Content-Type": "application/json" };
+    // Neue Supabase-Schlüssel (sb_secret_…) nur als apikey senden; alte JWT-Schlüssel zusätzlich als Bearer
+    const svc = { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json", ...(env.SUPABASE_SERVICE_KEY.startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
     const today = new Date().toISOString().slice(0, 10);
     const u = await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=eq.${user.id}&day=eq.${today}&select=task,calls`, { headers: svc });
     const rows = u.ok ? await u.json() : [];

@@ -5,7 +5,7 @@ compatibility_date = "2026-11-01"
 [vars]
 SUPABASE_URL = "https://DEIN-PROJEKT.supabase.co"      # aus Supabase → Project Settings → API
 SUPABASE_ANON_KEY = "DEIN-ANON-KEY"                     # öffentlicher Schlüssel, darf hier stehen
-ALLOWED_ORIGINS = "https://meinkalender.pages.dev"      # später + eigene Domain, mit Komma getrennt
+ALLOWED_ORIGINS = "https://mein-kalender-czb.pages.dev"      # später + eigene Domain, mit Komma getrennt
 MODEL_QUICK = "claude-haiku-4-5-20251001"               # günstig: Einträge, Packlisten
 MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente auswerten
 DAILY_LIMIT = "40"                                      # KI-Anfragen pro Nutzer und Tag
