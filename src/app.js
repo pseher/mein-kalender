@@ -1286,6 +1286,9 @@ function showNext3() {
     return `<h3 class="pkh">${["Heute", "Morgen", "Übermorgen"][i]} · ${fmt(d)}</h3>${L.length ? `<div class="n3">${L.map(row).join("")}</div>` : `<p class="note" style="margin:4px 2px 0">Nichts geplant.</p>`}`; }).join(""), "n3");
 }
 const o2b = o => o.b;
+// Beim Tippen (Tastatur verkleinert den Bildschirm) nicht zur nächsten Seite springen
+document.addEventListener("focusin", ev => { if (ev.target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) { clearTimeout(window.__typT); document.documentElement.classList.add("typing"); } });
+document.addEventListener("focusout", () => { clearTimeout(window.__typT); window.__typT = setTimeout(() => { if (!document.activeElement?.matches?.("input, textarea, select")) document.documentElement.classList.remove("typing"); }, 400); });
 function renderToday() {
   const box = $("today-x"); if (!box) return;
   // Countdowns
@@ -2198,6 +2201,17 @@ const findOcc = (id, a) => OCC.find(o => o.ev.id === id && iso(o.a) === a) || OC
 
 // =================== Sheets ===================
 const sheet = $("sheet");
+// ---- Konto: Abmelden & Löschen (nur eigene App) ----
+async function showAccount() {
+  closeMenu();
+  let me = {}; try { me = await (await claude.use("user"))?.me?.() || {}; } catch {}
+  openSheet("Konto", "", `<div class="acc">
+    <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">angemeldet mit Google</span></div>
+    <button type="button" class="btn ghost big" id="app-logout">Abmelden</button>
+    <p class="note">Deine Daten bleiben gespeichert – nach der nächsten Anmeldung ist alles wieder da.</p>
+    <div class="acc-danger"><b>Konto löschen</b><span>Entfernt dein Konto und alle Daten in Mein Kalender endgültig.</span><button type="button" class="btn danger" id="app-delacc">Konto löschen …</button></div>
+  </div>`, "account");
+}
 // ---- Konto löschen (nur eigene App) ----
 function showDeleteAccount() {
   closeMenu?.();
@@ -3603,6 +3617,7 @@ document.addEventListener("click", ev => {
     case "app-login": window.mkSignIn?.(); break;
     case "app-logout": window.mkSignOut?.(); break;
     case "app-delacc": showDeleteAccount(); break;
+    case "mi-account": showAccount(); break;
     case "delacc-go": doDeleteAccount(); break;
     case "a2hs-yes": if (APP && installEvt) doInstall(); else showA2hs(); break;
     case "app-install": doInstall(); break;
@@ -3804,7 +3819,7 @@ renderAll();
   if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
-      L.insertAdjacentHTML("beforeend", `<button type="button" class="link" id="app-logout" style="font-size:13px;color:var(--muted);padding:4px 0">Abmelden${meName ? " (" + esc(meName.split(/\s+/)[0]) + ")" : ""}</button><button type="button" class="link" id="app-delacc" style="font-size:13px;color:var(--muted);padding:4px 0">Konto löschen</button>`); } }
+      L.insertAdjacentHTML("beforebegin", `<button type="button" class="mi" data-mi id="mi-account"><i class="dotc" style="--c:var(--muted)"></i>Konto<em class="mi-v">${esc((meName || "").split(/\s+/)[0])}</em></button>`); } }
   BASE = `data/users/${uid}/k`;      // privater Bereich: nur dieser Nutzer kann ihn lesen und schreiben
   canWrite = true;
   COLL("prefs").doc("profile").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; applyProfile(v); profileLoaded = true; maybeSetup(); }, () => { profileLoaded = true; });
