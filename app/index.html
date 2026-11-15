@@ -1477,6 +1477,8 @@ function expand() {
 // ---- Reise bündeln: Hotels, Flüge, Unterkünfte innerhalb einer Reise gehören zur Reise ----
 const PART_RE = /🏨|✈|🚆|\b(hotel|stay at|aufenthalt|flug|flight|zug|bahn|ice|ferienwohnung|ferienhaus|apartment|wohnung|airbnb|booking|unterkunft|check-?in|mietwagen|rental car|fähre|ferry|pension|hostel|resort|lodge)\b/i;
 const GENERIC_TRIP = /^\s*(urlaub|reise|ferien|auszeit|trip)\b/i;
+// Wer wird bei gleich langen Einträgen der Reise-Kopf? Eigene Reise > allgemeiner Titel („Urlaub“) > Google-Reise; bei Gleichstand fest nach id
+const headRank = o => (o.ev.type === "trip" ? 4 : 0) + (GENERIC_TRIP.test(o.ev.title) ? 2 : 0) + (isTrip(o) ? 1 : 0);
 function groupTrips() {
   OCC.forEach(o => { o.part = null; o.parts = null; });
   if (SHOW.bundle === false) return;
@@ -1489,11 +1491,12 @@ function groupTrips() {
     trips.forEach(t => {
       if (t === o || t.ev === e || o.a < addDays(t.a, -1) || o.b > addDays(t.b, 1)) return;
       const tl = dayDiff(t.a, t.b); if (tl < ol) return;
-      if (tl === ol && !((t.ev.type === "trip" && e.type !== "trip") || (GENERIC_TRIP.test(t.ev.title) && !GENERIC_TRIP.test(e.title)))) return;
+      if (tl === ol && headRank(t) <= headRank(o)) return;   // gleich lang: nur der „stärkere“ Eintrag wird Reise-Kopf (sonst gegenseitig versteckt)
       if (!best || tl > dayDiff(best.a, best.b)) best = t; });
     o.part = best;
   });
-  OCC.forEach(o => { let n = 0; while (o.part && o.part.part && n++ < 5) o.part = o.part.part; if (o.part) (o.part.parts = o.part.parts || []).push(o); });
+  OCC.forEach(o => { let n = 0; while (o.part && o.part.part && n++ < 5) o.part = o.part.part; if (o.part && (o.part === o || o.part.part)) o.part = null; });   // Kreise auflösen
+  OCC.forEach(o => { if (o.part) (o.part.parts = o.part.parts || []).push(o); });
 }
 const cityOf = e => { for (const t of [e.title, `${e.place || ""} ${e.note || ""}`]) for (const x of Object.values(COUNTRIES)) { const m = String(t).match(x.re);
   if (m && m[0].trim().length > 3) { const w = m[0].trim(); return w[0].toUpperCase() + w.slice(1); } } return ""; };
