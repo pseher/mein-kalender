@@ -1863,7 +1863,7 @@ Antworte NUR mit JSON: {"land": "ISO-Ländercode des Reiseziels in Großbuchstab
     const add = [...base, ...ai].filter(x => !seen.has(x.t.toLowerCase()) && seen.add(x.t.toLowerCase()));
     savePack([...add, ...old], true);
     if (sheetMode === "pack" && !$("sheet").hidden && sheetCtx?.id === e.id) showPack(e, true);
-  } catch (err) { const m = $("pk-msg") || $("pk-err"); if (m) m.textContent = err?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Die Packliste konnte gerade nicht erstellt werden. Öffne sie später noch einmal.";
+  } catch (err) { const m = $("pk-msg") || $("pk-err"); if (m) m.textContent = err?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Die Packliste konnte gerade nicht erstellt werden. Öffne sie später noch einmal." + (APP && window.mkKiLast ? ` (${window.mkKiLast})` : "");
     if (btn) { btn.disabled = false; btn.textContent = "Neu zusammenstellen"; } }
 }
 

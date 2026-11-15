@@ -23,7 +23,7 @@ export default {
     const out = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15b", routes: ["/ai", "/google/token", "/account/delete"] });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15c", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete"] });
     if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
@@ -80,9 +80,9 @@ export default {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": env.ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: 2000, messages: [{ role: "user", content }] }),
-    });
-    if (!r.ok) return out(502, { code: r.status === 429 ? "rate_limited" : "ai_error" });
+      body: JSON.stringify({ model, max_tokens: body.json ? 4000 : 2000, messages: [{ role: "user", content }] }),
+    }).catch(e => ({ ok: false, status: 0, json: async () => ({ error: { message: String(e) } }) }));
+    if (!r.ok) { const eb = await r.json().catch(() => ({})); return out(502, { code: r.status === 429 ? "rate_limited" : "ai_error", detail: `Anthropic ${r.status}${env.ANTHROPIC_KEY ? "" : " (ANTHROPIC_KEY fehlt)"}: ${eb?.error?.message || ""}`.slice(0, 200) }); }
     const res = await r.json();
     const text = (res.content || []).filter(c => c.type === "text").map(c => c.text).join("");
 

@@ -142,7 +142,8 @@ window.MK_APP = true;
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
       body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || "" }) });
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" });
+    if (!r.ok) { window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");
     opts.onText?.({ text: body.text || "", delta: body.text || "" });
     return body;
   }
@@ -3054,7 +3055,7 @@ Antworte NUR mit JSON: {"land": "ISO-Ländercode des Reiseziels in Großbuchstab
     const add = [...base, ...ai].filter(x => !seen.has(x.t.toLowerCase()) && seen.add(x.t.toLowerCase()));
     savePack([...add, ...old], true);
     if (sheetMode === "pack" && !$("sheet").hidden && sheetCtx?.id === e.id) showPack(e, true);
-  } catch (err) { const m = $("pk-msg") || $("pk-err"); if (m) m.textContent = err?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Die Packliste konnte gerade nicht erstellt werden. Öffne sie später noch einmal.";
+  } catch (err) { const m = $("pk-msg") || $("pk-err"); if (m) m.textContent = err?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Die Packliste konnte gerade nicht erstellt werden. Öffne sie später noch einmal." + (APP && window.mkKiLast ? ` (${window.mkKiLast})` : "");
     if (btn) { btn.disabled = false; btn.textContent = "Neu zusammenstellen"; } }
 }
 

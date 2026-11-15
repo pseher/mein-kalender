@@ -127,7 +127,8 @@ window.MK_APP = true;
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
       body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || "" }) });
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" });
+    if (!r.ok) { window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");
     opts.onText?.({ text: body.text || "", delta: body.text || "" });
     return body;
   }
