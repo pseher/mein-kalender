@@ -1,3 +1,4 @@
+// Mein Kalender – Worker (wird bei Änderungen in worker/ automatisch von Cloudflare bereitgestellt)
 // Mein Kalender – KI-Worker (Cloudflare Worker)
 // Nimmt KI-Anfragen der App entgegen, prüft Anmeldung und Tageslimits,
 // fragt das Modell und protokolliert die Nutzung. Der API-Schlüssel bleibt hier.
