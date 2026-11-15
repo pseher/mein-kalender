@@ -152,7 +152,7 @@ window.MK_APP = true;
       if (r && r.status === 401) { const nb = await r.clone().json().catch(() => ({})); if (nb.code === "not_signed_in") r = await call(await freshSession(true)).catch(() => null); }   // Anmeldung über Nacht abgelaufen → einmal erneuern
       if (!r) { window.mkGLast = "Worker nicht erreichbar (kein Netz?)"; throw gErr("upstream_error"); }
       const b = await r.json().catch(() => ({}));
-      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}`; if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
+      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
       lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
     })().finally(() => { refreshing = null; });
     return refreshing;

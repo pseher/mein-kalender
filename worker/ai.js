@@ -39,7 +39,8 @@ export default {
       const g = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: rt, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET }) });
       const gb = await g.json().catch(() => ({}));
-      if (!g.ok) return out(g.status === 400 ? 401 : 502, { code: gb.error === "invalid_grant" ? "invalid_grant" : "google_error" });
+      if (!env.GOOGLE_CLIENT_SECRET) return out(500, { code: "google_error", detail: "GOOGLE_CLIENT_SECRET fehlt im Worker" });
+      if (!g.ok) return out(gb.error === "invalid_grant" ? 401 : 502, { code: gb.error === "invalid_grant" ? "invalid_grant" : "google_error", detail: `Google ${g.status} ${gb.error || ""}`.trim() });
       return out(200, { access_token: gb.access_token, expires_in: gb.expires_in || 3600 });
     }
 
