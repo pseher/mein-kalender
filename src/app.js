@@ -2199,17 +2199,40 @@ function showStat(k) {
   const m = M[k]; if (!m) return;
   openSheet(`${m[0]} ${y}`, m[1], `<div class="statlist">${m[2]()}</div>`, "stat");
 }
+let REVIEW = "";
 async function runReview() {
-  const S = computeStats(selYear), btn = $("st-ai"), out = $("st-out");
+  const S = computeStats(selYear), FF = funFacts(selYear), btn = $("st-ai"), out = $("st-out"), y = selYear, cy = TODAY.getFullYear();
   btn.disabled = true; btn.textContent = "Schreibt …";
-  const tops = OCC.filter(o => o.a.getFullYear() === selYear && ["trip", "termin", "google"].includes(o.ev.type) && !/sp(ä|ae)t/i.test(o.ev.title)).slice(0, 60).map(o => `${iso(o.a)} ${o.ev.title}`);
+  const when = d => y < cy || d < TODAY ? "vorbei" : sameDay(d, TODAY) ? "heute" : "kommt noch";
+  const runs = S.lists.runs.map(r => `${r.names.join("/")} (${fmt(r.a)}–${fmt(r.b)}, ${r.days} Tage, ${when(r.a)})`);
+  const evs = OCC.filter(o => o.a.getFullYear() === y && !o.part && ["trip", "termin", "google"].includes(o.ev.type) && !/sp(ä|ae)t/i.test(o.ev.title) && !/geburtstag/i.test(o.ev.title));
+  const pick = list => list.slice(0, 40).map(o => `${fmt(o.a)} ${shortName(o.ev)}`);
+  const past = evs.filter(o => o.a < TODAY), fut = evs.filter(o => o.a >= TODAY);
+  const facts = [...FF.facts, ...FF.rep].map(f => `${f.l}: ${f.n}${f.sub ? " (" + f.sub + ")" : ""}`);
+  const stand = y < cy ? `Das Jahr ${y} ist vorbei – alles ist Rückblick.` : y > cy ? `Das Jahr ${y} liegt komplett in der Zukunft – alles ist Vorschau.` : `Heute ist ${WDL[TODAY.getDay()]}, der ${fmtY(TODAY).slice(3)}. Was davor liegt, ist passiert (Vergangenheit). Was danach kommt, steht noch an (Zukunft/Vorfreude).`;
   try {
-    const r = await sample(`Schreib ${ME()} (${nameA()}) einen kurzen, warmen Jahresrückblick für ${selYear} auf Deutsch, du-Form, 5–7 Sätze, ohne Aufzählungszeichen. ${selYear >= TODAY.getFullYear() ? "Ein Teil liegt noch in der Zukunft: formuliere dafür als Ausblick." : ""}
-Zahlen: ${JSON.stringify({ termine: S.total, spaetdienste: S.late, kidAwayDay: S.mina, urlaubstageWerktage: S.vacWork, freieWochenenden: S.freeWE.length, geburtstage: S.bdays, rundeGeburtstage: S.round.map(o => o.ev.title + " " + (selYear - o.ev.birthYear)) , terminreichsterMonat: MON[S.perMonth.indexOf(Math.max(...S.perMonth))] })}
-Einige Termine: ${tops.join("; ")}`, { modelTier: "default", cache: false, onText: ({ text }) => { out.innerHTML = `<div class="reply">${esc(text)}</div>`; } });
-    out.innerHTML = `<div class="reply">${esc(r.text)}</div>`;
+    const r = await sample(`Schreib ${ME()} einen unterhaltsamen, kurzweiligen Jahresrückblick für ${y} auf Deutsch, du-Form, locker und mit Augenzwinkern – wie ein guter Freund, der die Statistik vorliest. Keine Floskeln, nichts Rührseliges, keine Ratschläge.
+Form: Überschrift in einer Zeile (witzig, max. 6 Wörter, ohne Anführungszeichen), dann 3–4 kurze Absätze mit je 2–3 Sätzen, getrennt durch eine Leerzeile. Höchstens 3 passende Emojis im ganzen Text. Keine Aufzählungszeichen, kein Markdown, keine Anrede wie „Lieber …“.
+Zeit beachten: ${stand} Schreibe Vergangenes in der Vergangenheit, Kommendes als Ausblick („steht noch an“, „wartet noch“). Nie etwas Kommendes als erledigt darstellen.
+Baue 3–5 der Fun Facts überraschend ein (Vergleiche, kleine Pointen). Nutze NUR diese Daten, erfinde nichts dazu, keine Gefühle oder Gründe unterstellen:
+Zahlen: ${JSON.stringify({ termine: S.total, termineVorbei: past.length, termineKommen: fut.length, spaetdienste: S.late, reisen: S.lists.runs.length, reisetage: S.vacDays, geburtstage: S.bdays, rundeGeburtstage: S.round.map(o => `${o.ev.title} wird ${y - o.ev.birthYear} am ${fmt(o.a)} (${when(o.a)})`), terminreichsterMonat: MON[S.perMonth.indexOf(Math.max(...S.perMonth))] })}
+Fun Facts: ${facts.join("; ")}
+Reisen: ${runs.join("; ") || "keine"}
+Einige vergangene Termine: ${pick(past).join("; ") || "keine"}
+Einige kommende Termine: ${pick(fut).join("; ") || "keine"}`, { modelTier: "default", cache: false, onText: ({ text }) => { out.innerHTML = reviewHtml(text, false); } });
+    REVIEW = r.text.trim(); out.innerHTML = reviewHtml(REVIEW, true);
   } catch { out.innerHTML = `<p class="err">Das hat nicht geklappt. Versuch es noch einmal.</p>`; }
   btn.disabled = false; btn.textContent = "Neu schreiben";
+}
+function reviewHtml(t, done) {
+  const P = String(t).trim().split(/\n\s*\n|\n/).map(x => x.trim()).filter(Boolean), head = P.length > 1 && P[0].length < 70 ? P.shift() : "";
+  return `<div class="reply review">${head ? `<h4>${esc(head)}</h4>` : ""}${P.map(p => `<p>${esc(p)}</p>`).join("")}</div>${done ? `<div class="btnrow" style="margin-top:8px"><button type="button" class="btn accent small" id="st-share">Teilen</button><button type="button" class="btn ghost small" id="st-copy">Kopieren</button></div>` : ""}`;
+}
+async function shareReview(copyOnly) {
+  const text = `${REVIEW}\n\n– Mein Kalender`;
+  if (!copyOnly && navigator.share) { try { await navigator.share({ title: `Mein Jahr ${selYear}`, text }); return; } catch (e) { if (e?.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(text); toast("Text kopiert – jetzt einfügen, z. B. in WhatsApp"); }
+  catch { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener"); }
 }
 
 function kidOcc(y) { return OCC.filter(o => isKidOcc(o.ev) && (o.a.getFullYear() === y || o.b.getFullYear() === y)); }
@@ -3700,6 +3723,8 @@ document.addEventListener("click", ev => {
     case "soon-more": soonAll = !soonAll; renderSoon(); break;
     case "to-cal": goPage("p1"); break;
     case "wins-setup": showSettings(); break;
+    case "st-share": shareReview(false); break;
+    case "st-copy": shareReview(true); break;
     case "to-p2": goPage("p2"); break;
     case "to-p1": goPage("p1"); break;
     case "up-col": upCollapsed = !upCollapsed; store.set("ft-up-col", upCollapsed ? "1" : "0"); renderUp(); break;
