@@ -1,6 +1,7 @@
 name = "mein-kalender-ki"
 main = "ai.js"
 compatibility_date = "2026-11-01"
+keep_vars = true                                        # im Dashboard gesetzte Werte beim automatischen Bereitstellen nicht löschen
 
 [vars]
 SUPABASE_URL = "https://vhwajjbrpibdurlovrrz.supabase.co"      # aus Supabase → Project Settings → API
