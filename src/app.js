@@ -803,7 +803,7 @@ async function tkSet(id, v) { try { await COLL("tasks").doc(id).update(v); } cat
 // =================== Teilen mit Personen (innerhalb von „Mein Kalender“, Ende-zu-Ende verschlüsselt) ===================
 // Ablage: out/<uid> (öffentlich: nur Verbindungs-IDs), out/<uid>/x/<L> (verschlüsselter Name), out/<uid>/ev/<sid>_<L> (verschlüsselter Termin).
 // Nur der Inhaber schreibt in sein „out“; lesen kann nur, wer den Einladungscode kennt.
-let shrLoaded = false;
+let shrLoaded = false; const shrDelSeen = new Set();
 let SHR = { contacts: [], groups: [], hidden: [], gcal: "", gmir: {} }, RECV = [], MYOUT = new Map(), REMOTE = new Map(), shrWatch = new Map(), OUTALL = [];
 const SHR_ON = () => canWrite && !!db && !!uid;
 const B32 = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -870,7 +870,11 @@ async function shrMerge() {
   for (const [L, arr] of REMOTE) for (const r of arr) {
     const mine = MYOUT.get(`${r.s}|${L}`), cur = mine && mine.t >= r.t ? mine : r;
     if (r.o === uid || (mine && mine.o === uid)) { // ich habe den Termin angelegt: Änderung der anderen übernehmen
-      const e = EV.find(x => x.sid === r.s); if (!e || r.del || r.t <= (mine?.t || 0) || !r.data) continue;
+      const e = EV.find(x => x.sid === r.s); if (!e || r.t <= (mine?.t || 0)) continue;
+      if (r.del) { if (r.o === uid && !shrDelSeen.has(r.s + r.t)) { shrDelSeen.add(r.s + r.t); const who = contactBy(L)?.name || "Jemand", snap = plain(e);
+          try { await applyChanges([{ op: "delete", id: e.id }]); toast(`${who} hat „${e.title}“ gelöscht`, async () => { try { await COLL("events").add({ ...snap, sid: "" }); } catch {} }); } catch {} }
+        continue; }
+      if (!r.data) continue;
       if (r.h !== await hashOf(shareData(e))) { try { await COLL("events").doc(e.id).update({ ...r.data }); toast(`${contactBy(L)?.name || "Jemand"} hat „${r.data.title}“ geändert`); } catch {} }
       continue; }
     if (cur.del || !cur.data || SHR.hidden.includes(r.s) || contactBy(L)?.show === false) continue;
@@ -1010,6 +1014,21 @@ async function shrRemove(L) {   // Verbindung lösen: meine geteilten Kopien fü
   for (const m of [...MYOUT.values()].filter(m => m.l === L)) { try { await OUT(uid, "ev").doc(m.id).delete(); } catch {} }
   try { await OUT(uid, "x").doc(L).delete(); } catch {}
   toast(`${c?.name || "Person"} entfernt – ihr seht eure Termine gegenseitig nicht mehr`); }
+// ---- Geteilten Termin löschen: nur bei mir oder für alle ----
+function showSharedDelete(e) {
+  const from = e.shared.from || "der anderen Person";
+  openSheet(`„${shortName0(e)}“ löschen`, `geteilt von ${from}`, `<div class="acc">
+    <button type="button" class="btn danger big" data-shdelall="${esc(e.id)}">Für alle löschen</button>
+    <p class="note">Der Termin verschwindet bei dir und bei ${esc(from)}${APP ? " – auch aus den Google-Kalendern" : ""}.</p>
+    <button type="button" class="btn ghost big" data-shdelme="${esc(e.id)}">Nur bei mir entfernen</button>
+    <p class="note">${esc(from)} behält den Termin. Bei dir taucht er nicht mehr auf.</p>
+  </div>`, "shdel");
+}
+async function shrDeleteAll(e) {   // Löschung an die Person schicken, die den Termin angelegt hat – sie übernimmt sie
+  const c = contactBy(e.shared.L); if (!c) return;
+  try { await OUT(uid, "ev").doc(`${e.shared.sid}_${c.L}`).set({ l: c.L, s: e.shared.sid, t: Date.now(), h: "", o: e.shared.o || c.uid, del: true }); } catch (err) { toast(writeErr(err)); return; }
+  SHR.hidden = [...new Set([...SHR.hidden, e.shared.sid])]; await saveShr(); shrMerge(); closeSheet();
+  toast(`Gelöscht – auch bei ${c.name}`); }
 // ---- Einen Termin teilen ----
 let shrFor = null;
 function showShareEv(e, dateIso) {
@@ -2292,7 +2311,7 @@ function showEvent(o) {
   if (e.shared) { const it = [`<li><i style="background:var(--both)"></i><div><b>Geteilt von ${esc(e.shared.from || "jemandem")}</b><div class="note">Änderungen sieht ihr beide</div></div></li>`];
     if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b><div class="note">${esc(e.note)}</div></div></li>`);
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn ghost small push" data-shhide="${esc(e.shared.sid)}">Für mich ausblenden</button></div>`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
   const item = (title, sub) => items.push(`<li><i style="background:var(${TYPES[e.type].color})"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
   item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${REPEAT[e.repeat]}` : ""), ageTxt(o));
@@ -2372,7 +2391,8 @@ function showForm(e, preset) {
       <div class="btnrow">
         <button type="submit" class="btn accent" id="f-save">Speichern</button>
         <button type="button" class="btn ghost" id="f-cancel">Abbrechen</button>
-        ${editing ? `<button type="button" class="btn ghost" id="f-dup">Duplizieren</button>` : ""}
+        ${editing && !editing.shared ? `<button type="button" class="btn ghost" id="f-dup">Duplizieren</button>` : ""}
+        ${editing?.shared ? `<button type="button" class="btn danger push" data-shdel="${esc(editing.id)}">Löschen</button>` : ""}
       </div>
     </form>`, "form");
   formVisManual = !!editing; formShManual = false; formVis = (e && isShareCal(e.gcal)) ? e.gcal : "me";
@@ -3477,6 +3497,9 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-occ]"))) { const [id, a] = el.dataset.occ.split("|"); const o = findOcc(id, a); if (o) showEvent(o); return; }
   if ((el = q("[data-edit]"))) { const e = EV.find(x => x.id === el.dataset.edit) || RECV.find(x => x.id === el.dataset.edit); if (e) showForm(e); return; }
   if ((el = q("[data-shev]"))) { const [id, d] = el.dataset.shev.split("|"), e = EV.find(x => x.id === id); if (e) showShareEv(e, d); return; }
+  if ((el = q("[data-shdel]"))) { const e = RECV.find(x => x.id === el.dataset.shdel); if (e) showSharedDelete(e); return; }
+  if ((el = q("[data-shdelall]"))) { const e = RECV.find(x => x.id === el.dataset.shdelall); if (e) shrDeleteAll(e); return; }
+  if ((el = q("[data-shdelme]"))) { const e = RECV.find(x => x.id === el.dataset.shdelme); if (e) { SHR.hidden = [...new Set([...SHR.hidden, e.shared.sid])]; saveShr(); closeSheet(); shrMerge(); toast("Bei dir entfernt", async () => { SHR.hidden = SHR.hidden.filter(s => s !== e.shared.sid); await saveShr(); shrMerge(); }); } return; }
   if ((el = q("[data-shhide]"))) { SHR.hidden = [...new Set([...SHR.hidden, el.dataset.shhide])]; saveShr(); closeSheet(); shrMerge(); toast("Ausgeblendet"); return; }
   if ((el = q("[data-shscope]"))) { shrFor.scope = el.dataset.shscope; document.querySelectorAll("[data-shscope]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
   if ((el = q("[data-shrdel]"))) { const L = el.dataset.shrdel; if (el.dataset.arm !== "1") { el.dataset.arm = "1"; el.textContent = "Entfernen?"; el.classList.add("arm"); return; }
