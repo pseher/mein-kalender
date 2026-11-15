@@ -17,7 +17,7 @@ const fmtY = dt => `${fmt(dt)}${dt.getFullYear()}`;
 const rngTxt = (a, b, long) => sameDay(a, b) ? (long ? fmtY(a) : fmt(a)) : `${fmt(a)} – ${long ? fmtY(b) : fmt(b)}`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const $ = id => document.getElementById(id);
-const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col", "ft-entry"];   // Anzeige-Einstellungen: auch im Konto speichern
+const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col", "ft-entry", "ft-umg"];   // Anzeige-Einstellungen: auch im Konto speichern
 let uiSaveHook = null;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} if (UI_KEYS.includes(k)) uiSaveHook?.(); } };
 const TODAY = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); })();
@@ -1271,7 +1271,12 @@ function renderAgenda() {
     (wkSel && canWrite ? `<button type="button" class="link more-btn" data-add="${iso(wkSel)}">+ Termin an diesem Tag</button>` : "");
   $("sec-next").hidden = false; $("n-next").textContent = items.length || "";
 }
-const isBusy = o => !["birthday", "info", "anniversary", "contact"].includes(o.ev.type) && !/geburtstag|\bgeb\b/i.test(o.ev.title);
+// Umgangstermine (z. B. „HbS“, „MbM“ aus Google): keine echten Termine – zählen als Umgang, nicht als belegt
+const umgKey = t => String(t || "").trim().toLowerCase();
+let UMGC = null; const umgSet = () => (UMGC ??= (() => { try { return new Set(JSON.parse(store.get("ft-umg") || "[]")); } catch { return new Set(); } })());
+const isUmg = o => o.ev.type === "mina" || (o.ev.type === "google" && (/\bumgang\b/i.test(o.ev.title) || umgSet().has(umgKey(o.ev.title))));
+function umgToggle(title) { const S = new Set(umgSet()), k = umgKey(title); S.has(k) ? S.delete(k) : S.add(k); UMGC = null; store.set("ft-umg", JSON.stringify([...S])); return S.has(k); }
+const isBusy = o => !["birthday", "info", "anniversary", "contact"].includes(o.ev.type) && !/geburtstag|\bgeb\b/i.test(o.ev.title) && !isUmg(o);
 // ---- Kacheln oben: 3 Tage, Reise, Geburtstag, Urlaub, Feiertag, Ferien – jeweils mit Tages-Countdown ----
 const URLAUB_RE = /\b(urlaub|ferien|holiday|vacation|auszeit)\b/i;
 const cdWhen = n => n <= 0 ? { pre: "", n: n < 0 ? "" : "Heute", unit: "" } : n === 1 ? { pre: "", n: "Morgen", unit: "" } : { pre: "in", n, unit: "Tagen" };
@@ -1618,7 +1623,7 @@ async function adoptTrip(o, openPack) {
 }
 // Merkliste zu einem Google-Termin: eigene, verknüpfte Notiz (mOnly) – der Google-Termin bleibt unverändert und sichtbar
 const merkOf = o => MERK.find(m => m.gEventId === o.ev.gid && m.from === iso(o.a));
-const merkable = o => canWrite && !!db && o.ev.type === "google" && !isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !NOPLACE_RE.test(o.ev.title);
+const merkable = o => canWrite && !!db && o.ev.type === "google" && !isTrip(o) && !isUmg(o) && !/geburtstag|birthday/i.test(o.ev.title) && !NOPLACE_RE.test(o.ev.title);
 const merkBtn = o => { const m = merkOf(o), l = m?.packlist || [], lab = dayDiff(o.a, o.b) < 1 ? "📝 Merkliste" : "🎒 Packliste"; return l.length ? `${lab} ${l.filter(x => x.d).length}/${l.length}` : lab; };
 async function openMerk(o) {
   const g = o.ev; let m = merkOf(o);
@@ -1643,7 +1648,7 @@ const noPlace = () => { try { return new Set(JSON.parse(store.get("ft-noplace") 
 const titleNoPlace = t => { const w = String(t).trim().split(/\s+/);
   if (w.length <= 3 && NOPLACE_RE.test(t)) return true;                       // „Spät“, „Frühdienst“, „Nacht BD“
   if (/^[A-ZÄÖÜ0-9]{1,4}$/.test(String(t).trim())) return true;              // Kürzel wie „F“, „S2“, „ND“
-  const k = osmKey(t); if (noPlace().has(k)) return true;
+  const k = osmKey(t); if (noPlace().has(k) || umgSet().has(umgKey(t))) return true;
   return OCC.filter(o => osmKey(o.ev.title) === k).length >= 4 && w.length <= 2; };   // kurzer Titel, der ständig wiederkommt → Dienst/Schicht
 // Abkürzungen ausschreiben, damit „Magdeburg Hbf“ den „Magdeburg Hauptbahnhof“ findet
 const osmExpand = t => String(t).replace(/\bhbf\.?(?=\s|$)/gi, "Hauptbahnhof").replace(/\b(bhf|bf)\.?(?=\s|$)/gi, "Bahnhof").replace(/\bflugh\.?(?=\s|$)/gi, "Flughafen").replace(/\bstr\.(?=\s|$)/gi, "Straße").replace(/\bpl\.(?=\s|$)/gi, "Platz").replace(/\bkh\b/gi, "Krankenhaus");
@@ -2163,7 +2168,7 @@ const bdKey = o => String(o.ev.title).toLowerCase().replace(/geburtstag(\s+von)?
 function dedupeBdays(list) { const m = new Map(); list.forEach(o => { const k = bdKey(o), cur = m.get(k); if (!cur || (cur.ev.type !== "birthday" && o.ev.type === "birthday")) m.set(k, o); }); return [...m.values()]; }
 // Fun Facts & wiederkehrende Termine fürs Jahr – jeweils mit der Liste dahinter (antippbar)
 function funFacts(y) {
-  const yS = new Date(y, 0, 1), yE = new Date(y, 11, 31), occ = OCC.filter(o => o.a >= yS && o.a <= yE && !o.part && !["birthday", "info", "anniversary", "contact"].includes(o.ev.type) && !/geburtstag/i.test(o.ev.title));
+  const yS = new Date(y, 0, 1), yE = new Date(y, 11, 31), occ = OCC.filter(o => o.a >= yS && o.a <= yE && !o.part && !["birthday", "info", "anniversary", "contact"].includes(o.ev.type) && !/geburtstag/i.test(o.ev.title) && !isUmg(o));
   const F = [], byDay = new Map(), wd = Array.from({ length: 7 }, () => []), titles = new Map(), places = new Map();
   occ.forEach(o => { const k = iso(o.a); (byDay.get(k) || byDay.set(k, []).get(k)).push(o); wd[o.a.getDay()].push(o);
     const t = shortName(o.ev).trim(); if (t) (titles.get(t) || titles.set(t, []).get(t)).push(o);
@@ -2189,7 +2194,7 @@ function computeStats(y) {
   const busy = o => !["birthday", "info", "anniversary", "contact"].includes(o.ev.type) && !/geburtstag|\bgeb\b/i.test(o.ev.title);
   const daysOf = (list) => { const set = new Set(); list.forEach(o => { for (let t = o.a < yS ? yS : o.a; t <= o.b && t <= yE; t = addDays(t, 1)) set.add(iso(t)); }); return set; };
   const late = occ.filter(o => /sp(ä|ae)t/i.test(o.ev.title));
-  const mina = occ.filter(o => o.ev.type === "mina" || (o.ev.type === "google" && /\bumgang\b/i.test(o.ev.title)));
+  const mina = occ.filter(isUmg);
   const vac = occ.filter(isMyVac), vacCand = occ.filter(isVacCand);
   const vacDays = daysOf(vac); let vacWork = 0;
   vacDays.forEach(k => { const d = parseIso(k), h = HOL.get(k); if (!isWE(d) && !(h && h.be)) vacWork++; });
@@ -2413,7 +2418,7 @@ function buildPushPlan() {
     const parts = [...(hol ? ["🎉 " + hol.name] : []), ...L.map(o => isBd(o) ? `🎂 ${bdName(o)}` : !sameDay(o.a, n) ? `🏠 Rückreise ${evName(o.ev)}` : `${o.ev.time ? o.ev.time + " " : ""}${evName(o.ev)}`), ...tk.map(t => "☐ " + t.title)];
     const cnt = L.length + tk.length;
     add(`eve-${iso(n)}`, at(d, N.eveTime || "20:00"), `Morgen, ${WDL[n.getDay()]}${cnt ? ` · ${cnt} ${cnt === 1 ? "Eintrag" : "Einträge"}` : ""}`, parts.slice(0, 6).join(" · ") + (parts.length > 6 ? " …" : "")); }
-  if (N.ev) occs.filter(o => o.ev.time && !isBd(o) && o.a <= end).forEach(o => { const st = at(o.a, o.ev.time), lead = +N.evLead || 60, pl = placeOf(o.ev);
+  if (N.ev) occs.filter(o => o.ev.time && !isBd(o) && !isUmg(o) && o.a <= end).forEach(o => { const st = at(o.a, o.ev.time), lead = +N.evLead || 60, pl = placeOf(o.ev);
     const lt = lead >= 1440 ? "Morgen" : lead >= 60 ? `In ${lead / 60} Std.` : `In ${lead} Min.`;
     add(`ev-${o.ev.id}-${iso(o.a)}`, new Date(st - lead * 60e3), `${lt}: ${evName(o.ev)}`, `${o.ev.time} Uhr${pl ? " · " + pl : ""}`, pl ? { r: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pl)}` } : {}); });
   if (N.bd) occs.forEach(o => {
@@ -3344,6 +3349,7 @@ function showGoogleEvent(o) {
     routeLinks(placeOf(e)) +
     (canWrite && isTrip(o) ? `<button type="button" class="btn ghost small" data-adopt="${id}|${iso(o.a)}">Als Reise übernehmen</button>` : "") +
     (merkable(o) ? `<button type="button" class="btn ghost small" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "") +
+    (!isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) ? `<button type="button" class="btn ghost small" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : "") +
     (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
   openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
@@ -3850,6 +3856,8 @@ document.addEventListener("click", ev => {
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
+  if ((el = q("[data-umg]"))) { const [id, a] = el.dataset.umg.split("|"); const o = findOcc(id, a); if (!o) return; const on = umgToggle(o.ev.title);
+    toast(on ? `Alle „${o.ev.title}“-Einträge zählen jetzt als Umgang` : `„${o.ev.title}“ ist wieder ein normaler Termin`); renderAll(); const o2 = findOcc(id, a) || o; showGoogleEvent(o2); return; }
   if ((el = q("[data-gmerk]"))) { const [id, a] = el.dataset.gmerk.split("|"); const o = findOcc(id, a); if (o) openMerk(o); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
   if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
@@ -4202,7 +4210,7 @@ renderAll();
     if (!v) { if (first) uiSaveHook(); return; }                                         // noch nichts im Konto → von diesem Gerät übernehmen
     if (+v.t <= +(store.get("ft-ui-t") || 0)) return;                                    // eigene/ältere Änderung
     uiApplying = true;
-    try { UI_KEYS.forEach(k => { const x = v[k.replace(/^ft-/, "").replace(/-/g, "_")]; if (typeof x === "string") store.set(k, x); }); store.set("ft-ui-t", String(v.t));
+    try { UI_KEYS.forEach(k => { const x = v[k.replace(/^ft-/, "").replace(/-/g, "_")]; if (typeof x === "string") store.set(k, x); }); UMGC = null; store.set("ft-ui-t", String(v.t));
       try { SHOW = { ...SHOW_DEF, ...JSON.parse(store.get("ft-show") || "{}") }; } catch {}
       try { const p = JSON.parse(store.get("ft-pages") || "null"); if (p) { PAGES = { p0: p.p0 !== false, p1: p.p1 !== false, p2: p.p2 !== false }; applyPages(); } } catch {}
       const vw = store.get("ft-view"); if (first && ["month","two","week","list","year"].includes(vw) && vw !== view) setView(vw);
