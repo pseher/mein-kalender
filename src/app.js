@@ -2399,7 +2399,7 @@ function buildPushPlan() {
   const N = NTP, now = new Date(), end = addDays(TODAY, 10), items = [];
   const at = (d, hm) => { const [h, m] = String(hm).split(":").map(Number); const x = new Date(d); x.setHours(h || 0, m || 0, 0, 0); return x; };
   const add = (id, when, t, b, extra = {}) => { if (when > now && when <= addDays(end, 1)) items.push({ id, at: when.toISOString(), t, b, ...extra }); };
-  const occs = OCC.filter(o => !o.part && o.b >= TODAY && o.a <= addDays(end, 31) && o.ev.type !== "info");
+  const occs = OCC.filter(o => !o.part && o.b >= TODAY && o.a <= addDays(end, 31) && (o.ev.type !== "info" || !!o.ev.time));   // Hinweise nur mit Uhrzeit
   const bdName = o => o.ev.type === "birthday" ? o.ev.title : String(o.ev.title).replace(/^geburtstag\s*(von\s*)?/i, "").trim();
   const isBd = o => o.ev.type === "birthday" || /geburtstag|birthday/i.test(o.ev.title);
   if (N.eve) for (let i = 0; i <= 9; i++) { const d = addDays(TODAY, i), n = addDays(d, 1);
