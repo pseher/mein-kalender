@@ -712,7 +712,7 @@ function showFamShare() {
 async function saveGroups(G, msg) {
   if (G.length && !G.some(g => g.std)) G[0].std = true;
   const prof = { ...PROFILE, shareGroups: G, famCal: (G.find(g => g.std) || G[0])?.cal || "" }; PROFILE = prof; store.set("ft-profile", JSON.stringify(prof));
-  const s2 = new Set(selectedCals()); let ch = false; G.forEach(g => { if (!s2.has(g.cal)) { s2.add(g.cal); ch = true; } }); if (ch) { gSel = s2; store.set("ft-gcal-sel", JSON.stringify([...s2])); resetGoogleWatches(); }
+  const s2 = new Set(selectedCals()); let ch = false; G.forEach(g => { if (!s2.has(g.cal)) { s2.add(g.cal); ch = true; } }); if (ch) { gSel = s2; saveGSel(s2); resetGoogleWatches(); }
   try { await COLL("prefs").doc("profile").set(prof); } catch (err) { toast(writeErr(err)); }
   const sc = $("sheet")?.scrollTop || 0; renderAll(); showFamShare(); if ($("sheet")) $("sheet").scrollTop = sc; if (msg) toast(msg);
 }
@@ -2816,6 +2816,11 @@ function saveShare() {
 // =================== Google Kalender ===================
 const GSERVER = "Google Calendar";
 let mcp = null, gState = "off", gCals = [], gPrimarySummary = "", GEV = new Map(), GWATCH = new Map();
+// Kalenderauswahl & „schon gefragt“ auch im Konto merken – dann fragt ein neues Gerät nicht wieder alles ab
+let gProfT = null;
+function saveGSel(set) { store.set("ft-gcal-sel", JSON.stringify([...set])); gProfSave({ gcalSel: [...set], gcalAsked: true }); }
+function gProfSave(patch) { if (!canWrite || !profileLoaded) return; Object.assign(PROFILE, patch); clearTimeout(gProfT);
+  gProfT = setTimeout(async () => { try { await COLL("prefs").doc("profile").update(patch); } catch {} }, 800); }
 let gSel = (() => { try { const v = JSON.parse(store.get("ft-gcal-sel") || "null"); return Array.isArray(v) ? new Set(v) : null; } catch { return null; } })();
 let gShow = store.get("ft-gcal-show") !== "0";
 const gOn = () => gShow && gState === "ok";
@@ -2961,7 +2966,8 @@ async function initGoogle() {
     gState = "ok"; gTry = 0; gLiveAt = Date.now(); shrMirrorQueue();
     { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
       const wzOff = () => !$("wz") || $("wz").hidden;
-      if (wzOff() && PROFILE.setupDone && canWrite && (back || (!store.get("ft-gcal-asked") && !store.get("ft-gcal-sel")))) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} store.set("ft-gcal-asked", "1"); setTimeout(() => { if (wzOff() && ($("sheet").hidden || sheetMode === "google")) { closeSheet(); startGoogleSetup(); } }, 500); } }
+      if (back && PROFILE.gcalAsked) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} back = false; }   // nur neu verbunden – Einrichtung gab es schon
+      if (wzOff() && PROFILE.setupDone && canWrite && !PROFILE.gcalAsked && !store.get("ft-gcal-asked") && !store.get("ft-gcal-sel")) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} store.set("ft-gcal-asked", "1"); gProfSave({ gcalAsked: true }); setTimeout(() => { if (wzOff() && ($("sheet").hidden || sheetMode === "google")) { closeSheet(); startGoogleSetup(); } }, 500); } }
     setTimeout(scanOthers, 800); clearInterval(othersT); othersT = setInterval(() => { if (!document.hidden) scanOthers(); }, 60 * 60e3);
   } catch (e) {
     const code = e?.code || "upstream_error";
@@ -3147,11 +3153,13 @@ function renderHints0() {
 let profileLoaded = false, setupShown = false, meName = "";
 function applyProfile(v) {
   PROFILE = JSON.parse(JSON.stringify(v || {})); store.set("ft-profile", JSON.stringify(PROFILE));
+  if (Array.isArray(PROFILE.gcalSel) && PROFILE.gcalSel.length && !store.get("ft-gcal-sel")) { gSel = new Set(PROFILE.gcalSel.map(String)); store.set("ft-gcal-sel", JSON.stringify(PROFILE.gcalSel)); store.set("ft-gcal-asked", "1"); try { resetGoogleWatches(); } catch {} }
+  if (PROFILE.gcalAsked) store.set("ft-gcal-asked", "1");
   const pa = FXM[PROFILE.state] ? PROFILE.state : PA, pb = PROFILE.state2 && FXM[PROFILE.state2] ? PROFILE.state2 : (PROFILE.setupDone ? null : PB);
   if (pa !== PA || pb !== PB) { PA = pa; PB = pb; store.set("ft-pa", PA); store.set("ft-pb", PB || ""); if (!JOINT.length) JOINT = [PA, PB].filter(Boolean); rebuildStates(); }
   renderAll();
 }
-function maybeSetup() { if (!PROFILE.setupDone && !setupShown && canWrite && dbState !== "error") { setupShown = true; startSetup(); }
+function maybeSetup() { if (PROFILE.setupDone && !PROFILE.gcalAsked && (store.get("ft-gcal-asked") || store.get("ft-gcal-sel"))) gProfSave({ gcalAsked: true, ...(store.get("ft-gcal-sel") ? { gcalSel: [...selectedCals()] } : {}) }); if (!PROFILE.setupDone && !setupShown && canWrite && dbState !== "error") { setupShown = true; startSetup(); }
   else if (APP && PROFILE.setupDone && canWrite && pendingInvite() && !setupShown) { setupShown = true; setTimeout(takeInvite, 600); } }
 const stOpts = (cur, none) => (none ? `<option value=""${!cur ? " selected" : ""}>${none}</option>` : "") + STATES.map(([c, n]) => `<option value="${c}"${cur === c ? " selected" : ""}>${n}</option>`).join("");
 const ROLES = [["partner", "Partner/in"], ["kind", "Kind"], ["mutter", "Mutter"], ["vater", "Vater"], ["geschwister", "Geschwister"], ["andere", "Familie"], ["freund", "Freund/in"]];
@@ -3417,7 +3425,7 @@ function wzClick(id, el) {
     case "wz-g-yes": wzConnectGoogle(); return true;
     case "wz-g-no": W.useG = false; wzGo("manual"); return true;
     case "wz-cals-skip": wzScan(); return true;
-    case "wz-cals-next": { const f = $("wz-famcal")?.value || ""; W.famCal = f; PROFILE.famCal = f; if (f) { const s2 = new Set(selectedCals()); s2.add(f); gSel = s2; store.set("ft-gcal-sel", JSON.stringify([...s2])); } wzScan(); return true; }
+    case "wz-cals-next": { const f = $("wz-famcal")?.value || ""; W.famCal = f; PROFILE.famCal = f; if (f) { const s2 = new Set(selectedCals()); s2.add(f); gSel = s2; saveGSel(s2); } wzScan(); return true; }
     case "wz-more": W.showAll = true; renderWz(); return true;
     case "wz-addp": { const n = $("wz-an").value.trim(), d = parseIso($("wz-ad").value); if (!n) return true; const key = n.toLowerCase();
       if (!W.cands.some(c => c.key === key)) W.cands.unshift({ key, name: n, year: d ? d.getFullYear() : 0, dt: d, role: "", hint: "", score: 9, gid: "", cal: "" });
@@ -3508,7 +3516,7 @@ document.addEventListener("click", ev => {
   if ((el = q("#menu [data-mi]"))) { closeMenu(); }
   if (!q("#menu") && !q("#menu-btn")) closeMenu();
   if ((el = q("[data-wzdel]"))) { WZ.manual.splice(+el.dataset.wzdel, 1); renderWz(); return; }
-  if ((el = q("[data-wzcal]"))) { const s2 = new Set(selectedCals()), c = el.dataset.wzcal; s2.has(c) ? s2.delete(c) : s2.add(c); if (!s2.size) s2.add("primary"); gSel = s2; store.set("ft-gcal-sel", JSON.stringify([...s2])); resetGoogleWatches(); if (sheetMode === "gpick" && !$("sheet").hidden) { showGCalPick(); return; } renderWz(); return; }
+  if ((el = q("[data-wzcal]"))) { const s2 = new Set(selectedCals()), c = el.dataset.wzcal; s2.has(c) ? s2.delete(c) : s2.add(c); if (!s2.size) s2.add("primary"); gSel = s2; saveGSel(s2); resetGoogleWatches(); if (sheetMode === "gpick" && !$("sheet").hidden) { showGCalPick(); return; } renderWz(); return; }
   if ((el = q("[data-wzpick]"))) { const k = el.dataset.wzpick; WZ.picked[k] = !WZ.picked[k]; renderWz(); return; }
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
@@ -3689,7 +3697,7 @@ document.addEventListener("change", ev => {
   if (ev.target.id === "shr-gcal") { SHR.gcal = ev.target.value; saveShr(); shrMirrorQueue(); toast("Geteilte Termine kommen jetzt in diesen Kalender"); return; }
   if (ev.target.dataset?.show) { SHOW[ev.target.dataset.show] = ev.target.checked; store.set("ft-show", JSON.stringify(SHOW)); renderAll(); return; }
   if (ev.target.id === "g-show") { gShow = ev.target.checked; store.set("ft-gcal-show", gShow ? "1" : "0"); renderGPill(); if (!gShow) resetGoogleWatches(); else renderAll(); if (sheetMode === "settings") showSettings(); else showGoogleSheet(); return; }
-  if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; store.set("ft-gcal-sel", JSON.stringify([...s])); resetGoogleWatches(); return; }
+  if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; saveGSel(s); resetGoogleWatches(); return; }
   if (ev.target.id === "f-type" || ev.target.id === "f-rep") syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
 document.addEventListener("input", ev => {
   if (ev.target.id === "f-place") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(v, false); else { const b = $("f-place-sug"); if (b) b.hidden = true; } }
