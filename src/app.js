@@ -169,7 +169,7 @@ const TYPES = {
 };
 const REPEAT = { none: "einmalig", weekly: "wöchentlich", monthly: "monatlich", yearly: "jährlich", every2y: "alle 2 Jahre" };
 const REMIND_DEF = { birthday: 20, anniversary: 7, deadline: 14 };
-let EV = [], OCC = [], OIDX = new Map();
+let EV = [], MERK = [], OCC = [], OIDX = new Map();   // MERK: Merklisten zu Google-Terminen (Google-Termin bleibt sichtbar)
 const APP = !!window.MK_APP;   // true = eigene App (Supabase), false = claude.ai-Artefakt
 let db = null, canWrite = false, sample = null, downloads = null, dbState = "loading";
 // Profil des Nutzers (Einrichtung): Name, Länder, Familie
@@ -195,7 +195,7 @@ function normalize(id, v) {
     remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks,
-    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, country: String(v.country || ""),
+    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
@@ -1612,6 +1612,19 @@ async function adoptTrip(o, openPack) {
     const ev = { ...doc, id: ref.id, a: o.a, b: o.b }; if (openPack) showPack(ev); else showForm(ev);
   } catch (err) { toast(writeErr(err)); }
 }
+// Merkliste zu einem Google-Termin: eigene, verknüpfte Notiz (mOnly) – der Google-Termin bleibt unverändert und sichtbar
+const merkOf = o => MERK.find(m => m.gEventId === o.ev.gid && m.from === iso(o.a));
+const merkable = o => canWrite && !!db && o.ev.type === "google" && !isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !NOPLACE_RE.test(o.ev.title);
+const merkBtn = o => { const m = merkOf(o), l = m?.packlist || [], lab = dayDiff(o.a, o.b) < 1 ? "📝 Merkliste" : "🎒 Packliste"; return l.length ? `${lab} ${l.filter(x => x.d).length}/${l.length}` : lab; };
+async function openMerk(o) {
+  const g = o.ev; let m = merkOf(o);
+  if (!m) { if (!canWrite || !db) { toast("Nur für dich als Besitzer möglich."); return; }
+    const doc = { type: "termin", title: g.title, from: iso(o.a), to: iso(o.b), time: g.time || "", endTime: g.endTime || "", repeat: "none", until: "", birthYear: 0, note: "", gcal: g.calId, gEventId: g.gid,
+      remindDays: 0, giftDone: [], done: [], startYear: 0, everyWeeks: 8, thanks: false, packlist: [], place: g.note || "", flight: false, kids: false, gReadOnly: true, mOnly: true };
+    try { const ref = await COLL("events").add(doc); m = normalize(ref.id, doc); MERK = [...MERK, m]; } catch (err) { toast(writeErr(err)); return; } }
+  m.title = g.title; m.time = g.time || ""; m.place = m.place || g.note || ""; m.a = o.a; m.b = o.b;
+  showPack(m);
+}
 // =================== Orte suchen (OpenStreetMap über Photon von komoot) ===================
 // Vorschläge beim Tippen im Ortsfeld und – wenn das Ortsfeld leer ist – passend zum Titel („Looms Berlin“).
 const STATE_LL = { BW: [48.78, 9.18], BY: [48.14, 11.58], BE: [52.52, 13.40], BB: [52.40, 13.06], HB: [53.08, 8.80], HH: [53.55, 9.99], HE: [50.11, 8.68], MV: [53.63, 11.41], NI: [52.37, 9.74], NW: [51.23, 6.78], RP: [50.00, 8.27], SL: [49.24, 6.99], SN: [51.05, 13.74], ST: [52.13, 11.63], SH: [54.32, 10.14], TH: [50.98, 11.03] };
@@ -1927,13 +1940,13 @@ async function docApply() {
 let packT = null, packEv = null; const PACK_TRIED = new Set(), PACK_NONE = new Set();
 // Kurzer Termin (z. B. Essen gehen): nur das Allerwichtigste. Mehrtägige Termine: kompakt. Reisen: volle Liste.
 const packShort = e => e.type !== "trip" && dayDiff(e.a, e.b) < 1;
-const packLabel = e => packShort(e) ? "Mitnehmen" : "Packliste";
+const packLabel = e => e.mOnly ? (packShort(e) ? "Merkliste" : "Packliste") : packShort(e) ? "Mitnehmen" : "Packliste";
 const pkRow = (x, i) => `<label class="tog setrow pk"><input type="checkbox" data-pk="${i}"${x.d ? " checked" : ""}${canWrite ? "" : " disabled"}><span>${esc(x.t)}</span>${canWrite ? `<button type="button" class="link del" data-pkdel="${i}" aria-label="Entfernen">✕</button>` : ""}</label>`;
 function showPack(e, busy) {
-  packEv = EV.find(x => x.id === e.id) || e;
+  packEv = EV.find(x => x.id === e.id) || (e.mOnly ? e : null) || MERK.find(x => x.id === e.id) || e;
   const list = packEv.packlist || [], cats = [...new Set(list.map(x => x.k || "Sonstiges"))];
   const done = list.filter(x => x.d).length, auto = !list.some(x => x.k !== "Aus Dokumenten") && sample && canWrite && !busy && !PACK_TRIED.has(packEv.id);
-  openSheet(`${packLabel(packEv)}: ${packEv.title}`, `${rngTxt(packEv.a, packEv.b, true)}${list.length ? ` · ${done}/${list.length} eingepackt` : ""}`, `
+  openSheet(`${packLabel(packEv)}: ${packEv.title}`, `${rngTxt(packEv.a, packEv.b, true)}${list.length ? ` · ${done}/${list.length} ${packEv.mOnly && packShort(packEv) ? "erledigt" : "eingepackt"}` : ""}`, `
     ${list.length && auto ? `<p class="note" id="pk-msg" style="margin-top:10px">Ich ergänze die Packliste …</p>` : ""}${list.length ? `<div id="pk-groups">${cats.map(c => `<h3 class="pkh">${esc(c)}</h3><div class="gcals" data-pkgrp="${esc(c)}">${list.map((x, i) => (x.k || "Sonstiges") !== c ? "" : pkRow(x, i)).join("")}</div>`).join("")}</div>`
       : `<p class="note" id="pk-msg" style="margin-top:10px">${sample && canWrite && auto ? (packShort(packEv) ? "Ich überlege, was du mitnehmen solltest …" : "Ich stelle die Packliste zusammen …") : PACK_NONE.has(packEv.id) ? "Für diesen Termin musst du nichts Besonderes mitnehmen. Eigene Punkte kannst du unten ergänzen." : "Noch keine Liste."}</p>`}
     ${placeOf(packEv) ? `<div class="btnrow" style="margin-top:10px">${routeLinks(placeOf(packEv))}</div>` : ""}
@@ -1958,7 +1971,7 @@ async function genPack(replace) {
       const short = packShort(e);
       const r = await sample.json(`${short ? "Was sollte man zu diesem Termin mitnehmen?" : "Was sollte man zu diesem mehrtägigen Termin einpacken?"}
 Termin: "${e.title}", ${short ? fmtY(e.a) : `${fmtY(e.a)} bis ${fmtY(e.b)} (${nights} Nächte)`}${timeTxt(e) ? ", " + timeTxt(e) + " Uhr" : ""}, im ${month}. ${placeOf(e) ? "Ort: " + placeOf(e) + "." : ""} ${e.note ? "Notiz: " + e.note : ""}
-${short ? `Nenne NUR die 0–4 allerwichtigsten Dinge, die genau für diesen Termin nötig sind und die man leicht vergisst. Beispiele: Arzttermin → Versichertenkarte, Überweisung; Sport → Sportsachen, Wasserflasche; Behörde → Ausweis, Unterlagen; Restaurant oder Treffen mit Freunden → meist nichts (höchstens "Reservierung" oder "Geschenk", wenn es ein Anlass ist). KEINE Selbstverständlichkeiten wie Handy, Schlüssel, Geldbeutel, Jacke. Wenn nichts Besonderes nötig ist: leere Liste.
+${short ? `Nenne NUR die 0–4 allerwichtigsten Dinge, die genau für diesen Termin nötig sind und die man leicht vergisst. Beispiele: Arzttermin → Versichertenkarte, Überweisung; Sport → Sportsachen, Wasserflasche; Behörde → Ausweis, Unterlagen; Konzert, Theater, Festival oder Spiel → Ticket, ggf. Ausweis, Powerbank (und falls typisch: "kleine Tasche – oft nur bis A4 erlaubt"); Restaurant oder Treffen mit Freunden → meist nichts (höchstens "Reservierung" oder "Geschenk", wenn es ein Anlass ist). KEINE Selbstverständlichkeiten wie Handy, Schlüssel, Geldbeutel, Jacke. Wenn nichts Besonderes nötig ist: leere Liste.
 Antworte NUR mit JSON: {"punkte": ["…"]}` : `Halte die Liste kompakt: 2–4 Kategorien mit je 2–5 Punkten, allgemein formuliert, passend zum Anlass (z. B. Seminar: Unterlagen, Laptop; Hochzeit: Festkleidung, Geschenk). Keine Selbstverständlichkeiten.
 Antworte NUR mit JSON: {"kategorien": [{"name": "…", "punkte": ["…"]}]}`} Deutsch.`, { modelTier: "quick" });
       const ai = short ? (r?.punkte || []).slice(0, 4).map(p => ({ t: String(p), k: "Mitnehmen", d: false }))
@@ -2401,6 +2414,9 @@ function buildPushPlan() {
     else if (o.ev.type === "deadline") { const rd = +o.ev.remindDays || 3; add(`dl-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -rd), "09:00"), `⏰ Frist in ${rd} Tagen`, evName(o.ev)); add(`dl1-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -1), "09:00"), "⏰ Frist morgen", evName(o.ev)); }
     else if (o.ev.type === "trip" && o.a > TODAY) { const pk = o.ev.packlist || [], open = pk.filter(x => !x.d).length;
       add(`tr-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -3), "18:00"), `🧳 In 3 Tagen: ${evName(o.ev)}`, pk.length ? (open ? `Noch ${open} Dinge auf der Packliste offen` : "Packliste ist komplett ✓") : "Zeit für die Packliste"); } });
+  if (N.ev) MERK.forEach(m => { const open = (m.packlist || []).filter(x => !x.d); if (!open.length) return;
+    const o = OCC.find(x => x.ev.type === "google" && x.ev.gid === m.gEventId && iso(x.a) === m.from); if (!o || o.a <= TODAY) return;
+    add(`mk-${m.id}`, at(addDays(o.a, -1), "19:00"), `📝 Morgen: ${o.ev.title}`, `Noch offen: ${open.slice(0, 4).map(x => x.t).join(", ")}${open.length > 4 ? " …" : ""}`); });
   if (N.fest) { const names = FAM().map(p => p.name).filter(Boolean), y = TODAY.getFullYear();
     for (const yy of [y, y + 1]) { const xmas = ymd(yy, 12, 24);
       for (const w of [21, 7]) add(`xm${w}-${yy}`, at(addDays(xmas, -w), "18:00"), `🎄 In ${w === 21 ? "3 Wochen" : "einer Woche"} ist Heiligabend`, names.length ? `Geschenke für ${names.slice(0, 6).join(", ")}${names.length > 6 ? " …" : ""}?` : "Schon an Geschenke gedacht?");
@@ -2695,7 +2711,7 @@ const writeErr = e => ["permission_denied", "not_granted", "forbidden"].includes
 const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", birthYear: e.birthYear || 0, note: e.note || "", gcal: e.gcal || "", gEventId: e.gEventId || "",
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
-  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, country: e.country || "", fam: !!e.fam,
+  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, country: e.country || "", fam: !!e.fam,
   shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
 let gWarn = 0;
 let LAST_ADDED = [];
@@ -3301,6 +3317,7 @@ function showGoogleEvent(o) {
     (e.link ? `<a class="btn ghost small" href="${esc(e.link)}" target="_blank" rel="noopener">In Google öffnen</a>` : "") +
     routeLinks(placeOf(e)) +
     (canWrite && isTrip(o) ? `<button type="button" class="btn ghost small" data-adopt="${id}|${iso(o.a)}">Als Reise übernehmen</button>` : "") +
+    (merkable(o) ? `<button type="button" class="btn ghost small" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "") +
     (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
   openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
@@ -3807,6 +3824,7 @@ document.addEventListener("click", ev => {
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
+  if ((el = q("[data-gmerk]"))) { const [id, a] = el.dataset.gmerk.split("|"); const o = findOcc(id, a); if (o) openMerk(o); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
   if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
   if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
@@ -3862,7 +3880,7 @@ document.addEventListener("click", ev => {
       let grp = groups.querySelector('[data-pkgrp="Eigene"]');
       if (!grp) { groups.insertAdjacentHTML("beforeend", `<h3 class="pkh">Eigene</h3><div class="gcals" data-pkgrp="Eigene"></div>`); grp = groups.querySelector('[data-pkgrp="Eigene"]'); }
       grp.insertAdjacentHTML("beforeend", pkRow(item, i));
-      const sub = $("sheet-sub"); if (sub) sub.textContent = `${rngTxt(packEv.a, packEv.b, true)} · ${packEv.packlist.filter(x => x.d).length}/${packEv.packlist.length} eingepackt`; break; }
+      const sub = $("sheet-sub"); if (sub) sub.textContent = `${rngTxt(packEv.a, packEv.b, true)} · ${packEv.packlist.filter(x => x.d).length}/${packEv.packlist.length} ${packEv.mOnly && packShort(packEv) ? "erledigt" : "eingepackt"}`; break; }
     case "pk-reset": savePack(packEv.packlist.map(x => ({ ...x, d: false })), true); showPack(packEv, true); break;
     case "st-ai": runReview(); break;
     case "wk-today": case "wk-back": setWk(TODAY, null); break;
@@ -4176,7 +4194,8 @@ renderAll();
     docSync(); if (sheetMode === "docs" && !$("sheet").hidden) showDocs(); }, () => {});
   COLL("events").onSnapshot(snap => {
     clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); } shrQueue();
-    EV = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); docSync();
+    const all = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); MERK = all.filter(e => e.mOnly); EV = all.filter(e => !e.mOnly); docSync();
+    if (sheetMode === "event" && !$("sheet").hidden && sheetCtx?.id?.startsWith?.("g:")) { const b = document.querySelector("[data-gmerk]"); if (b) { const o = findOcc(sheetCtx.id, sheetCtx.a); if (o) b.textContent = merkBtn(o); } }
     if (moving && !moving.gocc && !EV.some(e => e.id === moving.id)) stopMove();
     renderAll();
   }, () => { clearTimeout(timer); dbState = "error"; renderAll(); });
