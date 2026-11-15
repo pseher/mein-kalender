@@ -4214,10 +4214,10 @@ async function applyAssistant() {
     for (const a of gs) {
       const o = a.occ, snap = gSnap(o);
       if (a.op === "gupdate") { await gApplyEdit(o, a.gv); gUndo.push(() => gApplyEdit(o, snap)); }
-      else { const inp = { eventId: o.ev.gid, notificationLevel: "NONE" }; if (o.ev.calId !== "primary") inp.calendarId = o.ev.calId; await mcp.callTool(GSERVER, "delete_event", inp);
+      else { const inp = { eventId: o.ev.gid, notificationLevel: "NONE" }; if (o.ev.calId !== "primary") inp.calendarId = o.ev.calId; await mcp.callTool(GSERVER, "delete_event", inp); gDropLocal(o.ev.gid, o.ev.calId);
         gUndo.push(async () => { const c = gInput({ title: snap.title, from: snap.from, to: snap.to, time: snap.time, endTime: snap.endTime, gcal: o.ev.calId }); if (snap.loc) c.location = snap.loc; await mcp.callTool(GSERVER, "create_event", c); }); }
     }
-    if (gs.length) mcp.invalidate(GSERVER, "list_events").catch(() => {});
+    if (gs.length) { mcp.invalidate(GSERVER, "list_events").catch(() => {}); gResync(); }
     const undoOwn = own.length ? await applyChanges(own) : null;
     const files = ASST_FILES; ASST_FILES = [];
     closeSheet();
@@ -4555,7 +4555,7 @@ async function gApplyEdit(o, v) {
   delete inp.description; inp.eventId = o.ev.gid; inp.allDay = !v.time;
   if (v.loc !== undefined) inp.location = v.loc;
   await mcp.callTool(GSERVER, "update_event", inp);
-  mcp.invalidate(GSERVER, "list_events").catch(() => {});
+  mcp.invalidate(GSERVER, "list_events").catch(() => {}); gResync();
 }
 const gErr = e => e?.code === "tool_error" ? "Google hat die Änderung abgelehnt – vielleicht wurde der Termin dort schon geändert oder gelöscht." : e?.code === "needs_reauth" ? (APP ? "Google-Verbindung abgelaufen. Bitte oben auf „G“ tippen und neu verbinden." : "Google-Verbindung abgelaufen. Bitte in claude.ai neu verbinden.") : e?.code === "api_disabled" ? "Google-Kalender-Zugriff ist im Google-Projekt nicht freigeschaltet." : "Google war gerade nicht erreichbar – meist kurz nach dem Aufwachen des Handys. Bitte noch einmal tippen." + (APP && window.mkGLast ? ` (${window.mkGLast})` : "");
 async function saveGForm() {
@@ -4567,6 +4567,14 @@ async function saveGForm() {
   try { await gApplyEdit(o, v); closeSheet(); toast("In Google gespeichert", async () => { await gApplyEdit(o, before); toast("Rückgängig gemacht"); }); }
   catch (e) { $("gf-err").textContent = gErr(e); btn.disabled = false; btn.textContent = "In Google speichern"; gSync(true); }
 }
+// Nach dem Löschen sofort aus der Ansicht nehmen (nicht erst beim nächsten Abgleich) und kurz danach neu laden
+function gDropLocal(gid, calId) {
+  const hit = e => e && (String(e.id) === gid || String(e.id).startsWith(gid + "_") || String(e.recurringEventId || "") === gid && false);
+  for (const [k, list] of GEV) if (k.startsWith(calId + "|")) GEV.set(k, list.filter(o => !(o.ev.gid === gid || o.ev.gid.startsWith(gid + "_"))));
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith("ft-gc-" + calId + "|")) continue; const v = JSON.parse(localStorage.getItem(k) || "null"); if (v?.e) { const n = v.e.filter(e => !hit(e)); if (n.length !== v.e.length) localStorage.setItem(k, JSON.stringify({ ...v, e: n })); } } } catch {}
+  renderAll();
+}
+let gResyncT = null; const gResync = (ms = 1500) => { clearTimeout(gResyncT); gResyncT = setTimeout(() => gSync(true), ms); };
 async function gDeleteOcc(btn, o) {
   if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = o.ev.recurring ? "Nur diesen Termin löschen?" : "In Google löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 4000); return; }
   btn.disabled = true;
@@ -4574,9 +4582,9 @@ async function gDeleteOcc(btn, o) {
   try {
     const inp = { eventId: o.ev.gid, notificationLevel: "NONE" }; if (cal !== "primary") inp.calendarId = cal;
     await mcp.callTool(GSERVER, "delete_event", inp); mcp.invalidate(GSERVER, "list_events").catch(() => {});
-    closeSheet();
+    closeSheet(); gDropLocal(o.ev.gid, cal); gResync();
     toast("In Google gelöscht", async () => { const c = gInput({ title: snap.title, from: snap.from, to: snap.to, time: snap.time, endTime: snap.endTime, gcal: cal }); if (snap.loc) c.location = snap.loc;
-      await mcp.callTool(GSERVER, "create_event", c); mcp.invalidate(GSERVER, "list_events").catch(() => {}); toast("Wiederhergestellt"); });
+      await mcp.callTool(GSERVER, "create_event", c); mcp.invalidate(GSERVER, "list_events").catch(() => {}); gResync(300); toast("Wiederhergestellt"); });
   } catch (e) {
     if (e?.code === "tool_error" && /not.?found|404|410|deleted|gone|gelöscht/i.test(String(e?.message || ""))) { closeSheet(); toast("Der Termin war in Google schon gelöscht – Ansicht aktualisiert."); }
     else { toast(gErr(e) + " Ich gleiche die Ansicht mit Google ab."); btn.disabled = false; btn.textContent = "Löschen"; }
