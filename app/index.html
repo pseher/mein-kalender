@@ -423,6 +423,9 @@ button { font: inherit; color: inherit; }
 .seg button { border: 0; background: transparent; border-radius: 8px; padding: 6px 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
 .seg button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .a-day { display: inline-flex; align-items: center; gap: 8px; background: var(--soft); border-radius: 999px; padding: 6px 8px 6px 14px; margin: 0 0 10px; font-size: 15px; } .a-day .link { padding: 2px 6px; font-size: 15px; }
+.fcols { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; } .fcol { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); background: var(--soft); color: var(--muted); font: 700 13px/1 inherit; cursor: pointer; padding: 0; }
+.fcol[aria-checked="true"] { outline: 3px solid var(--fg); outline-offset: 2px; }
+.rep-c { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; } #f .rep-c input { width: 84px; flex: 0 0 84px; } #f .rep-c select { flex: 1 1 auto; width: auto; min-width: 0; }
 .seg.emode { display: flex; margin: 0 0 12px; } .seg.emode button { flex: 1; padding: 9px 10px; font-size: 15px; }
 .toolbar .sp { flex: 1; }
 .ytabs { display: inline-flex; gap: 4px; }
@@ -1261,7 +1264,7 @@ const fmtY = dt => `${fmt(dt)}${dt.getFullYear()}`;
 const rngTxt = (a, b, long) => sameDay(a, b) ? (long ? fmtY(a) : fmt(a)) : `${fmt(a)} – ${long ? fmtY(b) : fmt(b)}`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const $ = id => document.getElementById(id);
-const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col", "ft-entry", "ft-umg"];   // Anzeige-Einstellungen: auch im Konto speichern
+const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col", "ft-entry", "ft-umg", "ft-whoc"];   // Anzeige-Einstellungen: auch im Konto speichern
 let uiSaveHook = null;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} if (UI_KEYS.includes(k)) uiSaveHook?.(); } };
 const TODAY = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); })();
@@ -1411,7 +1414,13 @@ const TYPES = {
   contact:  { label: "Kontakt halten",   color: "--c-contact" },
   google:   { label: "Google Kalender",  color: "--gcal" }
 };
-const REPEAT = { none: "einmalig", weekly: "wöchentlich", monthly: "monatlich", yearly: "jährlich", every2y: "alle 2 Jahre" };
+const REPEAT = { none: "einmalig", d1: "täglich", weekly: "wöchentlich", w2: "alle 2 Wochen", w3: "alle 3 Wochen", w4: "alle 4 Wochen", monthly: "monatlich", m2: "alle 2 Monate", m3: "alle 3 Monate (vierteljährlich)", m6: "alle 6 Monate (halbjährlich)", yearly: "jährlich", every2y: "alle 2 Jahre", y3: "alle 3 Jahre", y5: "alle 5 Jahre" };
+// Wiederholung als Einheit + Abstand: "w2" = alle 2 Wochen, "y3" = alle 3 Jahre (alte Werte weekly/monthly/yearly/every2y bleiben gültig)
+const repSpec = k => ({ weekly: { u: "w", n: 1 }, monthly: { u: "m", n: 1 }, yearly: { u: "y", n: 1 }, every2y: { u: "y", n: 2 } })[k] || (/^([dwmy])(\d{1,3})$/.test(k || "") ? { u: k[0], n: Math.max(1, +k.slice(1)) } : null);
+const REP_U = { d: ["Tag", "Tage"], w: ["Woche", "Wochen"], m: ["Monat", "Monate"], y: ["Jahr", "Jahre"] };
+const repLabel = k => REPEAT[k] || (repSpec(k) ? `alle ${repSpec(k).n} ${REP_U[repSpec(k).u][1]}` : "einmalig");
+const repStep = (a0, sp, i) => { const k = i * sp.n; if (sp.u === "d") return addDays(a0, k); if (sp.u === "w") return addDays(a0, 7 * k);
+  const y = a0.getFullYear() + (sp.u === "y" ? k : 0), m = a0.getMonth() + (sp.u === "m" ? k : 0); return new Date(y, m, Math.min(a0.getDate(), new Date(y, m + 1, 0).getDate())); };
 const REMIND_DEF = { birthday: 20, anniversary: 7, deadline: 14 };
 let EV = [], MERK = [], OCC = [], OIDX = new Map();   // MERK: Merklisten zu Google-Terminen (Google-Termin bleibt sichtbar)
 const APP = !!window.MK_APP;   // true = eigene App (Supabase), false = claude.ai-Artefakt
@@ -1434,12 +1443,12 @@ function normalize(id, v) {
   const a = parseIso(v.from), b = parseIso(v.to || v.from) || a;
   return { id, type: TYPES[v.type] ? v.type : "termin", title: String(v.title || ""), from: v.from, to: v.to || v.from,
     time: /^\d{1,2}:\d{2}$/.test(v.time || "") ? v.time : "", endTime: /^\d{1,2}:\d{2}$/.test(v.endTime || "") ? v.endTime : "",
-    repeat: REPEAT[v.repeat] ? v.repeat : "none", until: parseIso(v.until) ? v.until : "", birthYear: +v.birthYear || 0,
+    repeat: repSpec(v.repeat) ? v.repeat : "none", until: parseIso(v.until) ? v.until : "", birthYear: +v.birthYear || 0,
     note: String(v.note || ""), gcal: String(v.gcal || ""), gEventId: String(v.gEventId || ""),
     remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks,
-    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, country: String(v.country || ""),
+    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
@@ -1468,7 +1477,8 @@ function expand() {
     if (e.repeat === "yearly") for (let y = START.getFullYear(); y <= END.getFullYear(); y++) { if (y >= e.a.getFullYear() || e.type === "birthday") push(new Date(y, e.a.getMonth(), e.a.getDate())); }
     else if (e.repeat === "weekly") { const until = parseIso(e.until) || END; for (let a = e.a; a <= until && a <= END; a = addDays(a, 7)) push(a); }
     else if (e.repeat === "monthly") { const until = parseIso(e.until) || END; for (let i = 0; ; i++) { const a = new Date(e.a.getFullYear(), e.a.getMonth() + i, Math.min(e.a.getDate(), new Date(e.a.getFullYear(), e.a.getMonth() + i + 1, 0).getDate())); if (a > until || a > END) break; push(a); } }
-    else if (e.repeat === "every2y") { for (let y = e.a.getFullYear(); y <= END.getFullYear(); y += 2) push(new Date(y, e.a.getMonth(), e.a.getDate())); }
+    else if (repSpec(e.repeat)) { const sp = repSpec(e.repeat), until = sp.u === "y" ? END : (parseIso(e.until) || END), step = sp.u === "d" ? sp.n : sp.u === "w" ? 7 * sp.n : 0;
+      for (let i = step ? Math.max(0, Math.floor(dayDiff(e.a, START) / step) - 1) : 0; i < 5000; i++) { const a = repStep(e.a, sp, i); if (a > until || a > END) break; push(a); } }
     else push(e.a);
   });
   if (gOn()) { const seen = new Set(), linked = EV.map(e => e.gEventId).filter(Boolean);
@@ -1535,9 +1545,18 @@ function tintOf(d) {
   if (SHOW.st && d.fST) return "fst";
   return "";
 }
+// Farben wie in Google Kalender (colorId 1–11) – eigene Termine, Personen („für Karin“) und Google-Termine mit eigener Farbe
+const ECOL = [["7", "Pfau", "#039be5"], ["9", "Heidelbeere", "#3f51b5"], ["1", "Lavendel", "#7986cb"], ["3", "Weintraube", "#8e24aa"], ["4", "Flamingo", "#e67c73"], ["11", "Tomate", "#d50000"], ["6", "Mandarine", "#f4511e"], ["5", "Banane", "#f6bf26"], ["2", "Salbei", "#33b679"], ["10", "Basilikum", "#0b8043"], ["8", "Grafit", "#616161"]];
+const ECOLM = Object.fromEntries(ECOL.map(([id, , hex]) => [id, hex]));
+const lumInk = hex => { const n = parseInt(String(hex).slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 165 ? "#1d2329" : "#fff"; };
+const whoKey = w => String(w || "").trim().toLowerCase();
+const whoCols = () => { try { return JSON.parse(store.get("ft-whoc") || "{}"); } catch { return {}; } };
+const whoId = w => { if (!w) return ""; const c = whoCols()[whoKey(w)]; if (c && ECOLM[c]) return c; let h = 0; for (const ch of whoKey(w)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return ECOL[h % 10][0]; };
+const ownHex = ev => ev.color && ECOLM[ev.color] ? ECOLM[ev.color] : ev.who ? ECOLM[whoId(ev.who)] : "";
+const dotSt = e => e.type === "google" || ownHex(e) ? ` style="background:${colorOf(e)}"` : "";
 const OWN_COLOR = { mina: "var(--c-mina)", birthday: "var(--event)", trip: "var(--trip)", termin: "var(--c-termin)", info: "var(--c-info)", anniversary: "var(--c-anniv)", deadline: "var(--c-deadline)", contact: "var(--c-contact)" };
-const colorOf = ev => ev.type === "google" ? ev.color : OWN_COLOR[ev.type] || "var(--c-termin)";
-const inkOf = ev => ev.type === "google" ? ev.ink : "#fff";
+const colorOf = ev => ev.type === "google" ? ev.color : ownHex(ev) || OWN_COLOR[ev.type] || "var(--c-termin)";
+const inkOf = ev => ev.type === "google" ? ev.ink : ownHex(ev) ? lumInk(ownHex(ev)) : "#fff";
 
 // =================== Monat (groß, mit Balken) ===================
 const bigEl = $("bigmonth");
@@ -2082,7 +2101,7 @@ async function codeKeys(code) {
 async function seal(key, obj) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(obj))); return b64(iv) + "." + b64(ct); }
 async function unseal(key, s) { try { const [iv, ct] = String(s).split("."); return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(iv) }, key, unb64(ct)))); } catch { return null; } }
 async function hashOf(obj) { const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(obj))); return [...new Uint8Array(d)].slice(0, 10).map(b => b.toString(16).padStart(2, "0")).join(""); }
-const shareData = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", note: e.note || "", place: e.place || "", birthYear: e.birthYear || 0, startYear: e.startYear || 0 });
+const shareData = e => ({ color: e.color || "", type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", note: e.note || "", place: e.place || "", birthYear: e.birthYear || 0, startYear: e.startYear || 0 });
 const myName = () => (PROFILE.name || (meName || "").split(/\s+/)[0] || "Jemand").trim();
 const contactBy = L => SHR.contacts.find(c => c.L === L);
 const okContacts = () => SHR.contacts.filter(c => c.uid);
@@ -2393,7 +2412,7 @@ function dayChips(d) {
 }
 const occBtn = (o, showRange) => {
   const e = o.ev, age = ageTxt(o), sub = [showRange && !sameDay(o.a, o.b) ? rngTxt(o.a, o.b) : "", age, e.note].filter(Boolean).join(" · ");
-  return `<button type="button" class="evr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${e.type === "google" ? ` style="background:${e.color}"` : ""}></span><span class="n">${esc(evName(e))}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
+  return `<button type="button" class="evr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${dotSt(e)}></span><span class="n">${esc(evName(e))}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
 };
 function renderWeek() {
   const days = [...Array(7)].map((_, i) => addDays(weekStart, i));
@@ -2431,7 +2450,7 @@ function renderList() {
     const mk = `${r.a.getFullYear()}-${r.a.getMonth()}`;
     if (mk !== last) { out += `<h4>${MON[r.a.getMonth()]} ${r.a.getFullYear()}</h4>`; last = mk; }
     if (r.o) { const e = r.o.ev, extra = [timeTxt(e), ageTxt(r.o)].filter(Boolean).join(" · ");
-      out += `<button type="button" class="lr" data-occ="${esc(e.id)}|${iso(r.o.a)}"><span class="dt">${rngTxt(r.a, r.b)}</span><span class="n"><span class="ev-dot ${e.type}"${e.type === "google" ? ` style="background:${e.color}"` : ""}></span><span>${esc(evName(e))}${extra ? `<small>${esc(extra)}</small>` : ""}</span></span></button>`; }
+      out += `<button type="button" class="lr" data-occ="${esc(e.id)}|${iso(r.o.a)}"><span class="dt">${rngTxt(r.a, r.b)}</span><span class="n"><span class="ev-dot ${e.type}"${dotSt(e)}></span><span>${esc(evName(e))}${extra ? `<small>${esc(extra)}</small>` : ""}</span></span></button>`; }
     else out += `<div class="lr fix"><span class="dt">${rngTxt(r.a, r.b)}</span><span class="n"><span>${esc(r.fix)}</span></span></div>`;
   });
   $("list").innerHTML = out + (q && rows.some(r => r.o) ? `<button type="button" class="btn ghost small" id="l-share" style="margin:10px 4px 2px">Ergebnis teilen</button>` : "");
@@ -2450,7 +2469,7 @@ function relDay(o) {
 function renderNext() {
   const items = OCC.filter(o => o.b >= TODAY && dayDiff(TODAY, o.a) <= 14).slice(0, 5);
   UPN.next = items.length;
-  $("next-list").innerHTML = items.map(o => `<button type="button" class="nx" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="when">${relDay(o)}</span><span class="what"><span class="ev-dot ${o.ev.type}"${o.ev.type === "google" ? ` style="background:${o.ev.color}"` : ""}></span>${esc(evName(o.ev))}${placeHint(o)}${ageTxt(o) ? ` · ${esc(ageTxt(o))}` : ""}</span><span class="tm">${esc(timeTxt(o.ev))}</span></button>`).join("");
+  $("next-list").innerHTML = items.map(o => `<button type="button" class="nx" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="when">${relDay(o)}</span><span class="what"><span class="ev-dot ${o.ev.type}"${dotSt(o.ev)}></span>${esc(evName(o.ev))}${placeHint(o)}${ageTxt(o) ? ` · ${esc(ageTxt(o))}` : ""}</span><span class="tm">${esc(timeTxt(o.ev))}</span></button>`).join("");
 }
 
 // =================== Demnächst-Karte ===================
@@ -3550,7 +3569,7 @@ function renderCare() {
   const y = selYear, list = kidOcc(y), n = list.filter(o => o.ev.type === "mina").length;
   $("c-mina").textContent = dbState === "ready" ? (n === 1 ? "1 Termin" : `${n} Termine`) : "";
   $("b-mina").innerHTML = !list.length ? `<p class="tip">${dbState === "ready" ? `Für ${y} sind noch keine Termine eingetragen.` : emptyMsg()}</p>` :
-    `<div>${list.map(o => `<button type="button" class="lr" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="dt">${rngTxt(o.a, o.b, o.b.getFullYear() !== y)}</span><span class="n"><span class="ev-dot ${o.ev.type}"${o.ev.type === "google" ? ` style="background:${o.ev.color}"` : ""}></span><span>${o.ev.type === "info" ? esc(o.ev.title) : esc(o.ev.note || "Wochenende")}</span></span></button>`).join("")}</div>
+    `<div>${list.map(o => `<button type="button" class="lr" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="dt">${rngTxt(o.a, o.b, o.b.getFullYear() !== y)}</span><span class="n"><span class="ev-dot ${o.ev.type}"${dotSt(o.ev)}></span><span>${o.ev.type === "info" ? esc(o.ev.title) : esc(o.ev.note || "Wochenende")}</span></span></button>`).join("")}</div>
      <button type="button" class="btn ghost small" style="margin-top:10px" data-share-mina="${y}">Plan ${y} teilen</button>`;
 }
 
@@ -3814,7 +3833,8 @@ function showEvent(o) {
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
   const item = (title, sub) => items.push(`<li><i style="background:var(${TYPES[e.type].color})"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
-  item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${REPEAT[e.repeat]}` : ""), ageTxt(o));
+  item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o));
+  if (e.who) item(`👤 für ${e.who}`, "");
   if (e.note) item("Notiz", e.note);
   if (e.place) item("Ort", e.place);
   if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) item("Reise", hs.join(" · ")); }
@@ -3880,11 +3900,14 @@ function showForm(e, preset) {
       <div class="two"><div><label for="f-type">Art</label>
       <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
-      <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}</select></div></div>
+      <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}<option value="custom"${!REPEAT[v.repeat] && repSpec(v.repeat) ? " selected" : ""}>anders …</option></select></div></div>
+      <div class="rep-c" id="f-repc-wrap"${!REPEAT[v.repeat] && repSpec(v.repeat) ? "" : " hidden"}><span>alle</span><input id="f-repn" type="number" inputmode="numeric" min="1" max="99" value="${repSpec(v.repeat)?.n || 2}"><select id="f-repu">${Object.entries(REP_U).map(([u, [, pl]]) => `<option value="${u}"${(repSpec(v.repeat)?.u || "w") === u ? " selected" : ""}>${pl}</option>`).join("")}</select></div>
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small">📎 Ticket / Buchung anhängen<input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <label for="f-title" id="f-title-l">Titel</label>
       <input id="f-title" type="text" value="${esc(v.title)}" placeholder="z. B. Zahnarzt, Ostsee, TÜV">
+      <div class="f-who" id="f-who-wrap"><div><label for="f-who">Für wen?</label><input id="f-who" type="text" list="f-who-l" value="${esc(v.who || "")}" placeholder="optional, z. B. Karin" autocomplete="off"><datalist id="f-who-l">${[...new Set([...FAM().map(p => p.name), ...EV.map(x => x.who).filter(Boolean)])].slice(0, 30).map(n => `<option value="${esc(n)}">`).join("")}</datalist></div></div>
+      <div id="f-col-wrap"><label id="f-col-l">${v.who ? `Farbe für ${esc(v.who)}` : "Farbe"}</label><div class="fcols" role="radiogroup" aria-label="Farbe">${[["", "Automatisch (nach Art)", ""], ...ECOL].map(([id, n, hex]) => `<button type="button" role="radio" class="fcol" data-fcol="${id}" title="${n}" aria-label="${n}" aria-checked="${(v.who ? (whoCols()[whoKey(v.who)] || "") : (v.color || "")) === id}" style="${hex ? `background:${hex}` : ""}">${hex ? "" : "A"}</button>`).join("")}</div></div>
       ${SHR_ON() && !(e && e.shared) ? (SHR.contacts.length ? `<div id="f-sh-wrap"><label>Teilen mit</label>${shrChips("data-fsh", e ? effTo(e) : [...new Set([...(v.title ? shrPick(v.title) : []), ...(["birthday"].includes(v.type) ? [] : autoLs())])])}</div>` : `<p class="note" style="margin:6px 0 0">👥 Teilen mit anderen? <button type="button" class="link" id="mi-share">Personen einladen</button></p>`) : ""}
       ${famGroups().length && gWritable() && !v.gReadOnly ? `<div class="vis" id="f-vis" role="radiogroup" aria-label="Wer sieht das?"><button type="button" role="radio" data-vis="me" aria-checked="${!isShareCal(v.gcal)}">🔒 Nur ich</button>${famGroups().map(g => `<button type="button" role="radio" data-vis="${esc(g.cal)}" aria-checked="${v.gcal === g.cal}">👪 ${esc(calName(g.cal))}</button>`).join("")}</div>` : ""}
       <div class="two"><div><label for="f-from" id="f-from-l">Von</label><input id="f-from" type="date" value="${esc(v.from)}"></div>
@@ -3924,6 +3947,7 @@ function showForm(e, preset) {
   formVisManual = !!editing; formShManual = false; formVis = (e && isShareCal(e.gcal)) ? e.gcal : "me";
   syncFormFields(); setVis(formVis);
 }
+const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom") return r; const n = Math.max(1, Math.min(99, +$("f-repn").value || 1)), u = $("f-repu").value; return n === 1 ? { d: "d1", w: "weekly", m: "monthly", y: "yearly" }[u] : u + n; };
 function syncFormFields() {
   const t = $("f-type"), r = $("f-rep"); if (!t) return;
   const ty = t.value, contact = ty === "contact";
@@ -3934,7 +3958,9 @@ function syncFormFields() {
   $("f-rem").placeholder = `Standard ${REMIND_DEF[ty] ?? ""}`;
   $("f-extra").hidden = !["birthday", "anniversary", "deadline", "contact"].includes(ty);
   $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact; { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; } $("f-shift").hidden = contact;
-  $("f-until-wrap").hidden = contact || !["weekly", "monthly"].includes(r.value);
+  $("f-repc-wrap").hidden = contact || r.value !== "custom";
+  $("f-who-wrap").hidden = contact || ty === "birthday";
+  $("f-until-wrap").hidden = contact || !["d", "w", "m"].includes(repSpec(repVal())?.u);
   $("f-thx-wrap").hidden = !["termin", "trip"].includes(ty);
   $("f-trip-wrap").hidden = ty !== "trip";
   $("f-gcal-wrap").hidden = contact || formVis !== "me";
@@ -3961,10 +3987,11 @@ function formVals() {
   }
   const contact = type === "contact";
   return { type, title: g("f-title"), from: g("f-from"), to: contact ? g("f-from") : (g("f-to") || g("f-from")), time: contact ? "" : g("f-time"), endTime: contact ? "" : g("f-end"),
-    repeat: contact ? "none" : g("f-rep"), until: ["weekly", "monthly"].includes(g("f-rep")) ? g("f-until") : "", birthYear: type === "birthday" && +g("f-by") ? +g("f-by") : 0, note: g("f-note"),
+    repeat: contact ? "none" : repVal(), until: ["d", "w", "m"].includes(repSpec(repVal())?.u) ? g("f-until") : "", birthYear: type === "birthday" && +g("f-by") ? +g("f-by") : 0, note: g("f-note"),
     remindDays: ["birthday", "anniversary", "deadline"].includes(type) && g("f-rem") !== "" ? Math.max(0, +g("f-rem") || 0) : (REMIND_DEF[type] ?? 0), giftDone: editing ? editing.giftDone : [],
     done: editing ? editing.done : [], startYear: type === "anniversary" ? +g("f-sy") || 0 : 0, everyWeeks: contact ? Math.max(1, +g("f-ew") || 8) : 8,
     thanks: ["termin", "trip"].includes(type) && $("f-thx").checked, packlist: editing ? editing.packlist : [],
+    who: contact || type === "birthday" ? "" : g("f-who"), color: (() => { const w = contact || type === "birthday" ? "" : g("f-who"), c = document.querySelector('[data-fcol][aria-checked="true"]')?.dataset.fcol || ""; if (w) { const M = whoCols(); if (c) M[whoKey(w)] = c; else delete M[whoKey(w)]; store.set("ft-whoc", JSON.stringify(M)); return ""; } return c; })(),
     place: g("f-place"), flight: type === "trip" && fMode() === "flug", mode: type === "trip" ? fMode() : "", files: editing ? editing.files || [] : [], kids: type === "trip" && $("f-kids").checked,
     country: editing && (editing.place || "") === g("f-place") && editing.title === g("f-title") ? editing.country || "" : "",
     gcal: formVis !== "me" && isShareCal(formVis) ? formVis : $("f-gcal") ? (isShareCal($("f-gcal").value) && formVis === "me" && $("f-vis") ? "primary" : $("f-gcal").value) : (editing ? editing.gcal : ""), gReadOnly: editing ? !!editing.gReadOnly : false,
@@ -3999,7 +4026,7 @@ const writeErr = e => ["permission_denied", "not_granted", "forbidden"].includes
 const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", birthYear: e.birthYear || 0, note: e.note || "", gcal: e.gcal || "", gEventId: e.gEventId || "",
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
-  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, country: e.country || "", fam: !!e.fam,
+  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
   shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
 let gWarn = 0;
 let LAST_ADDED = [];
@@ -4040,7 +4067,7 @@ const gTitle = v => v.type === "birthday" ? `Geburtstag ${v.title}` : v.title;
 const tpad = t => { const [h, m] = String(t).split(":"); return `${p2(+h)}:${p2(+m)}`; };
 const localStamp = d => `${iso(d)}T${p2(d.getHours())}:${p2(d.getMinutes())}:00`;
 function gInput(v) {
-  const to = v.to || v.from, inp = { summary: gTitle(v), notificationLevel: "NONE" };
+  const to = v.to || v.from, inp = { summary: gTitle(v), notificationLevel: "NONE" }; { const c = v.color || (v.who ? whoId(v.who) : ""); if (c) inp.colorId = c; }
   if (v.time) {
     inp.startTime = `${v.from}T${tpad(v.time)}:00`;
     if (v.endTime) inp.endTime = `${to}T${tpad(v.endTime)}:00`;
@@ -4051,11 +4078,9 @@ function gInput(v) {
   return inp;
 }
 function gRecur(v) {
-  if (v.repeat === "yearly") return ["RRULE:FREQ=YEARLY"];
-  if (v.repeat === "every2y") return ["RRULE:FREQ=YEARLY;INTERVAL=2"];
-  if (v.repeat === "monthly") return [`RRULE:FREQ=MONTHLY${v.until ? `;UNTIL=${v.until.replace(/-/g, "")}T235959Z` : ""}`];
-  if (v.repeat === "weekly") return [`RRULE:FREQ=WEEKLY${v.until ? `;UNTIL=${v.until.replace(/-/g, "")}T235959Z` : ""}`];
-  return null;
+  const sp = repSpec(v.repeat); if (!sp) return null;
+  const F = { d: "DAILY", w: "WEEKLY", m: "MONTHLY", y: "YEARLY" }[sp.u], u = sp.u !== "y" && v.until ? `;UNTIL=${v.until.replace(/-/g, "")}T235959Z` : "";
+  return [`RRULE:FREQ=${F}${sp.n > 1 ? `;INTERVAL=${sp.n}` : ""}${u}`];
 }
 const gIdOf = p => typeof p === "object" && p ? String(p.id || p.event?.id || p.eventId || "") : "";
 async function gCreate(v) {
@@ -4212,7 +4237,7 @@ Felder für neue/geänderte eigene Termine:
 - title: kurz. Bei "birthday" nur der Name der Person.
 - from, to: "YYYY-MM-DD" (to = from bei einem Tag)
 - time, endTime: "HH:MM" oder ""
-- repeat: "none" | "yearly" | "weekly" (Geburtstage immer "yearly")
+- repeat: "none" | "d1" (täglich) | "weekly" | "w2" (alle 2 Wochen, z. B. Müllabfuhr) | "w4" | "monthly" | "m3" | "m6" | "yearly" | "every2y" | "y3" (alle 3 Jahre, z. B. Vorsorge) | allgemein "<d|w|m|y><Zahl>" (Geburtstage immer "yearly")
 - birthYear: Zahl oder 0
 - note: kurze Zusatzinfo auf Deutsch oder ""
 - mode: Anreise bei Reisen: "zug" | "flug" | "bus" | "auto" | "rad" | "" (nur wenn eindeutig)
@@ -4288,7 +4313,7 @@ function actHtml(a, i) {
   const old = a.id && EV.find(e => e.id === a.id);
   const tag = a.op === "add" ? `<span class="tag add">Neu</span>` : a.op === "update" ? `<span class="tag upd">Ändern</span>` : `<span class="tag del">Löschen</span>`;
   const e = a.op === "delete" ? old : a.event, ea = parseIso(e.from), eb = parseIso(e.to) || ea;
-  const desc = [rngTxt(ea, eb, true), timeTxt(e), e.repeat && e.repeat !== "none" ? REPEAT[e.repeat] : "", e.note, e.place ? "📍 " + e.place : ""].filter(Boolean).join(" · ");
+  const desc = [rngTxt(ea, eb, true), timeTxt(e), e.repeat && e.repeat !== "none" ? repLabel(e.repeat) : "", e.note, e.place ? "📍 " + e.place : ""].filter(Boolean).join(" · ");
   const was = a.op === "update" && old ? `<div class="note">vorher: ${esc(rngTxt(old.a, old.b, true))}${old.time ? " · " + esc(old.time) : ""}</div>` : "";
   return `<label class="act"><input type="checkbox" checked data-act="${i}"><span class="body">${tag}<b>${esc(evName(e))}</b><div class="note">${esc(desc)}</div>${was}
     ${a.op === "add" && canWrite && gWritable() ? `<div class="act-cal"><span class="note">${isShareCal(a.event.gcal) ? "👪 Geteilt mit:" : "Google:"}</span><select data-acal="${i}" aria-label="Google-Kalender">${gCalOptions(a.event.gcal)}</select></div>` : ""}
@@ -4463,7 +4488,7 @@ function mapG(e, calId) {
     if (sameDay(a, b) && de > ds) endTime = hhmm(de);
   } else return null;
   if (!a) return null; if (!b || b < a) b = a;
-  const [color, ink] = gColor(calId);
+  let [color, ink] = gColor(calId); if (e.colorId && ECOLM[e.colorId]) { color = ECOLM[e.colorId]; ink = lumInk(color); }
   const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, type: "google", color, ink, title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
     repeat: "none", a, b, cal: calLabel(calId), creator: isMe(e.creator) ? "" : String(e.creator?.displayName || (e.creator?.email || "").split("@")[0] || ""),
     created: String(e.created || ""), updated: String(e.updated || ""), link: /^https:\/\/(www\.)?google\.com\/calendar\//.test(e.htmlLink || "") ? e.htmlLink : "" };
@@ -5128,6 +5153,7 @@ document.addEventListener("click", ev => {
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
+  if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
   if ((el = q("[data-umg]"))) { const [id, a] = el.dataset.umg.split("|"); const o = findOcc(id, a); if (!o) return; const on = umgToggle(o.ev.title);
     toast(on ? `Alle „${o.ev.title}“-Einträge zählen jetzt als Umgang` : `„${o.ev.title}“ ist wieder ein normaler Termin`); renderAll(); const o2 = findOcc(id, a) || o; showGoogleEvent(o2); return; }
   if ((el = q("[data-gmerk]"))) { const [id, a] = el.dataset.gmerk.split("|"); const o = findOcc(id, a); if (o) openMerk(o); return; }
@@ -5324,8 +5350,10 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.show) { SHOW[ev.target.dataset.show] = ev.target.checked; store.set("ft-show", JSON.stringify(SHOW)); renderAll(); return; }
   if (ev.target.id === "g-show") { gShow = ev.target.checked; store.set("ft-gcal-show", gShow ? "1" : "0"); renderGPill(); if (!gShow) resetGoogleWatches(); else renderAll(); if (sheetMode === "settings") showSettings(); else showGoogleSheet(); return; }
   if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; saveGSel(s); resetGoogleWatches(); return; }
-  if (ev.target.id === "f-type" || ev.target.id === "f-rep") syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
+  if (["f-type", "f-rep", "f-repu"].includes(ev.target.id)) syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
 document.addEventListener("input", ev => {
+  if (ev.target.id === "f-who") { const w = ev.target.value.trim(), l = $("f-col-l"); if (l) l.textContent = w ? `Farbe für ${w}` : "Farbe";
+    const c = w ? (whoCols()[whoKey(w)] || "") : ""; document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.fcol === c))); }
   if (ev.target.id === "f-place") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(v, false); else { const b = $("f-place-sug"); if (b) b.hidden = true; } }
   if (ev.target.id === "f-title" && !$("f-place")?.value.trim() && !$("f-place")?.hidden) osmQueue(ev.target.value, true, 900);
   if (ev.target.id === "doc-q") { docQ = ev.target.value; const pos = ev.target.selectionStart; showDocs(); const i = $("doc-q"); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch {} } return; }
