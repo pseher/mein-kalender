@@ -7,6 +7,9 @@ window.MK_APP = true;
   const CFG = window.MK_CFG;
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   window.mkSupabase = sb;
+  // Fehler aus der Rückleitung (Google/Supabase) festhalten, bevor supabase-js die Adresse aufräumt
+  try { const P = new URLSearchParams(location.search + "&" + location.hash.slice(1)); const e = P.get("error_description") || P.get("error");
+    if (e) { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
   let session = null;
   const ready = sb.auth.getSession().then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
   // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),

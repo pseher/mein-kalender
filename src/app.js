@@ -3103,7 +3103,7 @@ function showGate() {
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos mit Google anmelden.</b><span>Kein neues Passwort. Deine Termine sind privat gespeichert – nur du siehst sie.</span></div>
     <button type="button" class="wz-big accent" id="app-login">Mit Google anmelden</button>
-    <p class="note">Danach geht die Einrichtung direkt weiter.</p>
+    <p class="note">Danach geht die Einrichtung direkt weiter.</p>${window.mkAuthErr ? `<p class="err" role="alert">Die Anmeldung hat nicht geklappt: ${esc(window.mkAuthErr)}</p>` : ""}
     <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
