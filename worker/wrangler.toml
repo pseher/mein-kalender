@@ -21,3 +21,5 @@ crons = ["*/5 * * * *"]                               # alle 5 Minuten: fällige
 #   npx wrangler secret put SUPABASE_SERVICE_KEY
 #   npx wrangler secret put GOOGLE_CLIENT_SECRET
 #   npx wrangler secret put VAPID_JWK        (Schlüssel für Benachrichtigungen, erzeugt auf /vapid.html)
+#   npx wrangler secret put DB_CLIENT_ID     (DB API Marketplace → App → Client ID, für „Züge live“)
+#   npx wrangler secret put DB_API_KEY       (DB API Marketplace → App → API Key)

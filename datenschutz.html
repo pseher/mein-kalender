@@ -27,7 +27,7 @@
 <tr><td>Google-Kalender-Termine</td><td>bleiben bei Google</td><td>anzeigen, eintragen, ändern – direkt aus deinem Browser</td></tr>
 <tr><td>KI-Funktionen</td><td>Cloudflare Worker → Anthropic (Claude)</td><td>Texte, Bilder und Dokumente auswerten, die du dafür abschickst</td></tr>
 <tr><td>Ortsvorschläge</td><td>Photon (komoot, Deutschland) mit OpenStreetMap-Daten</td><td>Adressen zu Orten finden</td></tr>
-<tr><td>Zug-Echtzeitdaten</td><td>v6.db.transport.rest (Community-Dienst, Daten der Deutschen Bahn)</td><td>Verspätung, Gleis und Ausfall von Zügen in deinen Terminen</td></tr>
+<tr><td>Zug-Echtzeitdaten</td><td>DB Timetables API (Deutsche Bahn, DB API Marketplace)</td><td>Verspätung, Gleis und Ausfall von Zügen in deinen Terminen</td></tr>
 <tr><td>Zwischenspeicher</td><td>nur auf deinem Gerät</td><td>schneller Start, Offline-Nutzung</td></tr>
 </table>
 
@@ -63,7 +63,7 @@
 <p>Schaltest du Benachrichtigungen ein, speichern wir für dein Gerät die vom Browser vergebene Push-Adresse sowie einen Plan der nächsten Tage (Zeitpunkt, Titel und kurzer Text der Erinnerungen). Unser Cloudflare Worker verschickt die Nachrichten zur geplanten Zeit über den Push-Dienst deines Browsers bzw. Betriebssystems (z. B. Google Firebase Cloud Messaging, Apple Push Notification Service, Mozilla); die Inhalte sind dabei Ende-zu-Ende verschlüsselt. Bei geteilten Terminen erfährt der Server nur, <i>dass</i> sich etwas geändert hat, nicht was. Ausschalten jederzeit unter ☰ → Benachrichtigungen. Rechtsgrundlage: Art. 6 Abs. 1 lit. a DSGVO.</p>
 
 <h2>8b. Züge live</h2>
-<p>Steht in einem Termin mit Uhrzeit eine Zugnummer (z. B. „IC 1934“) und ein Bahnhof, prüft unser Server ab etwa 2,5 Stunden vorher alle paar Minuten die Echtzeitdaten dieses Zuges und meldet dir Verspätung, Gleiswechsel oder Ausfall als Benachrichtigung. Dafür fragt der Server beim frei zugänglichen Dienst <b>v6.db.transport.rest</b> nur Bahnhof, Zugnummer und Uhrzeit ab – ohne deinen Namen, deine Termintitel oder andere Angaben über dich. Du kannst das unter ☰ → Benachrichtigungen („Züge live“) ausschalten.</p>
+<p>Steht in einem Termin mit Uhrzeit eine Zugnummer (z. B. „IC 1934“) und ein Bahnhof, prüft unser Server ab etwa 2,5 Stunden vorher alle paar Minuten die Echtzeitdaten dieses Zuges und meldet dir Verspätung, Gleiswechsel oder Ausfall als Benachrichtigung. Dafür fragt der Server bei der offiziellen Fahrplan-Schnittstelle der Deutschen Bahn (<b>DB Timetables API</b>) nur Bahnhof, Zugnummer und Uhrzeit ab – ohne deinen Namen, deine Termintitel oder andere Angaben über dich. Du kannst das unter ☰ → Benachrichtigungen („Züge live“) ausschalten.</p>
 <h2>9. Speicher auf deinem Gerät</h2>
 <p>Damit die App schnell startet und auch ohne Netz funktioniert, speichert dein Browser App-Dateien (Service Worker), Einstellungen, Google-Termine und Ortsvorschläge lokal. Diese Daten sind für den Betrieb der App unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG). Beim Abmelden werden die Google-Zugangsdaten gelöscht; den übrigen Speicher kannst du über die Browser-Einstellungen leeren.</p>
 
