@@ -492,11 +492,17 @@ function ctParse(text) {
   }
   return out.filter(c => c.m >= 1 && c.m <= 12 && c.d >= 1 && c.d <= 31).map(c => ({ ...c, y: c.y >= 1900 && c.y <= TODAY.getFullYear() ? c.y : 0 }));
 }
+// Entwurf merken (auch nach Schließen/Neuladen) und vorhandene Geburtstage mit anderem Datum als „ändern“ anbieten
+const ctSaveDraft = () => { try { CT.length ? store.set("ft-ct", JSON.stringify(CT)) : localStorage.removeItem("ft-ct"); } catch {} };
+const ctBd = name => EV.find(e => e.type === "birthday" && e.title.toLowerCase().trim() === String(name).toLowerCase().trim());
+const ctDiff = (c, e) => { const d = parseIso(e.from); return d && (d.getDate() !== c.d || d.getMonth() + 1 !== c.m || (c.y && +e.birthYear !== c.y)); };
 function showContacts() {
-  const have = new Set(EV.filter(e => e.type === "birthday").map(e => e.title.toLowerCase().trim()));
-  const list = CT.length ? `<div class="sg-t">${CT.length} Geburtstage gefunden</div><div class="sg ctl">${CT.map((c, i) => { const dup = have.has(c.name.toLowerCase());
-      return `<label class="sr2"><input type="checkbox" class="ckb" data-ct="${i}"${c.on ? " checked" : ""}${dup ? " disabled" : ""}><span>${esc(c.name)}${dup ? " <small>schon da</small>" : ""}</span><em>${c.src === "bild" ? "📷 " : ""}${p2(c.d)}.${p2(c.m)}.${c.y || ""}</em></label>`; }).join("")}</div>
-    <button type="button" class="btn accent wide" id="ct-go"${CT.some(c => c.on) ? "" : " disabled"}>${CT.filter(c => c.on).length} Geburtstage übernehmen</button>` : "";
+  if (!CT.length) { try { const d = JSON.parse(store.get("ft-ct") || "[]"); if (Array.isArray(d) && d.length) CT = d; } catch {} }
+  const list = CT.length ? `<div class="sg-t">${CT.length} Geburtstage gefunden</div><div class="sg ctl">${CT.map((c, i) => { const ex = ctBd(c.name), upd = ex && ctDiff(c, ex), dup = ex && !upd;
+      const exD = ex ? parseIso(ex.from) : null;
+      return `<label class="sr2"><input type="checkbox" class="ckb" data-ct="${i}"${c.on && !dup ? " checked" : ""}${dup ? " disabled" : ""}><span>${esc(c.name)}${dup ? " <small>schon da</small>" : upd ? ` <small>ändern – bisher ${p2(exD.getDate())}.${p2(exD.getMonth() + 1)}.${ex.birthYear || ""}</small>` : ""}</span><em>${c.src === "bild" ? "📷 " : ""}${p2(c.d)}.${p2(c.m)}.${c.y || ""}</em></label>`; }).join("")}</div>
+    <button type="button" class="btn accent wide" id="ct-go"${CT.some(c => c.on) ? "" : " disabled"}>${CT.filter(c => c.on).length} Geburtstage übernehmen</button>
+    <p class="note">Die Liste bleibt gespeichert, bis du sie übernimmst – du kannst also auch später weitermachen.</p>` : "";
   openSheet("Geburtstage übernehmen", ctImgOk ? "Aus einer Kontakte-Datei oder aus Screenshots von Geburtstagslisten." : "Google gibt die Geburtstage deiner Kontakte nicht an andere Apps weiter – mit einer Kontakte-Datei geht es in einer Minute.", `
     ${CT.length ? "" : `<ol class="ct-steps">
       <li>Öffne <a href="https://contacts.google.com" target="_blank" rel="noopener">contacts.google.com</a> – am einfachsten am Computer – und klicke links auf <b>Exportieren</b>.</li>
@@ -529,10 +535,10 @@ Lies alle Personen mit ihrem Geburtstag aus. Antworte NUR mit JSON: {"items":[{"
 Regeln: nur Einträge mit erkennbarem Tag und Monat. Ein Alter („wird 40“) darf in ein Geburtsjahr umgerechnet werden, bezogen auf das nächste Vorkommen des Datums ab ${iso(TODAY)}. Keine Ankündigungstexte wie „Heute“ oder „in 3 Tagen“ als Namen. Nichts erfinden; wenn nichts erkennbar ist: {"items":[]}.`, { images: [img], modelTier: "default" });
       (Array.isArray(r?.items) ? r.items : []).forEach(x => { const name = String(x?.name || "").trim(), d = +x?.day, m = +x?.month; let y = +x?.year || 0;
         if (!name || !(d >= 1 && d <= 31 && m >= 1 && m <= 12)) return; if (!(y >= 1900 && y <= TODAY.getFullYear())) y = 0;
-        const k = name.toLowerCase(); if (known.has(k)) return; known.add(k); CT.push({ name, d, m, y, on: !have.has(k), src: "bild" }); found++; });
+        const k = name.toLowerCase(); if (known.has(k)) return; known.add(k); const ex = ctBd(name); CT.push({ name, d, m, y, on: !ex || ctDiff({ d, m, y }, ex), src: "bild" }); found++; });
     } catch (e) { failed++; if (e?.code === "not_granted") break; if (e?.code === "rate_limited") { await new Promise(r => setTimeout(r, 4000)); } }
   }
-  CT.sort((a, b) => a.m - b.m || a.d - b.d); showContacts();
+  CT.sort((a, b) => a.m - b.m || a.d - b.d); ctSaveDraft(); showContacts();
   const el = $("ct-err"); if (el) { el.style.color = found ? "var(--muted)" : ""; el.textContent = found ? `${found} Geburtstage aus ${files.length} ${files.length === 1 ? "Bild" : "Bildern"} erkannt${failed ? ` · ${failed} ließen sich nicht lesen` : ""}. Bitte kurz prüfen – Namen und Daten aus Bildern können falsch erkannt sein.` : "Auf den Bildern habe ich keine Geburtstage erkannt."; }
 }
 async function ctFile(f) {
@@ -540,7 +546,7 @@ async function ctFile(f) {
   let t = ""; try { t = await f.text(); } catch { $("ct-err").textContent = "Die Datei ließ sich nicht lesen."; return; }
   const have = new Set(EV.filter(e => e.type === "birthday").map(e => e.title.toLowerCase().trim()));
   const seen = new Set(CT.map(c => c.name.toLowerCase())); CT = [...CT, ...ctParse(t).filter(c => { const k = c.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
-    .map(c => ({ ...c, on: !have.has(c.name.toLowerCase()) }))].sort((a, b) => a.m - b.m || a.d - b.d);
+    .map(c => { const ex = ctBd(c.name); return { ...c, on: !ex || ctDiff(c, ex) }; })].sort((a, b) => a.m - b.m || a.d - b.d); ctSaveDraft();
   if (!CT.length) { showContacts(); $("ct-err").textContent = "In dieser Datei habe ich keine Geburtstage gefunden. Sind bei den Kontakten Geburtstage eingetragen?"; return; }
   showContacts();
 }
@@ -548,9 +554,12 @@ async function ctImport() {
   const pick = CT.filter(c => c.on); if (!pick.length || !db) return;
   const btn = $("ct-go"); if (btn) { btn.disabled = true; btn.textContent = "Wird übernommen …"; }
   let n = 0;
-  for (const c of pick) { const d = new Date(TODAY.getFullYear(), c.m - 1, c.d);
-    try { await COLL("events").add(plain({ type: "birthday", title: c.name, from: iso(d), to: iso(d), repeat: "yearly", birthYear: c.y || 0, gcal: "", note: "aus Kontakten" })); n++; } catch (err) { toast(writeErr(err)); break; } }
-  CT = []; closeSheet(); setTimeout(() => { renderMenuDot(); toast(famUnseen() ? `${n} Geburtstage übernommen – unter ☰ → Familie gibt es Vorschläge für deine Liebsten` : `${n} Geburtstage übernommen`); }, 600);
+  let u = 0;
+  for (const c of pick) { const d = new Date(TODAY.getFullYear(), c.m - 1, c.d), ex = ctBd(c.name);
+    try { if (ex) { if (ctDiff(c, ex)) { await COLL("events").doc(ex.id).update({ from: iso(d), to: iso(d), ...(c.y ? { birthYear: c.y } : {}) }); u++; } }
+      else { await COLL("events").add(plain({ type: "birthday", title: c.name, from: iso(d), to: iso(d), repeat: "yearly", birthYear: c.y || 0, gcal: "", note: "aus Kontakten" })); n++; } } catch (err) { toast(writeErr(err)); break; } }
+  if (u) n = `${n} neu, ${u} geändert –`.replace(/^0 neu, /, "");
+  CT = []; ctSaveDraft(); closeSheet(); setTimeout(() => { renderMenuDot(); toast(famUnseen() ? `${n} Geburtstage übernommen – unter ☰ → Anzeigen → Familie gibt es Vorschläge für deine Liebsten` : `${n} Geburtstage übernommen`); }, 600);
 }
 
 // =================== Familie & Liebste: Abgleich mit Geburtstagen ===================
@@ -580,7 +589,7 @@ function famSuggest() {
   return bdPeople().filter(c => c.score >= 4 && !fam.has(c.key) && !no.has(c.key)).sort((a, b) => b.score - a.score).slice(0, 8);
 }
 const famUnseen = () => { const seen = new Set(PROFILE.famSeen || []); return famSuggest().filter(c => !seen.has(c.key)).length; };
-function renderMenuDot() { const n = famUnseen(); const d = $("menu-dot"); if (d) d.hidden = !n; const m = $("mi-fam-dot"); if (m) m.hidden = !n; }
+function renderMenuDot() { const n = famUnseen(); const d = $("menu-dot"); if (d) d.hidden = !n; const m = $("mi-fam-dot"); if (m) m.hidden = !n; const s = $("mi-set-dot"); if (s) s.hidden = !n; }
 let famSaveT = null, FAMED = null, famQ = "";
 async function famSave(extra = {}) {
   const prof = { ...PROFILE, family: FAMED.filter(p => p.name.trim()).map(p => ({ name: p.name.trim(), role: p.role, birthday: p.birthday || "", ...(p.key ? { key: p.key } : {}) })), ...extra };
@@ -2351,15 +2360,16 @@ async function showNotify(msg) {
     </div>
     <p class="note">Abfahrtszeit mit echter Fahrzeit („jetzt losfahren“) kann die App noch nicht berechnen – stell die Erinnerung dafür z. B. auf 1 Std. vorher und tippe auf „Route“.</p></div>`, "notify");
 }
-async function notifyOn() {
+async function notifyOn(quiet) {
+  const show = m => { if (quiet) { if (m) toast(m); } else showNotify(m); };
   try {
-    if ((await Notification.requestPermission()) !== "granted") return showNotify("Ohne Erlaubnis kann ich keine Benachrichtigungen schicken.");
+    if ((await Notification.requestPermission()) !== "granted") return show("Ohne Erlaubnis kann ich keine Benachrichtigungen schicken.");
     const key = await window.mkPushKey(), reg = await swReady(); if (!reg) throw new Error("no sw");
     const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
     await COLL("pushsub").doc(subId(s.endpoint)).set({ ...s.toJSON(), ua: navigator.userAgent.slice(0, 120), at: new Date().toISOString() });
     await COLL("prefs").doc("pushcfg").set({ ...NTP });
-    pushPlanQueue(0); showNotify("Eingeschaltet. Tippe auf „Test senden“, um es auszuprobieren.");
-  } catch (e) { showNotify(e?.code === "no_vapid" ? "Benachrichtigungen sind auf dem Server noch nicht eingerichtet (Schlüssel fehlt)." : "Einschalten hat nicht geklappt – bitte noch einmal versuchen."); }
+    pushPlanQueue(0); ntSub = s; show(quiet ? "🔔 Benachrichtigungen sind an" : "Eingeschaltet. Tippe auf „Test senden“, um es auszuprobieren.");
+  } catch (e) { show(e?.code === "no_vapid" ? "Benachrichtigungen sind auf dem Server noch nicht eingerichtet (Schlüssel fehlt)." : "Einschalten hat nicht geklappt – bitte unter ☰ → Benachrichtigungen noch einmal versuchen."); }
 }
 async function notifyOff() { try { const s = ntSub || await ntRefresh(); if (s) { await COLL("pushsub").doc(subId(s.endpoint)).delete().catch(() => {}); await s.unsubscribe(); } } catch {} ntSub = null; showNotify("Auf diesem Gerät ausgeschaltet."); }
 async function notifyTest() { const b = $("nt-test"); if (b) { b.disabled = true; b.textContent = "Sende …"; } const r = await window.mkPushTest().catch(() => null);
@@ -2533,26 +2543,27 @@ function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; docu
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
 let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
 let FORM_FILES = [];
+let sayT = 0; const sayWait = async () => { const w = 1200 - (Date.now() - sayT); if (w > 0) await new Promise(r => setTimeout(r, w)); sayT = Date.now(); };
 async function formFromDocs(files, link) {
-  const l = $("f-att-l"), say = t => { if ($("f-att-l")) $("f-att-l").textContent = t; };
+  const l = $("f-att-l"), say = async t => { await sayWait(); if ($("f-att-l")) $("f-att-l").textContent = t; };
   try {
-    say(files.length ? "Ich lese die Dokumente …" : "Ich lese den Link …");
+    await say(files.length ? `📄 Ich lese ${files.length === 1 ? "„" + files[0].name + "“" : files.length + " Dokumente"} …` : "🔗 Ich öffne den Link …");
     const lim = await sample.limits().catch(() => null), att = files.length ? await filesForAI(files, lim?.images?.maxCount || 0) : { imgs: [], texts: [] };
     const lk = link ? await linksForAI(link, say) : { texts: [], fails: [] };
-    if (!att.texts.length && !att.imgs.length && !lk.texts.length) { say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
-    say("Ich fülle die Felder aus …");
+    if (!att.texts.length && !att.imgs.length && !lk.texts.length) { await say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
+    await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""}${lk.texts.length ? " vom Link" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Anreise …`); await say("✍️ Ich fülle die Felder aus …");
     const r = await sample.json(`${ATTACH_HINT}
 Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin", "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": ""}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
-    if (!r || !parseIso(r.from)) { say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
+    if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
     const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
     if (["trip", "termin"].includes(r.type)) { $("f-type").value = r.type; syncFormFields(); }
     set("f-title", r.title); set("f-from", r.from); set("f-to", parseIso(r.to) ? r.to : r.from); set("f-place", r.place);
     if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
     if (r.time) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; set("f-time", r.time); set("f-end", r.endTime); }
     if (MODES[r.mode]) { const m = document.querySelector(`[name=fmode][value="${r.mode}"]`); if (m) m.checked = true; }
-    say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
-  } catch (err) { say(err?.code === "rate_limited" ? "Gerade zu viele Anfragen – gleich noch einmal." : "Das Auslesen hat nicht geklappt."); }
+    await say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
+  } catch (err) { await say(err?.code === "rate_limited" ? "Gerade zu viele Anfragen – gleich noch einmal." : "Das Auslesen hat nicht geklappt."); }
 }
 function showForm(e, preset) {
   if (!arguments[0]) FORM_FILES = [];
@@ -2851,15 +2862,16 @@ async function runAssistant() {
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
   if (!txt && !ASST_FILES.length) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll – oder hänge ein Ticket an.</p>`; return; }
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
-  const say = t => { out.innerHTML = `<p class="note">${esc(t)}</p>`; };
+  const say = async t => { await sayWait(); out.innerHTML = `<p class="note">${esc(t)}</p>`; };
   let att = { imgs: [], texts: [] }, links = { texts: [], fails: [] };
   try {
-    if (ASST_FILES.length) { say("Ich lese die Dokumente …"); const lim = await sample.limits().catch(() => null); att = await filesForAI(ASST_FILES, lim?.images?.maxCount || 0); }
-    if (URL_RE.test(txt)) { URL_RE.lastIndex = 0; links = await linksForAI(txt, say); }
+    if (ASST_FILES.length) { await say(`📄 Ich lese ${ASST_FILES.length === 1 ? "„" + ASST_FILES[0].name + "“" : ASST_FILES.length + " Dokumente"} …`); const lim = await sample.limits().catch(() => null); att = await filesForAI(ASST_FILES, lim?.images?.maxCount || 0);
+      await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Buchungsdaten …`); }
+    if (URL_RE.test(txt)) { URL_RE.lastIndex = 0; links = await linksForAI(txt, t => say("🔗 " + t)); if (links.texts.length) await say("🔎 Seite gelesen – ich suche die Termindaten …"); }
   } catch {}
   URL_RE.lastIndex = 0;
   const hasAtt = ASST_FILES.length || links.texts.length;
-  if (hasAtt) say("Ich erstelle den Eintrag …");
+  if (hasAtt) await say("✍️ Ich erstelle den Eintrag …");
   let canTools = false; try { canTools = !!(await sample.limits?.())?.tools; } catch {}
   let context = "";
   if (!canTools) { // Ohne Werkzeuge: Termine der nächsten 14 Monate direkt mitgeben
@@ -3467,7 +3479,8 @@ function startGoogleSetup() {
   startSetup(true); Object.assign(WZ, { step: "cals", useG: true, later: true }); renderWz();
 }
 const wzDots = keys => { const i = keys.indexOf(WZ.step); return `<div class="wz-dots">${keys.map((k, j) => `<i class="${j === i ? "on" : j < i ? "done" : ""}"></i>`).join("")}</div>`; };
-const STEPS = () => WZ.later ? ["cals", "family", "state", "pages", "import", "done"] : WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", "import", "done"] : ["google", "manual", "state", "pages", "import", "done"];
+const wzNt = () => APP && ntSupported() && !(ntSub && Notification.permission === "granted");
+const STEPS = () => { const n = wzNt() ? ["notify"] : []; return WZ.later ? ["cals", "family", "state", "pages", ...n, "import", "done"] : WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", ...n, "import", "done"] : ["google", "manual", "state", "pages", ...n, "import", "done"]; };
 function renderWz() {
   const W = WZ, el = wzEl(); if (!el) return;
   const top = `<div class="wz-top">${wzDots(STEPS())}</div>`;
@@ -3543,6 +3556,14 @@ function renderWz() {
         <div class="form"><select id="wz-state2" aria-label="Zweites Bundesland">${stOpts(W.state2, "Keins")}</select></div>
         <label class="tog setrow"><input type="checkbox" id="wz-joint"${W.joint ? " checked" : ""}> Gemeinsam freie Zeiten hervorheben</label></details>
       <button type="button" class="wz-big accent" id="wz-state-next">${W.editing ? "Weiter" : "Weiter"}</button><button type="button" class="link" id="wz-state-skip">Überspringen</button></div>`;
+  }
+  if (W.step === "notify") {
+    const ios = ntIOSNeedsInstall();
+    el.innerHTML = `${top}<div class="wz-card"><h1>Soll ich dich erinnern?</h1>
+      <p class="wz-lead">Kurze Hinweise aufs Handy – auch wenn die App zu ist. Einzeln abschaltbar unter ☰ → Benachrichtigungen.</p>
+      <ul class="wz-nt"><li>🌙 <b>Abends um 20 Uhr:</b> was morgen ansteht</li><li>⏰ <b>Vor Terminen:</b> 1 Std. vorher, mit Route</li><li>🎂 <b>Geburtstage & Fristen:</b> am Tag und rechtzeitig vorher („schon ein Geschenk?“)</li><li>🎄 <b>Weihnachten & Co.:</b> rechtzeitig an Geschenke denken</li><li>👥 <b>Geteilte Termine:</b> wenn jemand etwas einträgt oder ändert</li></ul>
+      ${ios ? `<p class="note">Auf dem iPhone geht das erst, wenn die App auf dem Home-Bildschirm liegt (Safari → Teilen → Zum Home-Bildschirm). Du kannst es danach unter ☰ → Benachrichtigungen einschalten.</p>` : ""}
+      <button type="button" class="wz-big accent" id="wz-nt-on"${ios ? " disabled" : ""}>🔔 Ja, erinnere mich</button><button type="button" class="link" id="wz-nt-skip">Später</button></div>`;
   }
   if (W.step === "import") {
     el.innerHTML = `${top}<div class="wz-card wz-center"><h1>Ich richte alles ein …</h1><div class="wz-bar"><i style="width:${W.prog || 5}%"></i></div>
@@ -3637,7 +3658,7 @@ async function wzScan() {
 async function wzImport() {
   const W = WZ; wzGo("import");
   const T = W.tasks = [{ t: "Ferien und Feiertage berechnen" }, ...(W.useG ? [{ t: "Geburtstage übernehmen" }, { t: "Reisen und Urlaube erkennen" }] : []), { t: "Familie und Erinnerungen einrichten" }, { t: "Profil speichern" }];
-  const step = async (i, fn) => { T[i].on = true; W.prog = Math.round(100 * i / T.length) + 4; renderWz(); try { T[i].res = (await fn()) || ""; } catch { T[i].res = "teilweise"; } T[i].done = true; T[i].on = false; renderWz(); await new Promise(r => setTimeout(r, 250)); };
+  const step = async (i, fn) => { const t0 = Date.now(); T[i].on = true; W.prog = Math.round(100 * i / T.length) + 4; renderWz(); try { T[i].res = (await fn()) || ""; } catch { T[i].res = "teilweise"; } await new Promise(r => setTimeout(r, Math.max(0, 1300 - (Date.now() - t0)))); T[i].done = true; T[i].on = false; renderWz(); await new Promise(r => setTimeout(r, 900)); };
   let k = 0, nB = 0, nT = 0;
   const fam = [];
   await step(k++, async () => { PA = W.state; PB = W.state2 && W.state2 !== W.state ? W.state2 : null; JOINT = W.joint ? [PA, PB].filter(Boolean) : []; rebuildStates(); saveXst(); return [stName(PA), PB && stName(PB)].filter(Boolean).join(" & "); });
@@ -3691,14 +3712,16 @@ function wzClick(id, el) {
       W.picked[key] = true; renderWz(); return true; }
     case "wz-fam-next": wzGo("state"); return true;
     case "wz-fam-skip": W.picked = {}; wzGo("state"); return true;
-    case "wz-pages-skip": wzImport(); return true;
+    case "wz-pages-skip": if (wzNt()) wzGo("notify"); else wzImport(); return true;
+    case "wz-nt-skip": wzImport(); return true;
+    case "wz-nt-on": (async () => { const b = $("wz-nt-on"); if (b) { b.disabled = true; b.textContent = "Einen Moment …"; } await notifyOn(true); wzImport(); })(); return true;
     case "wz-add": W.manual.push({ name: "", role: "kind", birthday: "" }); renderWz(); return true;
     case "wz-man-next": if (W.editing) wzSaveEdit(); else wzGo("state"); return true;
     case "wz-man-skip": if (W.editing) { wzSaveEdit(); } else wzGo("state"); return true;
     case "wz-state-next": case "wz-state-skip": wzReadState(); if (id === "wz-state-skip" && !W.editing) { W.state = PA; W.state2 = ""; }
       if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
     case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
-      PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); wzImport(); return true; }
+      PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); if (wzNt()) wzGo("notify"); else wzImport(); return true; }
     case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (pendingInvite()) { takeInvite(); return true; } setTimeout(() => { goPage("p0"); $("p0")?.scrollTo?.({ top: 0 }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
     case "wz-invite": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 80); return true;
   }
@@ -3709,7 +3732,7 @@ function wzClick(id, el) {
 const THEMES = [["auto", "◐", "Auto"], ["light", "☀", "Hell"], ["dark", "☾", "Dunkel"]];
 let themeIdx = Math.max(0, THEMES.findIndex(x => x[0] === store.get("ft27-theme")));
 function toggleMenu() { const m = $("menu"); if (!m) return; const open = m.hidden; m.hidden = !open; $("menu-btn").setAttribute("aria-expanded", String(open));
-  if (open) { $("mi-google").hidden = !mcp; $("mi-fam").hidden = !canWrite; $("mi-docs").hidden = !canWrite; $("mi-docs-n").textContent = DOCS.length || ""; renderMenuDot(); } }
+  if (open) { $("mi-google").hidden = true; $("mi-fam").hidden = true; $("mi-docs").hidden = !canWrite; $("mi-docs-n").textContent = DOCS.length || ""; renderMenuDot(); } }
 function closeMenu() { const m = $("menu"); if (m && !m.hidden) { m.hidden = true; $("menu-btn")?.setAttribute("aria-expanded", "false"); } }
 function applyTheme() {
   const [k, ico, lbl] = THEMES[themeIdx], root = document.documentElement;
@@ -3952,7 +3975,7 @@ document.addEventListener("change", ev => {
     famSave(); return; }
   if (ev.target.id === "ct-file") { ctFile(ev.target.files?.[0]); return; }
   if (ev.target.id === "ct-img") { const fs = ev.target.files; document.querySelectorAll(".ct-pick").forEach(b => b.style.pointerEvents = "none"); ctShots(fs); return; }
-  if (ev.target.dataset?.ct) { const c = CT[+ev.target.dataset.ct]; if (c) c.on = ev.target.checked; const b = $("ct-go"); if (b) { const n = CT.filter(x => x.on).length; b.disabled = !n; b.textContent = `${n} Geburtstage übernehmen`; } return; }
+  if (ev.target.dataset?.ct) { const c = CT[+ev.target.dataset.ct]; if (c) c.on = ev.target.checked; ctSaveDraft(); const b = $("ct-go"); if (b) { const n = CT.filter(x => x.on).length; b.disabled = !n; b.textContent = `${n} Geburtstage übernehmen`; } return; }
   if (ev.target.dataset?.pk !== undefined) { const i = +ev.target.dataset.pk; savePack(packEv.packlist.map((x, j) => j === i ? { ...x, d: ev.target.checked } : x)); return; }
   if (ev.target.dataset?.vac) { REMP.vacOver = { ...REMP.vacOver, [ev.target.dataset.vac]: ev.target.checked }; (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderStats(); showStat("vac"); return; }
   if (ev.target.id === "set-trip") { REMP.tripDays = Math.max(0, Math.min(60, +ev.target.value || 0)); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderSoon(); renderUp(); return; }
