@@ -17,7 +17,9 @@ const fmtY = dt => `${fmt(dt)}${dt.getFullYear()}`;
 const rngTxt = (a, b, long) => sameDay(a, b) ? (long ? fmtY(a) : fmt(a)) : `${fmt(a)} – ${long ? fmtY(b) : fmt(b)}`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const $ = id => document.getElementById(id);
-const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col"];   // Anzeige-Einstellungen: auch im Konto speichern
+let uiSaveHook = null;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} if (UI_KEYS.includes(k)) uiSaveHook?.(); } };
 const TODAY = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); })();
 function isoWeek(dt) {
   const t = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
@@ -3938,6 +3940,20 @@ renderAll();
   COLL("prefs").doc("reminders").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; REMP = { dismissed: Array.isArray(v.dismissed) ? v.dismissed.map(String) : [], vacation: v.vacation === undefined ? 30 : +v.vacation || 0, vacOver: v.vacOver && typeof v.vacOver === "object" ? v.vacOver : {}, tripDays: v.tripDays === undefined ? 14 : Math.max(0, +v.tripDays || 0) }; renderSoon(); renderUp(); renderStats(); }, () => {});
   COLL("prefs").doc("gifts").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; const next = v.lists && typeof v.lists === "object" ? v.lists : {};
     if (JSON.stringify(next) !== JSON.stringify(GIFTS)) { GIFTS = next; renderSoon(); renderUp(); } }, () => {});
+  // Anzeige-Einstellungen geräteübergreifend (nach Neuinstallation wieder da)
+  let uiT = null, uiApplying = false, uiLoaded = false;
+  uiSaveHook = () => { if (uiApplying || !uiLoaded || !canWrite) return; clearTimeout(uiT); uiT = setTimeout(async () => {
+    const v = { t: Date.now() }; UI_KEYS.forEach(k => { const x = store.get(k); if (x != null) v[k.replace(/^ft-/, "").replace(/-/g, "_")] = x; });
+    try { store.set("ft-ui-t", String(v.t)); await COLL("prefs").doc("ui").set(v); } catch {} }, 1200); };
+  COLL("prefs").doc("ui").onSnapshot(d => { const v = d.exists ? d.data() || {} : null; const first = !uiLoaded; uiLoaded = true;
+    if (!v) { if (first) uiSaveHook(); return; }                                         // noch nichts im Konto → von diesem Gerät übernehmen
+    if (+v.t <= +(store.get("ft-ui-t") || 0)) return;                                    // eigene/ältere Änderung
+    uiApplying = true;
+    try { UI_KEYS.forEach(k => { const x = v[k.replace(/^ft-/, "").replace(/-/g, "_")]; if (typeof x === "string") store.set(k, x); }); store.set("ft-ui-t", String(v.t));
+      try { SHOW = { ...SHOW_DEF, ...JSON.parse(store.get("ft-show") || "{}") }; } catch {}
+      try { const p = JSON.parse(store.get("ft-pages") || "null"); if (p) { PAGES = { p0: p.p0 !== false, p1: p.p1 !== false, p2: p.p2 !== false }; applyPages(); } } catch {}
+      const vw = store.get("ft-view"); if (first && ["month","two","week","list","year"].includes(vw) && vw !== view) setView(vw);
+      renderAll(); } finally { uiApplying = false; } });
   COLL("prefs").doc("display").onSnapshot(d => { const v = d.exists ? d.data() || {} : null; if (!v || !Array.isArray(v.states)) return; const nx = v.states.map(String).filter(c => FERX[c]);
     const nj = Array.isArray(v.joint) ? v.joint.map(String) : JOINT, nh = Array.isArray(v.hidden) ? v.hidden.map(String) : XHIDE;
     if (nx.join() !== XST.join() || nj.join() !== JOINT.join() || nh.join() !== XHIDE.join()) { XST = nx; JOINT = nj; XHIDE = nh; fixJoint(); recalcJoint();
