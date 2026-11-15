@@ -23,8 +23,8 @@ export default {
     const out = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15d", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete"] });
-    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15e", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page"] });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -36,6 +36,28 @@ export default {
 
     // Konto löschen: Google-Freigabe zurückziehen, dann den Supabase-Nutzer löschen –
     // alle Zeilen in docs, outbox und ai_usage hängen per „on delete cascade“ daran und verschwinden mit.
+    // Link auslesen (Buchungsbestätigung, Ticket-Seite …): Seite holen und als Text zurückgeben – nur öffentliche https-Seiten
+    if (route === "/page") {
+      let url = ""; try { url = String((await req.json()).url || ""); } catch {}
+      let u; try { u = new URL(url); } catch { return out(400, { code: "bad_url" }); }
+      if (u.protocol !== "https:" || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[)/.test(u.hostname) || !u.hostname.includes(".")) return out(400, { code: "bad_url" });
+      const ctl = new AbortController(), tmo = setTimeout(() => ctl.abort(), 9000);
+      try {
+        const r = await fetch(u.toString(), { signal: ctl.signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (Mein Kalender Link-Vorschau)", "Accept-Language": "de-DE,de;q=0.9" } });
+        const ct = r.headers.get("content-type") || "";
+        if (!r.ok) return out(200, { ok: false, status: r.status });
+        if (/pdf/.test(ct)) { const buf = new Uint8Array(await r.arrayBuffer()); if (buf.length > 6e6) return out(200, { ok: false, status: 413 });
+          let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+          return out(200, { ok: true, pdf: btoa(bin), url: r.url }); }
+        let html = (await r.text()).slice(0, 600000);
+        const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
+        const meta = [...html.matchAll(/<meta[^>]+(?:property|name)=["'](?:og:title|og:description|description)["'][^>]+content=["']([^"']+)/gi)].map(m => m[1]).join(" · ");
+        const ld = [...html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1].trim()).join("\n").slice(0, 6000);
+        const text = html.replace(/<(script|style|noscript|svg|head)[\s\S]*?<\/\1>/gi, " ").replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n").replace(/<[^>]+>/g, " ")
+          .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim().slice(0, 14000);
+        return out(200, { ok: true, url: r.url, title: title.trim().slice(0, 200), meta: meta.slice(0, 600), ld, text });
+      } catch { return out(200, { ok: false, status: 0 }); } finally { clearTimeout(tmo); }
+    }
     if (route === "/account/delete") {
       let rt = ""; try { rt = String((await req.json()).refresh_token || ""); } catch {}
       if (rt) await fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});

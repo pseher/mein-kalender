@@ -32,6 +32,12 @@ window.MK_APP = true;
   const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
   const keepGoogle = s => { if (!s?.provider_token) return; lsSet(GK.at, s.provider_token); lsSet(GK.exp, String(Date.now() + 50 * 60e3)); if (s.provider_refresh_token) lsSet(GK.rt, s.provider_refresh_token); };
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
+  // Link auslesen (über den Worker, wegen CORS)
+  window.mkReadLink = async url => {
+    const s = await freshSession(); if (!s) throw new Error("Nicht angemeldet");
+    const r = await fetch(CFG.workerUrl + "/page", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ url }) });
+    return r.json().catch(() => ({ ok: false }));
+  };
   // Konto samt aller Daten löschen (über den Worker, der den Service-Schlüssel hat)
   window.mkDeleteAccount = async () => {
     const s = await freshSession(); if (!s) throw new Error("Nicht angemeldet");

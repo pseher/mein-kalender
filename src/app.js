@@ -1819,6 +1819,30 @@ function showDocs() {
 }
 // ---- Auswerten: Packpunkte, Orga-Aufgaben, Zeiten, Adresse aus den Dokumenten ----
 let DAI = null;
+// ---- Tickets/Buchungen/Links für die KI aufbereiten (vor dem Anlegen eines Eintrags) ----
+const URL_RE = /https?:\/\/[^\s<>"']+/g;
+async function filesForAI(files, maxImg) {
+  const imgs = [], texts = [];
+  for (const f of files.slice(0, 6)) {
+    const pdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
+    if (pdf) { const { pages } = await pdfPages(f, 3, 1.4).catch(() => ({ pages: [] }));
+      for (const [i, p] of pages.entries()) { if (p.text.length > 120) texts.push(`--- ${f.name}, Seite ${i + 1} ---\n${p.text.slice(0, 5000)}`);
+        if ((p.text.length <= 120 || i === 0) && imgs.length < maxImg) imgs.push(await new Promise(r => p.c.toBlob(r, "image/jpeg", 0.8))); } }
+    else if (/^image\//.test(f.type) && imgs.length < maxImg) imgs.push(f.size > 3e6 ? await shrinkImg(f, 1600, 0.8) : f);
+  }
+  return { imgs, texts };
+}
+async function linksForAI(text, say) {
+  const urls = [...new Set(String(text).match(URL_RE) || [])].slice(0, 2), texts = [], fails = [];
+  if (!urls.length || !window.mkReadLink) return { texts, fails: urls };
+  for (const u of urls) { say?.(`Lese den Link ${u.replace(/^https?:\/\//, "").slice(0, 40)} …`);
+    try { const r = await window.mkReadLink(u);
+      if (r?.ok && r.pdf) { const b = new Blob([funb64(r.pdf)], { type: "application/pdf" }); const { pages } = await pdfPages(b, 3, 1).catch(() => ({ pages: [] })); const t = pages.map(p => p.text).join("\n"); if (t.length > 80) texts.push(`--- Link ${u} (PDF) ---\n${t.slice(0, 9000)}`); else fails.push(u); }
+      else if (r?.ok && (r.text || "").length + (r.ld || "").length > 200) texts.push(`--- Link ${r.url || u} ---\nTitel: ${r.title || ""}\n${r.meta || ""}\n${r.ld ? "Strukturierte Daten: " + r.ld + "\n" : ""}${r.text || ""}`.slice(0, 12000));
+      else fails.push(u); } catch { fails.push(u); } }
+  return { texts, fails };
+}
+const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45 · Buchung ABC123"). Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.`;
 async function docAnalyze(e) {
   const fs = e.files || []; if (!fs.length || !sample) return;
   openSheet("Dokumente auswerten", `„${e.title}“ · ${fs.length} Dokument${fs.length > 1 ? "e" : ""}`, `<p class="note" id="dai-msg">Ich lese die Dokumente …</p><div id="dai-body"></div>`, "dai", { id: e.id });
@@ -2412,7 +2436,30 @@ let formVis = "me", formVisManual = false, formShManual = false;
 function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; document.querySelectorAll("#f-vis [data-vis]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.vis === v)));
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
 let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
+let FORM_FILES = [];
+async function formFromDocs(files, link) {
+  const l = $("f-att-l"), say = t => { if ($("f-att-l")) $("f-att-l").textContent = t; };
+  try {
+    say(files.length ? "Ich lese die Dokumente …" : "Ich lese den Link …");
+    const lim = await sample.limits().catch(() => null), att = files.length ? await filesForAI(files, lim?.images?.maxCount || 0) : { imgs: [], texts: [] };
+    const lk = link ? await linksForAI(link, say) : { texts: [], fails: [] };
+    if (!att.texts.length && !att.imgs.length && !lk.texts.length) { say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
+    say("Ich fülle die Felder aus …");
+    const r = await sample.json(`${ATTACH_HINT}
+Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin", "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": ""}
+${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
+    if (!r || !parseIso(r.from)) { say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
+    const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
+    if (["trip", "termin"].includes(r.type)) { $("f-type").value = r.type; syncFormFields(); }
+    set("f-title", r.title); set("f-from", r.from); set("f-to", parseIso(r.to) ? r.to : r.from); set("f-place", r.place);
+    if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
+    if (r.time) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; set("f-time", r.time); set("f-end", r.endTime); }
+    if (MODES[r.mode]) { const m = document.querySelector(`[name=fmode][value="${r.mode}"]`); if (m) m.checked = true; }
+    say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
+  } catch (err) { say(err?.code === "rate_limited" ? "Gerade zu viele Anfragen – gleich noch einmal." : "Das Auslesen hat nicht geklappt."); }
+}
 function showForm(e, preset) {
+  if (!arguments[0]) FORM_FILES = [];
   editing = e && e.id ? e : null;
   const v = e || { type: "termin", title: "", from: preset || iso(TODAY), to: preset || iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: gWritable() ? "primary" : "" };
   fTimeOpen = !!(v.time || v.endTime);
@@ -2423,6 +2470,8 @@ function showForm(e, preset) {
       <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}</select></div></div>
+      ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small">📎 Ticket / Buchung anhängen<input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
+        <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <label for="f-title" id="f-title-l">Titel</label>
       <input id="f-title" type="text" value="${esc(v.title)}" placeholder="z. B. Zahnarzt, Ostsee, TÜV">
       ${SHR_ON() && !(e && e.shared) ? (SHR.contacts.length ? `<div id="f-sh-wrap"><label>Teilen mit</label>${shrChips("data-fsh", e ? effTo(e) : [...new Set([...(v.title ? shrPick(v.title) : []), ...(["birthday"].includes(v.type) ? [] : autoLs())])])}</div>` : `<p class="note" style="margin:6px 0 0">👥 Teilen mit anderen? <button type="button" class="link" id="mi-share">Personen einladen</button></p>`) : ""}
@@ -2525,7 +2574,9 @@ async function saveForm() {
   const btn = $("f-save"); btn.disabled = true; btn.textContent = "Speichert …";
   try {
     const was = editing; const undo = await applyChanges([was ? { op: "update", id: was.id, event: v } : { op: "add", event: v }]);
+    const files = FORM_FILES; FORM_FILES = []; const added = !was && LAST_ADDED[0];
     closeSheet(); toast(was ? "Gespeichert" : "Eingetragen", undo);
+    if (files.length && added) setTimeout(() => docUpload({ ...added.v, id: added.id, files: [], a: parseIso(added.v.from), b: parseIso(added.v.to || added.v.from) }, files), 400);
     if (v.type === "birthday" && canWrite) { const k = famKey(v.title), inFam = FAM().some(p => famKey(p.name) === k || p.key === k); const b = parseIso(v.from);
       if (v.fam && !inFam) { FAMED = FAM().map(p => ({ ...p })); FAMED.push({ name: v.title, role: (FAMKW.find(([re]) => re.test(v.title)) || [])[1] || "andere", birthday: v.birthYear ? `${v.birthYear}-${v.from.slice(5)}` : `--${v.from.slice(5)}`, key: k }); famSave(); }
       else if (!v.fam && inFam && was) { FAMED = FAM().filter(p => !(famKey(p.name) === k || p.key === k)).map(p => ({ ...p })); famSave(); } }
@@ -2540,13 +2591,14 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, country: e.country || "", fam: !!e.fam,
   shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
 let gWarn = 0;
+let LAST_ADDED = [];
 async function applyChanges(changes) {
-  const col = COLL("events"), undo = [];
+  const col = COLL("events"), undo = []; LAST_ADDED = [];
   gWarn = 0;
   for (const c of changes) {
     if (c.op === "add") {
       const v = plain(c.event); v.gEventId = ""; if (v.type === "contact") v.gcal = "";
-      const ref = await col.add(v);
+      const ref = await col.add(v); LAST_ADDED.push({ id: ref.id, v });
       if (v.gcal) { const gid = await gCreate(v); if (gid) await col.doc(ref.id).update({ gEventId: gid }); }
       undo.push({ op: "delete", id: ref.id });
     } else if (c.op === "update") {
@@ -2653,12 +2705,15 @@ async function delEvent(btn, id) {
 
 // =================== Assistent (wie im Chat) ===================
 let asstActions = [];
-function showAssistant() {
+let ASST_FILES = [];
+function showAssistant(keepFiles) {
   if (dbState === "off") return showSignin();
+  if (!keepFiles) ASST_FILES = [];
   const ex = ["Zahnarzt Donnerstag 16 Uhr", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
   openSheet("Eintragen", "Schreib einfach, was ansteht oder sich ändert", `
     <div class="asst">
-      <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail oder WhatsApp-Nachricht ein"></textarea>
+      <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
+      ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
       <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button><button type="button" class="btn ghost" id="a-form">Formular</button></div>
       <div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
@@ -2698,8 +2753,17 @@ async function lookupEvents(fromS, toS, query, signal) {
 }
 async function runAssistant() {
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
-  if (!txt) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll.</p>`; return; }
+  if (!txt && !ASST_FILES.length) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll – oder hänge ein Ticket an.</p>`; return; }
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
+  const say = t => { out.innerHTML = `<p class="note">${esc(t)}</p>`; };
+  let att = { imgs: [], texts: [] }, links = { texts: [], fails: [] };
+  try {
+    if (ASST_FILES.length) { say("Ich lese die Dokumente …"); const lim = await sample.limits().catch(() => null); att = await filesForAI(ASST_FILES, lim?.images?.maxCount || 0); }
+    if (URL_RE.test(txt)) { URL_RE.lastIndex = 0; links = await linksForAI(txt, say); }
+  } catch {}
+  URL_RE.lastIndex = 0;
+  const hasAtt = ASST_FILES.length || links.texts.length;
+  if (hasAtt) say("Ich erstelle den Eintrag …");
   let canTools = false; try { canTools = !!(await sample.limits?.())?.tools; } catch {}
   let context = "";
   if (!canTools) { // Ohne Werkzeuge: Termine der nächsten 14 Monate direkt mitgeben
@@ -2725,6 +2789,7 @@ Felder für neue/geänderte eigene Termine:
 - repeat: "none" | "yearly" | "weekly" (Geburtstage immer "yearly")
 - birthYear: Zahl oder 0
 - note: kurze Zusatzinfo auf Deutsch oder ""
+- mode: Anreise bei Reisen: "zug" | "flug" | "bus" | "auto" | "rad" | "" (nur wenn eindeutig)
 - place: Ort für die Navigation. Bei einem Hotel, Restaurant oder bekannten Ort die vollständige Adresse (Name, Straße Nr., PLZ Ort), aber NUR wenn du sie sicher kennst – sonst Name und Ort wie genannt (z. B. "Inselhotel, Potsdam"). Nichts erfinden. Ohne Ortsangabe ""
 - flight: true bei Reisen mit Flug (Flugnummer, Flughafen, Airline), sonst false
 - kids: true, wenn Kinder${kidsNames().length ? ` (${kidsNames().join(", ")})` : ""} mitreisen, sonst false
@@ -2751,12 +2816,13 @@ Antworte am Ende NUR mit JSON in genau dieser Form:
 ]}
 Bei einer reinen Frage: actions = []. Erfinde keine ids. Wenn unklar ist, welcher Termin gemeint ist, frag in reply nach und lass actions leer.
 
-Nachricht: ${txt}`;
+${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
+Nachricht: ${txt || "(nur Anhänge)"}`;
   const tools = canTools ? [{ name: "find_events", description: "Sucht eigene und Google-Termine in einem Zeitraum (höchstens 400 Tage). Gibt eine Liste mit id, quelle, titel, von, bis, zeit zurück. Optional nach Wörtern im Titel filtern.",
     inputSchema: { type: "object", properties: { from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" }, query: { type: "string", description: "optionale Suchwörter, z. B. Zahnarzt oder Urlaub" } }, required: ["from", "to"] },
     execute: async (i, ctx) => ({ termine: await lookupEvents(String(i.from || ""), String(i.to || i.from || ""), String(i.query || ""), ctx?.signal) }) }] : undefined;
   try {
-    const r = await sample.json(prompt, { modelTier: "default", cache: false, tools });
+    const r = await sample.json(prompt, { modelTier: "default", cache: false, tools, images: att.imgs.length ? att.imgs : undefined });
     asstActions = (Array.isArray(r?.actions) ? r.actions : []).map(a => {
       const gid = typeof a.id === "string" && a.id.startsWith("g:");
       if (gid) {
@@ -2819,7 +2885,10 @@ async function applyAssistant() {
     }
     if (gs.length) mcp.invalidate(GSERVER, "list_events").catch(() => {});
     const undoOwn = own.length ? await applyChanges(own) : null;
+    const files = ASST_FILES; ASST_FILES = [];
     closeSheet();
+    const newId = LAST_ADDED.find(x => ["trip", "termin"].includes(x.v.type)) || LAST_ADDED[0];
+    if (files.length && newId) setTimeout(() => docUpload({ ...newId.v, id: newId.id, files: [], a: parseIso(newId.v.from), b: parseIso(newId.v.to || newId.v.from) }, files), 400);
     toast(picked.length === 1 ? "Übernommen" : `${picked.length} Änderungen übernommen`, async () => { for (const u of gUndo.reverse()) await u(); if (undoOwn) await undoOwn(); else toast("Rückgängig gemacht"); mcp?.invalidate(GSERVER, "list_events").catch(() => {}); });
   }
   catch (e) { btn.disabled = false; btn.textContent = "Übernehmen"; $("a-out").insertAdjacentHTML("beforeend", `<p class="err">${e?.code === "tool_error" ? gErr(e) : writeErr(e)}</p>`); }
@@ -3726,6 +3795,8 @@ document.addEventListener("click", ev => {
     case "soon-more": soonAll = !soonAll; renderSoon(); break;
     case "to-cal": goPage("p1"); break;
     case "wins-setup": showSettings(); break;
+    case "f-link-btn": { const w = $("f-link-wrap"); w.hidden = !w.hidden; if (!w.hidden) $("f-link").focus(); break; }
+    case "f-link-go": { const u = $("f-link").value.trim(); if (!/^https?:\/\//.test(u)) { $("f-att-l").textContent = "Bitte einen vollständigen Link (https://…) einfügen"; break; } formFromDocs([], u); break; }
     case "st-share": shareReview(false); break;
     case "st-copy": shareReview(true); break;
     case "to-p2": goPage("p2"); break;
@@ -3778,6 +3849,8 @@ document.addEventListener("change", ev => {
   if (ev.target.id === "set-trip") { REMP.tripDays = Math.max(0, Math.min(60, +ev.target.value || 0)); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderSoon(); renderUp(); return; }
   if (ev.target.id === "st-vac") { REMP.vacation = Math.max(0, +ev.target.value || 0); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderStats(); return; }
   if (ev.target.dataset?.notify) { const set = new Set(notifyCals()); ev.target.checked ? set.add(ev.target.dataset.notify) : set.delete(ev.target.dataset.notify); saveNotify({ cals: [...set] }).then(scanOthers); return; }
+  if (ev.target.id === "a-files") { ASST_FILES = [...ev.target.files].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", ") || "daraus wird der Eintrag erstellt"; if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
+  if (ev.target.id === "f-files") { FORM_FILES = [...ev.target.files].slice(0, 6); if (FORM_FILES.length) formFromDocs(FORM_FILES, ""); return; }
   if (ev.target.id === "f-type" && ["birthday", "anniversary"].includes(ev.target.value) && $("f-rep")) $("f-rep").value = "yearly";
   if (ev.target.dataset?.stshow) { const c = ev.target.dataset.stshow, on = ev.target.checked;
     if (c === PA || c === PB) { SHOW[c === PA ? "be" : "st"] = on; store.set("ft-show", JSON.stringify(SHOW)); } else XHIDE = on ? XHIDE.filter(x => x !== c) : [...XHIDE.filter(x => x !== c), c];
