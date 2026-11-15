@@ -2143,6 +2143,25 @@ const findOcc = (id, a) => OCC.find(o => o.ev.id === id && iso(o.a) === a) || OC
 
 // =================== Sheets ===================
 const sheet = $("sheet");
+// ---- Konto löschen (nur eigene App) ----
+function showDeleteAccount() {
+  closeMenu?.();
+  const nEv = EV.filter(e => !e.shared).length, nTk = TASKS.length;
+  openSheet("Konto löschen", "Das lässt sich nicht rückgängig machen", `
+    <p>Gelöscht werden <b>dein Konto und alles, was du hier gespeichert hast</b>: ${nEv} Einträge, ${nTk} Aufgaben, Dokumente, Familie, Einstellungen und alles, was du mit anderen teilst. Die Freigabe für deinen Google Kalender wird zurückgezogen.</p>
+    <p class="note">Deine Termine <b>in Google selbst</b> bleiben erhalten – die gehören zu deinem Google-Konto.</p>
+    <div class="form"><label for="delacc-in">Zum Bestätigen <b>LÖSCHEN</b> eintippen</label>
+    <input id="delacc-in" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="LÖSCHEN"></div>
+    <p class="err" id="delacc-err" role="alert"></p>
+    <div class="btnrow"><button type="button" class="btn danger" id="delacc-go" disabled>Endgültig löschen</button><button type="button" class="btn ghost" id="sheet-close2">Abbrechen</button></div>`, "delacc");
+  const inp = $("delacc-in"); inp?.addEventListener("input", () => { $("delacc-go").disabled = inp.value.trim().toUpperCase() !== "LÖSCHEN"; });
+}
+async function doDeleteAccount() {
+  const btn = $("delacc-go"); if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.textContent = "Wird gelöscht …"; $("delacc-err").textContent = "";
+  try { await window.mkDeleteAccount(); }
+  catch (e) { btn.disabled = false; btn.textContent = "Endgültig löschen"; $("delacc-err").textContent = "Das hat nicht geklappt – bitte später noch einmal versuchen oder an kontakt@herdzeit.de schreiben." + (e?.message ? ` (${e.message})` : ""); }
+}
 function openSheet(title, sub, html, mode, ctx) {
   $("sheet-title").textContent = title; $("sheet-sub").textContent = sub;
   $("sheet-body").innerHTML = html; sheetMode = mode; sheetCtx = ctx || null;
@@ -3525,6 +3544,8 @@ document.addEventListener("click", ev => {
     case "sheet-close2": closeSheet(); break;
     case "app-login": window.mkSignIn?.(); break;
     case "app-logout": window.mkSignOut?.(); break;
+    case "app-delacc": showDeleteAccount(); break;
+    case "delacc-go": doDeleteAccount(); break;
     case "a2hs-yes": if (APP && installEvt) doInstall(); else showA2hs(); break;
     case "app-install": doInstall(); break;
     case "a2hs-no": store.set("ft-a2hs", "no"); renderHints(); toast("Alles klar – du findest die Anleitung unter „Anzeigen“."); break;
@@ -3722,7 +3743,7 @@ renderAll();
   if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
-      L.insertAdjacentHTML("beforeend", `<button type="button" class="link" id="app-logout" style="font-size:13px;color:var(--muted);padding:4px 0">Abmelden${meName ? " (" + esc(meName.split(/\s+/)[0]) + ")" : ""}</button>`); } }
+      L.insertAdjacentHTML("beforeend", `<button type="button" class="link" id="app-logout" style="font-size:13px;color:var(--muted);padding:4px 0">Abmelden${meName ? " (" + esc(meName.split(/\s+/)[0]) + ")" : ""}</button><button type="button" class="link" id="app-delacc" style="font-size:13px;color:var(--muted);padding:4px 0">Konto löschen</button>`); } }
   BASE = `data/users/${uid}/k`;      // privater Bereich: nur dieser Nutzer kann ihn lesen und schreiben
   canWrite = true;
   COLL("prefs").doc("profile").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; applyProfile(v); profileLoaded = true; maybeSetup(); }, () => { profileLoaded = true; });

@@ -29,6 +29,17 @@ window.MK_APP = true;
   const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
   const keepGoogle = s => { if (!s?.provider_token) return; lsSet(GK.at, s.provider_token); lsSet(GK.exp, String(Date.now() + 50 * 60e3)); if (s.provider_refresh_token) lsSet(GK.rt, s.provider_refresh_token); };
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
+  // Konto samt aller Daten löschen (über den Worker, der den Service-Schlüssel hat)
+  window.mkDeleteAccount = async () => {
+    const s = await freshSession(); if (!s) throw new Error("Nicht angemeldet");
+    const r = await fetch(CFG.workerUrl + "/account/delete", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ refresh_token: lsGet(GK.rt) || "" }) });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(b.detail || b.code || "Löschen fehlgeschlagen"), { code: b.code || "delete_failed" });
+    try { await sb.auth.signOut({ scope: "local" }); } catch {}
+    try { localStorage.clear(); sessionStorage.clear(); } catch {}
+    try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch {}
+    location.replace("/?info&geloescht=1");
+  };
 
   // ---------- db: Pfade wie im Artefakt auf zwei Tabellen abbilden ----------
   // data/users/<uid>/k/<coll>  → docs   (user_id = ich, coll)

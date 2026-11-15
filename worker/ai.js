@@ -22,7 +22,7 @@ export default {
     const out = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
-    if (req.method !== "POST" || !["/ai", "/google/token"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -31,6 +31,17 @@ export default {
     const who = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: auth } });
     if (!who.ok) return out(401, { code: "not_signed_in" });
     const user = await who.json();
+
+    // Konto löschen: Google-Freigabe zurückziehen, dann den Supabase-Nutzer löschen –
+    // alle Zeilen in docs, outbox und ai_usage hängen per „on delete cascade“ daran und verschwinden mit.
+    if (route === "/account/delete") {
+      let rt = ""; try { rt = String((await req.json()).refresh_token || ""); } catch {}
+      if (rt) await fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
+      const adm = { apikey: env.SUPABASE_SERVICE_KEY, ...(env.SUPABASE_SERVICE_KEY.startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
+      const d = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, { method: "DELETE", headers: adm });
+      if (!d.ok) return out(502, { code: "delete_failed", detail: `Supabase ${d.status}` });
+      return out(200, { ok: true });
+    }
 
     // Google-Zugriffsschlüssel erneuern (der Clientschlüssel bleibt hier; nichts wird gespeichert)
     if (route === "/google/token") {
