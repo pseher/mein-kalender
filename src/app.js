@@ -2083,19 +2083,47 @@ function renderShareBox() {
 }
 function shareTopic(topic, q, period) {
   const t = TOPICS[topic], [a, b, plabel] = periodRange(period);
-  const list = OCC.filter(o => o.b >= a && o.a <= b && t.test(o, q || ""));
+  let list = OCC.filter(o => o.b >= a && o.a <= b && !o.part && t.test(o, q || "")); if (topic === "bday") list = dedupeBdays(list);
+  list.sort((x, y) => x.a - y.a);
   const title = topic === "custom" ? (q || "Termine") : t.label;
   const showName = topic !== "mina" && topic !== "late";
   const line = o => { const nm = topic === "bday" ? o.ev.title + (ageTxt(o) ? ` (${o.a.getFullYear() - o.ev.birthYear})` : "") : evName(o.ev);
     return { l: rngTxt(o.a, o.b, o.b.getFullYear() !== o.a.getFullYear()) + (o.ev.time ? ` ${o.ev.time}` : ""), r: "", n: [showName ? nm : "", o.ev.type === "info" ? "" : o.ev.note].filter(Boolean).join(" · ") }; };
   const rows = list.map(line);
-  const text = `${title} – ${plabel}\n` + (list.length ? list.map(o => { const r = line(o); return `• ${r.l}${r.n ? " – " + r.n : ""}`; }).join("\n") : "(keine Termine)");
+  const cnt = `${list.length} ${topic === "late" ? (list.length === 1 ? "Dienst" : "Dienste") : topic === "bday" ? "Geburtstag" + (list.length === 1 ? "" : "e") : list.length === 1 ? "Termin" : "Termine"}`;
+  const text = `${title} – ${plabel} (${cnt})\n` + (list.length ? list.map(o => { const r = line(o); return `• ${r.l}${r.n ? " – " + r.n : ""}`; }).join("\n") : "(keine Termine)");
   if (!list.length) { toast(`Keine Termine für „${title}“ im Zeitraum`); return; }
-  showShare(`${title} ${plabel}`, { kicker: plabel, title, rows, footer: `Stand ${p2(TODAY.getDate())}.${p2(TODAY.getMonth()+1)}.${TODAY.getFullYear()}` }, text,
+  showShare(`${title} ${plabel}`, { kicker: `${plabel} · ${cnt}`, title, rows, footer: `Stand ${p2(TODAY.getDate())}.${p2(TODAY.getMonth()+1)}.${TODAY.getFullYear()}` }, text,
     `${title}-${plabel}`.toLowerCase().replace(/[^\wäöüß-]+/g, "-"));
 }
 
 // =================== Statistik ===================
+// Derselbe Geburtstag kann aus Mein Kalender, Familie und Google kommen → nur einmal zählen
+const bdKey = o => String(o.ev.title).toLowerCase().replace(/geburtstag(\s+von)?|birthday|\bgeb\.?\b|['’]s|\(.*?\)|[^a-zäöüß ]/g, " ").trim().split(/\s+/).filter(w => w.length > 1).slice(0, 2).join(" ") + "|" + iso(o.a);
+function dedupeBdays(list) { const m = new Map(); list.forEach(o => { const k = bdKey(o), cur = m.get(k); if (!cur || (cur.ev.type !== "birthday" && o.ev.type === "birthday")) m.set(k, o); }); return [...m.values()]; }
+// Kleine Fun Facts fürs Jahr
+function funFacts(y) {
+  const yS = new Date(y, 0, 1), yE = new Date(y, 11, 31), occ = OCC.filter(o => o.a >= yS && o.a <= yE && !o.part && !["birthday", "info", "anniversary", "contact"].includes(o.ev.type) && !/geburtstag/i.test(o.ev.title));
+  const F = [], byDay = new Map(), wd = Array(7).fill(0), titles = new Map(), places = new Map();
+  occ.forEach(o => { const k = iso(o.a); byDay.set(k, (byDay.get(k) || 0) + 1); wd[o.a.getDay()]++;
+    const t = shortName(o.ev).trim(); if (t) titles.set(t, (titles.get(t) || 0) + 1);
+    const pl = (o.ev.place || o.ev.location || "").split(",")[0].trim(); if (pl) places.set(pl, (places.get(pl) || 0) + 1); });
+  const top = m => [...m.entries()].sort((a, b) => b[1] - a[1])[0];
+  const busiest = top(byDay); if (busiest && busiest[1] >= 3) F.push(["📅", `Vollster Tag: <b>${fmt(parseIso(busiest[0]))}</b> mit ${busiest[1]} Terminen`]);
+  if (occ.length >= 10) { const i = wd.indexOf(Math.max(...wd)); F.push(["🗓️", `Dein Termin-Wochentag: <b>${WDL[i]}</b> (${Math.round(wd[i] / occ.length * 100)} % aller Termine)`]); }
+  const tt = top(titles); if (tt && tt[1] >= 3) F.push(["🔁", `Am häufigsten im Kalender: <b>${esc(tt[0])}</b> – ${tt[1]}×`]);
+  const tp = top(places); if (tp && tp[1] >= 2) F.push(["📍", `Lieblingsort: <b>${esc(tp[0])}</b> (${tp[1]}×)`]);
+  // längste Strecke ohne Termin (bis heute bzw. Jahresende)
+  const end = y === TODAY.getFullYear() ? TODAY : yE; let run = 0, best = 0, bestEnd = null;
+  const first = occ.reduce((m, o) => o.a < m ? o.a : m, end);   // erst ab dem ersten Termin zählen
+  for (let t = first; t <= end; t = addDays(t, 1)) { if (byDay.has(iso(t))) run = 0; else { run++; if (run > best) { best = run; bestEnd = t; } } }
+  if (best >= 5 && occ.length) F.push(["🌿", `Längste Pause ohne Termin: <b>${best} Tage</b> (${fmt(addDays(bestEnd, 1 - best))} – ${fmt(bestEnd)})`]);
+  const bd = dedupeBdays(OCC.filter(o => o.a >= yS && o.a <= yE && (o.ev.type === "birthday" || /geburtstag/i.test(o.ev.title)))), bm = Array(12).fill(0); bd.forEach(o => bm[o.a.getMonth()]++);
+  if (bd.length >= 4) { const i = bm.indexOf(Math.max(...bm)); F.push(["🎂", `Geburtstags-Hochsaison: <b>${MON[i]}</b> mit ${bm[i]} Geburtstagen`]); }
+  if (y === TODAY.getFullYear()) { const p = Math.round(dayDiff(yS, TODAY) / (dayDiff(yS, yE) + 1) * 100), left = occ.filter(o => o.a > TODAY).length;
+    F.push(["⏳", `${p} % von ${y} sind geschafft – ${left ? `noch <b>${left}</b> Termine` : "keine Termine mehr"} bis Silvester`]); }
+  return F.slice(0, 6);
+}
 let statsOpen = false;
 function computeStats(y) {
   const yS = new Date(y, 0, 1), yE = new Date(y, 11, 31), occ = OCC.filter(o => o.b >= yS && o.a <= yE);
@@ -2110,7 +2138,7 @@ function computeStats(y) {
   const freeWE = [], allWE = [];
   for (let t = nthSunday(y, 0, 1); t <= yE; t = addDays(t, 7)) { const sa = addDays(t, -1); if (sa < yS || sa < START) continue; allWE.push(sa); if (!busySet.has(iso(sa)) && !busySet.has(iso(t))) freeWE.push(sa); }
   const perMonth = Array(12).fill(0); occ.filter(busy).forEach(o => { if (o.a >= yS) perMonth[o.a.getMonth()]++; });
-  const bdays = occ.filter(o => o.ev.type === "birthday"), round = bdays.filter(o => o.ev.birthYear && isRoundAge(y - o.ev.birthYear));
+  const bdays = dedupeBdays(occ.filter(o => o.ev.type === "birthday" || (o.ev.type === "google" && /geburtstag|birthday/i.test(o.ev.title)))), round = bdays.filter(o => o.ev.birthYear && isRoundAge(y - o.ev.birthYear));
   const holL = [...HOL.values()].filter(h => h.dt >= yS && h.dt <= yE && h.dt >= START && h.be && !isWE(h.dt)).sort((a, b) => a.dt - b.dt), hol = holL.length;
   // Urlaub als zusammenhängende Zeiträume
   const runs = []; [...vacDays].sort().forEach(k => { const d = parseIso(k), r = runs[runs.length - 1];
@@ -2128,13 +2156,14 @@ function renderStats() {
   const tile = (n, l, sub, k) => `<div class="tile${k ? " click" : ""}"${k ? ` data-stat="${k}" role="button" tabindex="0"` : ""}><b>${n}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   box.innerHTML = `<div class="tiles">
       ${tile(S.total, "Termine", "ohne Geburtstage", "total")}
-      ${tile(S.late, "Spätdienste", "Tage", "late")}
+      ${S.late ? tile(S.late, "Spätdienste", "Tage", "late") : ""}
       ${tile(S.vacWork, "Urlaubstage", `ohne Wochenende/Feiertag · Rest ${rest} von <input id="st-vac" type="number" min="0" max="60" value="${REMP.vacation}" aria-label="Urlaubsanspruch">`, "vac")}
       ${tile(S.freeWE.length, "freie Wochenenden", `von ${S.allWE}`, "freewe")}
       ${tile(S.bdays, "Geburtstage", S.round.length ? `${S.round.length} runde` : "", "bdays")}
       ${tile(S.hol, "Feiertage (Werktag)", nameA(), "hol")}
-      ${tile(S.vacDays, "Tage unterwegs", "Reisen & Urlaub, alle Tage", "away")}
+      ${S.vacDays ? tile(S.vacDays, "Tage unterwegs", "Reisen & Urlaub, alle Tage", "away") : ""}
     </div>
+    ${(() => { const F = funFacts(selYear); return F.length ? `<h3>Fun Facts ${selYear}</h3><ul class="facts">${F.map(([i, t]) => `<li><span aria-hidden="true">${i}</span><span>${t}</span></li>`).join("")}</ul>` : ""; })()}
     <h3>Termine pro Monat</h3>
     <div class="bars">${S.perMonth.map((n, i) => `<div class="bar-c" title="${MON[i]}: ${n}"><div class="bar-v" style="height:${Math.round(n / max * 100)}%"></div><span>${MON[i].slice(0, 1)}</span><em>${n || ""}</em></div>`).join("")}</div>
     ${S.round.length ? `<h3>Runde Geburtstage</h3><p class="tip" style="color:var(--fg)">${S.round.map(o => `${esc(o.ev.title)} (${selYear - o.ev.birthYear}) am ${fmt(o.a)}`).join(" · ")}</p>` : ""}
