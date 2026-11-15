@@ -195,7 +195,7 @@ window.MK_APP = true;
   const evBody = (i, partial) => { const b = {};
     if (i.summary != null) b.summary = i.summary; if (i.description != null) b.description = i.description; if (i.location != null) b.location = i.location;
     if (i.startTime) b.start = when(i, "startTime"); if (i.endTime) b.end = when(i, "endTime");
-    if (i.recurrenceData) b.recurrence = i.recurrenceData; return b; };
+    if (i.recurrenceData) b.recurrence = i.recurrenceData; if (i.id && !partial) b.id = i.id; if (i.status) b.status = i.status; return b; };
   const TOOLS = {
     async list_calendars() { const b = await gFetch("/users/me/calendarList?maxResults=250");
       return { calendars: (b.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, accessRole: c.accessRole, backgroundColor: c.backgroundColor })) }; },

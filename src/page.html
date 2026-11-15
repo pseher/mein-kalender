@@ -572,6 +572,12 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .fchip b { font-size: 11.5px; font-weight: 600; color: var(--muted); } .fchip .chev { font-size: 10px; color: var(--muted); }
 .fchip.on { background: color-mix(in srgb, var(--both) 14%, var(--surface)); border-color: color-mix(in srgb, var(--both) 45%, var(--line)); color: var(--both); } .fchip.on b, .fchip.on .chev { color: var(--both); }
 .moved { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--both); color: #fff; font-size: 14px; } .moved div { flex: 1 1 240px; display: grid; gap: 1px; } .moved span { opacity: .9; font-size: 13px; } .moved a { color: #fff; font-weight: 700; text-decoration: none; background: rgba(255,255,255,.16); border-radius: 999px; padding: 7px 14px; white-space: nowrap; }
+.inv-big { display: grid; gap: 10px; justify-items: start; padding: 16px; margin: 0 0 14px; border-radius: 16px; background: color-mix(in srgb, var(--both) 12%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--both) 55%, var(--line)); }
+.inv-big .inv-ic { font-size: 30px; line-height: 1; } .inv-big > b { font-size: 18px; font-family: var(--f-display); } .inv-big > span { font-size: 14px; color: var(--muted); line-height: 1.45; }
+.inv-auto { display: flex; gap: 8px; align-items: center; font-size: 14px; } .inv-auto input { width: 20px; height: 20px; accent-color: var(--both); }
+.inv-big .btnrow { margin-top: 2px; } .btn.big { font-size: 16px; padding: 12px 22px; }
+.hint-card.inv { border-width: 1.5px; border-color: color-mix(in srgb, var(--both) 60%, transparent); }
+.shp { border-bottom: 1px solid var(--line); } .shp:last-child { border-bottom: 0; } .sr2.sub { padding-top: 2px; } .sr2.sub > span { font-size: 13.5px; }
 .upsec h3 b { font-size: 11px; color: var(--muted); } .upsec h3 b.hot { background: var(--holiday); color: #fff; border-radius: 999px; padding: 0 6px; }
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
@@ -819,6 +825,7 @@ html.rg-on #bigmonth, html.rg-on #year { touch-action: none; }
     </nav>
   </header>
   <div class="today-lbl" id="today-lbl"></div>
+  <div class="hint-card inv" id="inv-card" hidden><b id="inv-card-t">Einladung</b><span>Wenn du annimmst, seht ihr die Termine, die ihr teilt, beide – auch in Google.</span><button type="button" class="btn accent" id="inv-card-go">Einladung ansehen</button></div>
   <div class="hint-card" id="signin-card" hidden><b>Dein eigener Kalender – kostenlos</b><span>Melde dich bei Claude an, um Termine einzutragen und erinnert zu werden. Deine Einträge sieht nur du.</span><button type="button" class="btn accent small" id="signin-open">Anmelden – so geht’s</button></div>
   <div class="hint-card first" id="first-card" hidden><b>Los geht’s: dein erster Termin</b><span>Tippe auf <b>+ Eintragen</b> und schreib einfach drauflos, z. B. „Freitag 19 Uhr Essen mit Anna“ – oder füge eine WhatsApp-Nachricht ein.</span><div class="btnrow"><button type="button" class="btn accent small" id="first-add">+ Ersten Termin eintragen</button><button type="button" class="btn ghost small" id="first-no">Später</button></div></div>
   <div class="hint-card" id="a2hs-card" hidden><b>Als App auf den Startbildschirm?</b><span>Dann öffnest du deinen Kalender mit einem Tipp – ohne Link suchen.</span><div class="btnrow"><button type="button" class="btn accent small" id="a2hs-yes">Ja, zeig mir wie</button><button type="button" class="btn ghost small" id="a2hs-no">Nein danke</button></div></div>

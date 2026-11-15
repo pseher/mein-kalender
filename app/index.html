@@ -210,7 +210,7 @@ window.MK_APP = true;
   const evBody = (i, partial) => { const b = {};
     if (i.summary != null) b.summary = i.summary; if (i.description != null) b.description = i.description; if (i.location != null) b.location = i.location;
     if (i.startTime) b.start = when(i, "startTime"); if (i.endTime) b.end = when(i, "endTime");
-    if (i.recurrenceData) b.recurrence = i.recurrenceData; return b; };
+    if (i.recurrenceData) b.recurrence = i.recurrenceData; if (i.id && !partial) b.id = i.id; if (i.status) b.status = i.status; return b; };
   const TOOLS = {
     async list_calendars() { const b = await gFetch("/users/me/calendarList?maxResults=250");
       return { calendars: (b.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, accessRole: c.accessRole, backgroundColor: c.backgroundColor })) }; },
@@ -828,6 +828,12 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .fchip b { font-size: 11.5px; font-weight: 600; color: var(--muted); } .fchip .chev { font-size: 10px; color: var(--muted); }
 .fchip.on { background: color-mix(in srgb, var(--both) 14%, var(--surface)); border-color: color-mix(in srgb, var(--both) 45%, var(--line)); color: var(--both); } .fchip.on b, .fchip.on .chev { color: var(--both); }
 .moved { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--both); color: #fff; font-size: 14px; } .moved div { flex: 1 1 240px; display: grid; gap: 1px; } .moved span { opacity: .9; font-size: 13px; } .moved a { color: #fff; font-weight: 700; text-decoration: none; background: rgba(255,255,255,.16); border-radius: 999px; padding: 7px 14px; white-space: nowrap; }
+.inv-big { display: grid; gap: 10px; justify-items: start; padding: 16px; margin: 0 0 14px; border-radius: 16px; background: color-mix(in srgb, var(--both) 12%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--both) 55%, var(--line)); }
+.inv-big .inv-ic { font-size: 30px; line-height: 1; } .inv-big > b { font-size: 18px; font-family: var(--f-display); } .inv-big > span { font-size: 14px; color: var(--muted); line-height: 1.45; }
+.inv-auto { display: flex; gap: 8px; align-items: center; font-size: 14px; } .inv-auto input { width: 20px; height: 20px; accent-color: var(--both); }
+.inv-big .btnrow { margin-top: 2px; } .btn.big { font-size: 16px; padding: 12px 22px; }
+.hint-card.inv { border-width: 1.5px; border-color: color-mix(in srgb, var(--both) 60%, transparent); }
+.shp { border-bottom: 1px solid var(--line); } .shp:last-child { border-bottom: 0; } .sr2.sub { padding-top: 2px; } .sr2.sub > span { font-size: 13.5px; }
 .upsec h3 b { font-size: 11px; color: var(--muted); } .upsec h3 b.hot { background: var(--holiday); color: #fff; border-radius: 999px; padding: 0 6px; }
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
@@ -1075,6 +1081,7 @@ html.rg-on #bigmonth, html.rg-on #year { touch-action: none; }
     </nav>
   </header>
   <div class="today-lbl" id="today-lbl"></div>
+  <div class="hint-card inv" id="inv-card" hidden><b id="inv-card-t">Einladung</b><span>Wenn du annimmst, seht ihr die Termine, die ihr teilt, beide – auch in Google.</span><button type="button" class="btn accent" id="inv-card-go">Einladung ansehen</button></div>
   <div class="hint-card" id="signin-card" hidden><b>Dein eigener Kalender – kostenlos</b><span>Melde dich bei Claude an, um Termine einzutragen und erinnert zu werden. Deine Einträge sieht nur du.</span><button type="button" class="btn accent small" id="signin-open">Anmelden – so geht’s</button></div>
   <div class="hint-card first" id="first-card" hidden><b>Los geht’s: dein erster Termin</b><span>Tippe auf <b>+ Eintragen</b> und schreib einfach drauflos, z. B. „Freitag 19 Uhr Essen mit Anna“ – oder füge eine WhatsApp-Nachricht ein.</span><div class="btnrow"><button type="button" class="btn accent small" id="first-add">+ Ersten Termin eintragen</button><button type="button" class="btn ghost small" id="first-no">Später</button></div></div>
   <div class="hint-card" id="a2hs-card" hidden><b>Als App auf den Startbildschirm?</b><span>Dann öffnest du deinen Kalender mit einem Tipp – ohne Link suchen.</span><div class="btnrow"><button type="button" class="btn accent small" id="a2hs-yes">Ja, zeig mir wie</button><button type="button" class="btn ghost small" id="a2hs-no">Nein danke</button></div></div>
@@ -1386,7 +1393,7 @@ function normalize(id, v) {
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks,
     place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, country: String(v.country || ""),
-    shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
+    shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
 }
@@ -1995,7 +2002,8 @@ async function tkSet(id, v) { try { await COLL("tasks").doc(id).update(v); } cat
 // =================== Teilen mit Personen (innerhalb von „Mein Kalender“, Ende-zu-Ende verschlüsselt) ===================
 // Ablage: out/<uid> (öffentlich: nur Verbindungs-IDs), out/<uid>/x/<L> (verschlüsselter Name), out/<uid>/ev/<sid>_<L> (verschlüsselter Termin).
 // Nur der Inhaber schreibt in sein „out“; lesen kann nur, wer den Einladungscode kennt.
-let SHR = { contacts: [], groups: [], hidden: [] }, RECV = [], MYOUT = new Map(), REMOTE = new Map(), shrWatch = new Map(), OUTALL = [];
+let shrLoaded = false;
+let SHR = { contacts: [], groups: [], hidden: [], gcal: "", gmir: {} }, RECV = [], MYOUT = new Map(), REMOTE = new Map(), shrWatch = new Map(), OUTALL = [];
 const SHR_ON = () => canWrite && !!db && !!uid;
 const B32 = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const normCode = c => String(c || "").toUpperCase().replace(/[^0-9A-Z]/g, "").split("").filter(ch => B32.includes(ch)).join("");
@@ -2019,14 +2027,21 @@ const myName = () => (PROFILE.name || (meName || "").split(/\s+/)[0] || "Jemand"
 const contactBy = L => SHR.contacts.find(c => c.L === L);
 const okContacts = () => SHR.contacts.filter(c => c.uid);
 const shareNames = Ls => [...new Set(Ls.map(L => contactBy(L)?.name).filter(Boolean))];
-const isSharedEv = e => !!(e.shared || (e.shareTo && e.shareTo.length));
+// Pro Person: „alles automatisch teilen“ (auto) – einzelne Termine lassen sich trotzdem ausnehmen (shareNo)
+const autoLs = () => SHR.contacts.filter(c => c.auto).map(c => c.L);
+const effTo = e => { if (!e || e.shared) return []; const no = new Set(e.shareNo || []);
+  const auto = e.shadow || e.type === "birthday" ? [] : autoLs().filter(L => !no.has(L));
+  return [...new Set([...(e.shareTo || []), ...auto])].filter(L => contactBy(L)); };
+const shSplit = sel => { const A = new Set(autoLs()), S = new Set(sel); return { shareTo: [...S].filter(L => !A.has(L)), shareNo: [...A].filter(L => !S.has(L)) }; };
+const isSharedEv = e => !!(e.shared || effTo(e).length);
 const OUT = (u, sub) => db.collection(sub ? `out/${u}/${sub}` : "out");
 async function saveShr() { try { await COLL("prefs").doc("share").set(SHR); } catch (err) { toast(writeErr(err)); } await pubIndex(); }
 async function pubIndex() { if (!SHR_ON()) return; try { await OUT().doc(uid).set({ ls: SHR.contacts.map(c => c.L), t: Date.now() }); } catch {} }
 function shrStart() {
   if (!SHR_ON() || shrStart.done) return; shrStart.done = true;
   COLL("prefs").doc("share").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; // Datenbank-Objekte sind schreibgeschützt → Kopie
-    SHR = { contacts: Array.isArray(v.contacts) ? v.contacts : [], groups: Array.isArray(v.groups) ? v.groups : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] };
+    SHR = { contacts: Array.isArray(v.contacts) ? v.contacts : [], groups: Array.isArray(v.groups) ? v.groups : [], hidden: Array.isArray(v.hidden) ? v.hidden : [],
+      gcal: String(v.gcal || ""), gmir: v.gmir && typeof v.gmir === "object" ? v.gmir : {} }; shrLoaded = true;
     shrWatchContacts(); shrQueue(); renderAll(); if (sheetMode === "sharemgr" && !$("sheet").hidden) showShareMgr(); }, () => {});
   OUT().onSnapshot(s => { OUTALL = s.docs.map(d => ({ id: d.id, ls: Array.isArray(d.data()?.ls) ? d.data().ls : [] })); shrFindPartners(); }, () => {});
   OUT(uid, "ev").onSnapshot(async s => { const m = new Map();
@@ -2057,18 +2072,44 @@ async function shrMerge() {
       const e = EV.find(x => x.sid === r.s); if (!e || r.del || r.t <= (mine?.t || 0) || !r.data) continue;
       if (r.h !== await hashOf(shareData(e))) { try { await COLL("events").doc(e.id).update({ ...r.data }); toast(`${contactBy(L)?.name || "Jemand"} hat „${r.data.title}“ geändert`); } catch {} }
       continue; }
-    if (cur.del || !cur.data || SHR.hidden.includes(r.s)) continue;
+    if (cur.del || !cur.data || SHR.hidden.includes(r.s) || contactBy(L)?.show === false) continue;
     const prev = recv.get(r.s); if (prev && prev.t >= cur.t) continue;
     recv.set(r.s, { ...cur, from: contactBy(L)?.name || "", L });
   }
-  RECV = [...recv.values()].map(r => ({ ...normalize("s:" + r.s, r.data), shared: { from: r.from, L: r.L, sid: r.s, o: r.o } })).filter(e => e.a);
-  renderAll();
+  RECV = [...recv.values()].map(r => ({ ...normalize("s:" + r.s, r.data), shared: { from: r.from, L: r.L, sid: r.s, o: r.o, h: r.h } })).filter(e => e.a);
+  renderAll(); shrMirrorQueue();
+}
+// ---- Geteilte Termine zusätzlich in den eigenen Google Kalender eintragen (feste ID → kein Doppeleintrag, auch von mehreren Geräten) ----
+const mirId = (sid, L) => ("mks" + sid + L).toLowerCase().replace(/[^a-v0-9]/g, "").slice(0, 60);
+let mirT = null, mirBusy = false; const shrMirrorQueue = () => { clearTimeout(mirT); mirT = setTimeout(shrMirror, 2500); };
+async function shrMirror() {
+  if (!APP || !SHR_ON() || !gWritable() || mirBusy || !shrLoaded) return; mirBusy = true;
+  const M = { ...(SHR.gmir || {}) }, cal = SHR.gcal || "primary", want = new Map(); let ch = false;
+  try {
+    for (const e of RECV) { const id = mirId(e.shared.sid, e.shared.L); want.set(id, e); }
+    for (const [id, e] of want) {
+      const h = (e.shared.h || "") + "|" + cal; if (M[id]?.h === h) continue;
+      const v = { ...e, title: e.title, gcal: cal }, inp = gInput(v), r = gRecur(v); if (r) inp.recurrenceData = r;
+      if (e.place) inp.location = e.place;
+      inp.description = [e.note, `Geteilt von ${e.shared.from || "jemandem"} · Mein Kalender`].filter(Boolean).join("\n\n");
+      if (M[id] && M[id].cal !== cal) { try { await mcp.callTool(GSERVER, "delete_event", { eventId: id, ...(M[id].cal !== "primary" ? { calendarId: M[id].cal } : {}) }); } catch {} }
+      try { await mcp.callTool(GSERVER, "create_event", { ...inp, id }); }
+      catch (err) { if (err?.code !== "tool_error") throw err;   // gibt es schon (anderes Gerät/früher gelöscht) → aktualisieren
+        await mcp.callTool(GSERVER, "update_event", { ...inp, eventId: id, status: "confirmed" }); }
+      M[id] = { h, cal }; ch = true;
+    }
+    for (const id of Object.keys(M)) if (!want.has(id)) {   // nicht mehr geteilt, ausgeblendet oder Person entfernt
+      try { await mcp.callTool(GSERVER, "delete_event", { eventId: id, ...(M[id].cal !== "primary" ? { calendarId: M[id].cal } : {}) }); } catch (err) { if (err?.code !== "tool_error") throw err; }
+      delete M[id]; ch = true; }
+  } catch { /* Google gerade nicht erreichbar → beim nächsten Mal */ }
+  finally { mirBusy = false; }
+  if (ch) { SHR.gmir = M; try { await COLL("prefs").doc("share").set(SHR); } catch {} mcp.invalidate(GSERVER, "list_events").catch(() => {}); }
 }
 let shrT = null; const shrQueue = () => { clearTimeout(shrT); shrT = setTimeout(shrPublish, 900); };
 async function shrPublish() {
   if (!SHR_ON() || dbState !== "ready") return;
   for (const e of EV) {
-    const to = (e.shareTo || []).filter(L => contactBy(L)); if (!to.length) continue;
+    const to = effTo(e); if (!to.length) continue;
     if (!e.sid) { try { await COLL("events").doc(e.id).update({ sid: crypto.randomUUID().slice(0, 12) }); } catch {} continue; }
     const data = shareData(e), h = await hashOf(data);
     for (const L of to) { const m = MYOUT.get(`${e.sid}|${L}`); if (m && !m.del && m.h === h) continue;
@@ -2076,7 +2117,7 @@ async function shrPublish() {
       try { await OUT(uid, "ev").doc(`${e.sid}_${L}`).set({ l: L, s: e.sid, t: Date.now(), h, o: uid, c: await seal(key, data) }); } catch (err) { shrWarn(err); return; } }
   }
   for (const m of MYOUT.values()) { if (m.del || m.o !== uid) continue; // nicht mehr geteilt oder gelöscht → für die andere Person entfernen
-    const e = EV.find(x => x.sid === m.s); if (e && (e.shareTo || []).includes(m.l)) continue;
+    const e = EV.find(x => x.sid === m.s); if (e && effTo(e).includes(m.l)) continue;
     try { await OUT(uid, "ev").doc(m.id).set({ l: m.l, s: m.s, t: Date.now(), h: "", o: uid, del: true }); } catch {} }
 }
 let shrWarned = false; function shrWarn(err) { if (shrWarned) return; shrWarned = true; toast(["permission_denied", "not_granted", "forbidden"].includes(err?.code) ? "Teilen ist auf dieser Seite noch nicht freigegeben" : "Teilen hat gerade nicht geklappt"); }
@@ -2102,22 +2143,30 @@ const INVITE_KEY = "mk-invite";
 if (APP) { const h = new URLSearchParams(location.hash.slice(1)); const c = (h.get("invite") || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
   if (c.length === 12) { try { localStorage.setItem(INVITE_KEY, c); } catch {} history.replaceState(null, "", location.pathname + location.search); } }
 const pendingInvite = () => { try { return localStorage.getItem(INVITE_KEY) || ""; } catch { return ""; } };
-function takeInvite() { const c = pendingInvite(); if (!c || !canWrite) return false; try { localStorage.removeItem(INVITE_KEY); } catch {}
-  shrAcc = { code: c.replace(/(.{4})(?=.)/g, "$1-") }; showShareMgr(); setTimeout(() => shrCheck(c), 150); return true; }
+const invDone = () => { try { localStorage.removeItem(INVITE_KEY); } catch {} };
+async function takeInvite() { const c = pendingInvite(); if (!c || !canWrite) return false;
+  if (SHR.contacts.some(x => normCode(x.code) === c)) { invDone(); return false; }
+  shrAcc = { code: c.replace(/(.{4})(?=.)/g, "$1-") }; await shrCheck(c, true);
+  if (shrAcc?.from) { showInvite(); renderHints(); } else { invDone(); showShareMgr(); }
+  return true; }
 let shrNew = null, shrAcc = null, shrGrp = null;
 function showShareMgr() {
   const C = SHR.contacts, me = myName();
   const inv = c => `Hallo ${c.name.split(/\s+/)[0]},\n\nich möchte Termine mit dir in „Mein Kalender“ teilen – dann sehen wir beide, was ansteht.\n\nTipp einfach auf diesen Link, dort kannst du den Code mit einem Tipp kopieren:\n${INVITE_URL}/einladung.html#c=${normCode(c.code)}&von=${encodeURIComponent(me)}\n\nDein Code: ${fmtCode(c.code)}\n\nLiebe Grüße\n${me}`;
   openSheet("Teilen mit …", "Termine mit anderen teilen, die auch „Mein Kalender“ nutzen. Verschlüsselt – nur ihr beide könnt sie lesen.", `<div class="setv">
+    ${shrAcc?.from ? invBox() : ""}
     <div class="sg-t">Personen</div><div class="sg">
-      ${C.length ? C.map(c => `<div class="sr2"><i class="dotc" style="--c:${c.uid ? "var(--both)" : "var(--muted)"}"></i><span>${esc(c.name)}<small>${c.uid ? "verbunden" : "wartet auf Annahme"}</small></span>
-        ${c.uid ? "" : `<a class="link" href="https://wa.me/?text=${encodeURIComponent(inv(c))}" target="_blank" rel="noopener">Erneut senden</a>`}<button type="button" class="ic no" data-shrdel="${esc(c.L)}" aria-label="${esc(c.name)} entfernen">✕</button></div>`).join("")
+      ${C.length ? C.map(c => `<div class="shp"><div class="sr2"><i class="dotc" style="--c:${c.uid ? "var(--both)" : "var(--muted)"}"></i><span>${esc(c.name)}<small>${c.uid ? "verbunden" : "wartet auf Annahme"}</small></span>
+        ${c.uid ? "" : `<a class="link" href="https://wa.me/?text=${encodeURIComponent(inv(c))}" target="_blank" rel="noopener">Erneut senden</a>`}<button type="button" class="ic no" data-shrdel="${esc(c.L)}" aria-label="${esc(c.name)} entfernen">✕</button></div>
+        <label class="sr2 sub"><span>Meine Termine automatisch mit ${esc(c.name.split(/\s+/)[0])} teilen<small>${c.auto ? "alle neuen und bisherigen Einträge (außer Geburtstage) – einzelne kannst du beim Termin abwählen" : "nur Termine, bei denen du „Teilen mit“ wählst"}</small></span><input type="checkbox" class="swi" data-shrauto="${esc(c.L)}"${c.auto ? " checked" : ""}></label>
+        ${c.uid ? `<label class="sr2 sub"><span>Termine von ${esc(c.name.split(/\s+/)[0])} anzeigen</span><input type="checkbox" class="swi" data-shrshow="${esc(c.L)}"${c.show !== false ? " checked" : ""}></label>` : ""}</div>`).join("")
         : `<p class="sg-n" style="padding:12px 14px;margin:0">Noch niemand – lade jemanden ein.</p>`}</div>
     ${shrNew ? `<div class="sg shr-box">${shrNew.code ? `<p><b>Einladung für ${esc(shrNew.name)}</b> ist fertig. Code: <span class="mono">${fmtCode(shrNew.code)}</span></p>
         <div class="btnrow"><a class="btn accent" href="https://wa.me/?text=${encodeURIComponent(inv(shrNew))}" target="_blank" rel="noopener">Per WhatsApp senden</a><button type="button" class="btn ghost" id="shr-new-done">Fertig</button></div>`
-      : `<label class="sr2"><span>Name</span><input class="fin" id="shr-name" type="text" placeholder="z. B. Ina" value="${esc(shrNew.name || "")}"></label><div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="shr-new-go">Einladung erstellen</button><button type="button" class="btn ghost" id="shr-new-x">Abbrechen</button></div>`}</div>`
+      : `<label class="sr2"><span>Name</span><input class="fin" id="shr-name" type="text" placeholder="z. B. Ina" value="${esc(shrNew.name || "")}"></label><label class="sr2 sub"><span>Meine Termine automatisch teilen<small>sonst nur die, bei denen du „Teilen mit“ wählst</small></span><input type="checkbox" class="swi" id="shr-new-auto" checked></label><div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="shr-new-go">Einladung erstellen</button><button type="button" class="btn ghost" id="shr-new-x">Abbrechen</button></div>`}</div>`
       : `<div class="btnrow"><button type="button" class="btn accent" id="shr-new">+ Person einladen</button><button type="button" class="btn ghost" id="shr-acc">Einladung annehmen</button></div>`}
-    ${shrAcc ? `<div class="sg shr-box">${shrAcc.from ? `<p><b>${esc(shrAcc.from)}</b> möchte Termine mit dir teilen.</p><div class="btnrow"><button type="button" class="btn accent" id="shr-acc-ok">Annehmen</button><button type="button" class="btn ghost" id="shr-acc-x">Ablehnen</button></div>`
+    ${APP && gWritable() && okContacts().length ? `<div class="sg"><label class="sr2"><span>Geteilte Termine auch eintragen in<small>Google-Kalender – damit sie auch in Google und auf anderen Geräten erscheinen</small></span><select class="fin" id="shr-gcal">${gCalOptions(SHR.gcal || "primary")}</select></label></div>` : ""}
+    ${shrAcc && !shrAcc.from ? `<div class="sg shr-box">${shrAcc.from ? `<p><b>${esc(shrAcc.from)}</b> möchte Termine mit dir teilen.</p><div class="btnrow"><button type="button" class="btn accent" id="shr-acc-ok">Annehmen</button><button type="button" class="btn ghost" id="shr-acc-x">Ablehnen</button></div>`
       : `<label class="sr2"><span>Code</span><input class="fin mono" id="shr-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" value="${esc(shrAcc.code || "")}"></label>
         <div style="padding:0 14px"><button type="button" class="btn ghost small" id="shr-paste">📋 Einfügen</button> <span class="note">kopierten Code einfügen</span></div><p class="err" id="shr-err" style="padding:0 14px">${esc(shrAcc.err || "")}</p>
         <div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="shr-acc-go">Prüfen</button><button type="button" class="btn ghost" id="shr-acc-x">Abbrechen</button></div>`}</div>` : ""}
@@ -2130,29 +2179,42 @@ function showShareMgr() {
     <p class="sg-n">Teilen: einen Termin antippen → „Mit … teilen“ – oder beim Eintragen bei „Teilen mit“ auswählen.</p>
   </div>`, "sharemgr");
 }
-async function shrInvite(name) { const code = newCode(), { L } = await codeKeys(code);
-  SHR.contacts.push({ L, code, name, uid: "", nameSet: true }); await saveShr();
+// Große Annehmen-Karte (im Teilen-Fenster und als eigenes Fenster nach dem Einladungslink)
+const invBox = () => `<div class="inv-big"><div class="inv-ic" aria-hidden="true">👥</div><b>${esc(shrAcc.from)} möchte Termine mit dir teilen</b>
+  <span>Was ihr teilt, seht ihr beide – Änderungen kommen beim anderen an. Verschlüsselt, nur ihr zwei könnt es lesen.</span>
+  <label class="inv-auto"><input type="checkbox" id="shr-acc-auto" checked> Meine Termine automatisch mit ${esc(shrAcc.from.split(/\s+/)[0])} teilen</label>
+  <div class="btnrow"><button type="button" class="btn accent big" id="shr-acc-ok">Annehmen</button><button type="button" class="btn ghost" id="shr-acc-x">Ablehnen</button></div></div>`;
+function showInvite() { if (!shrAcc?.from) return; openSheet("Einladung", "", invBox(), "invite"); }
+async function shrInvite(name, auto) { const code = newCode(), { L } = await codeKeys(code);
+  SHR.contacts.push({ L, code, name, uid: "", nameSet: true, auto: !!auto, show: true }); await saveShr();
   const { key } = await codeKeys(code); try { await OUT(uid, "x").doc(L).set({ c: await seal(key, { name: myName() }) }); } catch (err) { shrWarn(err); }
   shrNew = { name, code }; showShareMgr(); }
-async function shrCheck(code) {
+async function shrCheck(code, quiet) {
   const c = normCode(code); if (c.length < 12) { shrAcc = { code, err: "Der Code hat 12 Zeichen, z. B. K7PQ-4XZM-2HTR." }; showShareMgr(); return; }
   if (SHR.contacts.some(x => normCode(x.code) === c)) { shrAcc = { code, err: "Diese Einladung ist schon angenommen." }; showShareMgr(); return; }
   const btn = $("shr-acc-go"); if (btn) { btn.disabled = true; btn.textContent = "Prüfe …"; }
   const { key, L } = await codeKeys(c); const all = await once(OUT());
   const p = all?.docs.find(d => d.id !== uid && (d.data()?.ls || []).includes(L));
-  if (!p) { shrAcc = { code, err: "Diese Einladung habe ich nicht gefunden. Code richtig abgetippt?" }; showShareMgr(); return; }
+  if (!p) { shrAcc = { code, err: "Diese Einladung habe ich nicht gefunden. Code richtig abgetippt?" }; if (!quiet) showShareMgr(); return; }
   const x = await once(OUT(p.id, "x").doc(L)), info = x?.exists ? await unseal(key, x.data()?.c) : null;
-  shrAcc = { code: c, L, uid: p.id, from: info?.name || "Jemand" }; showShareMgr(); }
-async function shrAccept() { const a = shrAcc; if (!a?.uid) return;
-  SHR.contacts.push({ L: a.L, code: a.code, name: a.from, uid: a.uid }); await saveShr();
+  shrAcc = { code: c, L, uid: p.id, from: info?.name || "Jemand" }; if (!quiet) showShareMgr(); }
+async function shrAccept() { const a = shrAcc; if (!a?.uid) return; const auto = $("shr-acc-auto") ? $("shr-acc-auto").checked : true;
+  SHR.contacts.push({ L: a.L, code: a.code, name: a.from, uid: a.uid, auto, show: true }); await saveShr(); invDone();
   const { key } = await codeKeys(a.code); try { await OUT(uid, "x").doc(a.L).set({ c: await seal(key, { name: myName() }) }); } catch (err) { shrWarn(err); }
-  shrAcc = null; shrWatchContacts(); showShareMgr(); toast(`Verbunden mit ${a.from}`); }
+  shrAcc = null; shrWatchContacts(); shrQueue(); showShareMgr(); renderHints(); toast(`Verbunden mit ${a.from}`); }
+async function shrRemove(L) {   // Verbindung lösen: meine geteilten Kopien für diese Person löschen, ihre Termine ausblenden
+  const c = contactBy(L); SHR.contacts = SHR.contacts.filter(x => x.L !== L); SHR.groups.forEach(g => g.members = g.members.filter(x => x !== L));
+  REMOTE.delete(L); for (const [k, u] of shrWatch) if (k.startsWith(L + "|")) { try { u(); } catch {} shrWatch.delete(k); }
+  await saveShr(); showShareMgr(); shrMerge();
+  for (const m of [...MYOUT.values()].filter(m => m.l === L)) { try { await OUT(uid, "ev").doc(m.id).delete(); } catch {} }
+  try { await OUT(uid, "x").doc(L).delete(); } catch {}
+  toast(`${c?.name || "Person"} entfernt – ihr seht eure Termine gegenseitig nicht mehr`); }
 // ---- Einen Termin teilen ----
 let shrFor = null;
 function showShareEv(e, dateIso) {
   shrFor = { id: e.id, date: dateIso };
   openSheet(`„${shortName0(e)}“ teilen`, SHR.contacts.length ? "Mit wem? Ändert einer etwas, sieht es der andere." : "", SHR.contacts.length ? `<div class="setv">
-    ${shrChips("data-shto", e.shareTo || [])}
+    ${shrChips("data-shto", effTo(e))}
     ${e.repeat !== "none" ? `<div class="vis" style="margin-top:12px"><button type="button" data-shscope="all" aria-checked="true">Ganze Serie</button><button type="button" data-shscope="one" aria-checked="false">Nur am ${fmt(parseIso(dateIso))}</button></div>` : ""}
     <div class="btnrow"><button type="button" class="btn accent" id="shto-save">Speichern</button><button type="button" class="btn ghost" id="shto-x">Abbrechen</button></div></div>`
     : `<p class="sg-n">Lade erst jemanden ein (☰ → „Teilen mit …“). Sobald die Person angenommen hat, kannst du hier teilen.</p><div class="btnrow"><button type="button" class="btn accent" id="mi-share">Personen einladen</button></div>`, "shareev");
@@ -2164,7 +2226,7 @@ async function shrSaveEv() {
     if (shrFor.scope === "one" && e.repeat !== "none") { // nur dieser Tag: unsichtbare Einzel-Kopie für die anderen
       const d = shrFor.date, dur = dayDiff(e.a, e.b), v = { ...plain(e), from: d, to: iso(addDays(parseIso(d), dur)), repeat: "none", until: "", gcal: "", gEventId: "", shareTo: to, shadow: true, sid: "" };
       if (to.length) await COLL("events").add(v);
-    } else await COLL("events").doc(e.id).update({ shareTo: to });
+    } else await COLL("events").doc(e.id).update(shSplit(to));
     closeSheet(); toast(to.length ? `Geteilt mit ${shareNames(to).join(", ")}` : "Nicht mehr geteilt"); shrQueue();
   } catch (err) { toast(writeErr(err)); }
 }
@@ -3434,7 +3496,7 @@ function showEvent(o) {
   if (st.length) item("Schule", st[0]);
   const id = esc(e.id);
   const acts = (canWrite ? `<button type="button" class="btn small" data-edit="${id}">Bearbeiten</button><button type="button" class="btn ghost small" data-move="${id}">Verschieben</button>` : "") +
-    (canWrite ? `<button type="button" class="btn ghost small" data-shev="${id}|${iso(o.a)}">👥 ${e.shareTo?.length ? "Geteilt: " + esc(shareNames(e.shareTo).join(", ")) : "Mit … teilen"}</button>` : "") +
+    (canWrite ? `<button type="button" class="btn ghost small" data-shev="${id}|${iso(o.a)}">👥 ${effTo(e).length ? "Geteilt: " + esc(shareNames(effTo(e)).join(", ")) : "Mit … teilen"}</button>` : "") +
     `<button type="button" class="btn ghost small" data-share="${id}|${iso(o.a)}">Als Bild/Text</button>` + gResend +
     (["trip", "termin"].includes(e.type) ? `<button type="button" class="btn ghost small" data-pack="${id}">${packLabel(e)}${e.packlist.length ? ` ${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : ""}</button>` : "") +
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
@@ -3463,7 +3525,7 @@ function showForm(e, preset) {
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}</select></div></div>
       <label for="f-title" id="f-title-l">Titel</label>
       <input id="f-title" type="text" value="${esc(v.title)}" placeholder="z. B. Zahnarzt, Ostsee, TÜV">
-      ${SHR_ON() && !(e && e.shared) ? (SHR.contacts.length ? `<div id="f-sh-wrap"><label>Teilen mit</label>${shrChips("data-fsh", v.shareTo || (v.title ? shrPick(v.title) : []))}</div>` : `<p class="note" style="margin:6px 0 0">👥 Teilen mit anderen? <button type="button" class="link" id="mi-share">Personen einladen</button></p>`) : ""}
+      ${SHR_ON() && !(e && e.shared) ? (SHR.contacts.length ? `<div id="f-sh-wrap"><label>Teilen mit</label>${shrChips("data-fsh", e ? effTo(e) : [...new Set([...(v.title ? shrPick(v.title) : []), ...(["birthday"].includes(v.type) ? [] : autoLs())])])}</div>` : `<p class="note" style="margin:6px 0 0">👥 Teilen mit anderen? <button type="button" class="link" id="mi-share">Personen einladen</button></p>`) : ""}
       ${famGroups().length && gWritable() && !v.gReadOnly ? `<div class="vis" id="f-vis" role="radiogroup" aria-label="Wer sieht das?"><button type="button" role="radio" data-vis="me" aria-checked="${!isShareCal(v.gcal)}">🔒 Nur ich</button>${famGroups().map(g => `<button type="button" role="radio" data-vis="${esc(g.cal)}" aria-checked="${v.gcal === g.cal}">👪 ${esc(calName(g.cal))}</button>`).join("")}</div>` : ""}
       <div class="two"><div><label for="f-from" id="f-from-l">Von</label><input id="f-from" type="date" value="${esc(v.from)}"></div>
       <div id="f-to-wrap"><label for="f-to">Bis</label><input id="f-to" type="date" value="${esc(v.to)}"></div></div>
@@ -3546,7 +3608,7 @@ function formVals() {
     country: editing && (editing.place || "") === g("f-place") && editing.title === g("f-title") ? editing.country || "" : "",
     gcal: formVis !== "me" && isShareCal(formVis) ? formVis : $("f-gcal") ? (isShareCal($("f-gcal").value) && formVis === "me" && $("f-vis") ? "primary" : $("f-gcal").value) : (editing ? editing.gcal : ""), gReadOnly: editing ? !!editing.gReadOnly : false,
     fam: type === "birthday" && $("f-fam") ? $("f-fam").checked : (editing ? !!editing.fam : false),
-    shareTo: $("f-sh-wrap") ? chipSel("data-fsh", $("f-sh-wrap")) : (editing ? editing.shareTo || [] : []), sid: editing ? editing.sid || "" : "" };
+    ...($("f-sh-wrap") ? shSplit(chipSel("data-fsh", $("f-sh-wrap"))) : { shareTo: editing ? editing.shareTo || [] : [], shareNo: editing ? editing.shareNo || [] : [] }), sid: editing ? editing.sid || "" : "" };
 }
 const fMode = () => document.querySelector("[name=fmode]:checked")?.value || "";
 function validate(v) {
@@ -3575,7 +3637,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, country: e.country || "", fam: !!e.fam,
-  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], sid: e.sid || "", shadow: !!e.shadow });
+  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
 let gWarn = 0;
 async function applyChanges(changes) {
   const col = COLL("events"), undo = [];
@@ -3810,9 +3872,9 @@ Nachricht: ${txt}`;
       const ev = { ...plain(normalize("", a.event)) }; ev.birthYear = +a.event?.birthYear || 0;
       if (a.op === "update") { const old = EV.find(e => e.id === a.id); ev.gcal = old?.gcal || ""; ev.gEventId = old?.gEventId || ""; }
       else { const want = String(a.event?.calendar ?? "Mein Kalender").trim().toLowerCase();
-        ev.gcal = !want ? "" : /mein|peter|haupt|primary/.test(want) ? "primary" : (gCals.find(c => c.summary.toLowerCase() === want)?.id || "primary");
+        ev.gcal = !want ? "" : /mein|haupt|primary/.test(want) ? "primary" : (gCals.find(c => c.summary.toLowerCase() === want)?.id || "primary");
         if (famGroups().length && ev.type !== "birthday" && gWritable()) { const pick = famPick(ev.title + " " + (ev.note || "")) || famPick($("a-in")?.value || ""); if (pick) ev.gcal = pick; }
-        if (SHR_ON() && ev.type !== "birthday") ev.shareTo = shrPick(ev.title + " " + ($("a-in")?.value || "")); }
+        if (SHR_ON() && ev.type !== "birthday") ev.shareTo = [...new Set([...shrPick(ev.title + " " + ($("a-in")?.value || "")), ...autoLs()])]; }
       if (validate(ev)) return null;
       return { op: a.op, id: a.id, event: ev };
     }).filter(Boolean);
@@ -3842,7 +3904,7 @@ function actHtml(a, i) {
 }
 async function applyAssistant() {
   const picked = asstActions.map((a, i) => a.op === "add" && document.querySelector(`[data-acal="${i}"]`) ? { ...a, event: { ...a.event, gcal: document.querySelector(`[data-acal="${i}"]`).value } } : a)
-    .map((a, i) => a.op === "add" && document.querySelector(`[data-ash${i}]`) ? { ...a, event: { ...a.event, shareTo: chipSel(`data-ash${i}`) } } : a)
+    .map((a, i) => a.op === "add" && document.querySelector(`[data-ash${i}]`) ? { ...a, event: { ...a.event, ...shSplit(chipSel(`data-ash${i}`)) } } : a)
     .filter((_, i) => document.querySelector(`[data-act="${i}"]`)?.checked);
   if (!picked.length) { closeSheet(); return; }
   const btn = $("a-apply"); btn.disabled = true; btn.textContent = "Speichert …";
@@ -3987,6 +4049,7 @@ const isMe = c => !c || c.self === true || (!!myMail() && String(c.email || "").
 const hhmm = d => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
 function mapG(e, calId) {
   if (!e || e.status === "cancelled") return null;
+  if (APP && /^mks[a-v0-9]+/.test(String(e.id || "")) && /Mein Kalender/.test(String(e.description || ""))) return null;   // Spiegel eines geteilten Termins – erscheint schon als „geteilt“
   const s = e.start || {}, en = e.end || {};
   let a, b, time = "", endTime = "";
   if (s.date) { a = parseIso(s.date); b = addDays(parseIso(en.date) || addDays(a, 1), -1); }
@@ -4080,7 +4143,7 @@ async function initGoogle() {
     const list = Array.isArray(r?.payload?.calendars) ? r.payload.calendars : [];
     gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}), ...(c.accessRole ? { accessRole: String(c.accessRole) } : {}) }));
     store.set("ft-gcals", JSON.stringify(gCals));
-    gState = "ok"; gTry = 0; gLiveAt = Date.now();
+    gState = "ok"; gTry = 0; gLiveAt = Date.now(); shrMirrorQueue();
     { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
       const wzOff = () => !$("wz") || $("wz").hidden;
       if (wzOff() && PROFILE.setupDone && canWrite && (back || (!store.get("ft-gcal-asked") && !store.get("ft-gcal-sel")))) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} store.set("ft-gcal-asked", "1"); setTimeout(() => { if (wzOff() && ($("sheet").hidden || sheetMode === "google")) { closeSheet(); startGoogleSetup(); } }, 500); } }
@@ -4255,6 +4318,7 @@ function renderFirst() { const f = $("first-card"); if (!f) return;
   const n0 = store.get("ft-first"); f.hidden = !n0 || dbState !== "ready" || !canWrite || EV.length > +n0; }
 function renderHints() { renderHints0(); let one = false; document.querySelectorAll(".hint-card").forEach(c => { if (!c.hidden) { if (one) c.hidden = true; one = true; } }); }
 function renderHints0() {
+  const ic = $("inv-card"); if (ic) { ic.hidden = !shrAcc?.from || dbState !== "ready"; if (!ic.hidden) $("inv-card-t").textContent = `${shrAcc.from} möchte Termine mit dir teilen`; }
   renderFirst();
   const si = $("signin-card"), a2 = $("a2hs-card"); if (!si || !a2) return;
   si.hidden = dbState !== "off";
@@ -4553,7 +4617,7 @@ function wzClick(id, el) {
       if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
     case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
       PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); wzImport(); return true; }
-    case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (takeInvite()) return true; setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
+    case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (pendingInvite()) { takeInvite(); return true; } setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
     case "wz-invite": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 80); return true;
   }
   return false;
@@ -4593,7 +4657,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-shhide]"))) { SHR.hidden = [...new Set([...SHR.hidden, el.dataset.shhide])]; saveShr(); closeSheet(); shrMerge(); toast("Ausgeblendet"); return; }
   if ((el = q("[data-shscope]"))) { shrFor.scope = el.dataset.shscope; document.querySelectorAll("[data-shscope]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
   if ((el = q("[data-shrdel]"))) { const L = el.dataset.shrdel; if (el.dataset.arm !== "1") { el.dataset.arm = "1"; el.textContent = "Entfernen?"; el.classList.add("arm"); return; }
-    SHR.contacts = SHR.contacts.filter(c => c.L !== L); SHR.groups.forEach(g => g.members = g.members.filter(x => x !== L)); saveShr(); showShareMgr(); return; }
+    shrRemove(L); return; }
   if ((el = q("[data-grpedit]"))) { const g = SHR.groups.find(x => x.id === el.dataset.grpedit); if (g) { shrGrp = { ...g }; showShareMgr(); } return; }
   if ((el = q("[data-grprm]"))) { SHR.groups = SHR.groups.filter(x => x.id !== el.dataset.grprm); saveShr(); showShareMgr(); return; }
   if ((el = q("[data-move]"))) { const e = EV.find(x => x.id === el.dataset.move); if (e) startMove(e); return; }
@@ -4702,9 +4766,10 @@ document.addEventListener("click", ev => {
     case "mi-share": shrNew = null; shrAcc = null; shrGrp = null; showShareMgr(); break;
     case "shr-new": shrNew = { name: "" }; showShareMgr(); setTimeout(() => $("shr-name")?.focus(), 50); break;
     case "shr-new-x": case "shr-new-done": shrNew = null; showShareMgr(); break;
-    case "shr-new-go": { const n = $("shr-name").value.trim(); if (n) shrInvite(n); else $("shr-name").focus(); break; }
+    case "shr-new-go": { const n = $("shr-name").value.trim(); if (n) shrInvite(n, $("shr-new-auto")?.checked); else $("shr-name").focus(); break; }
     case "shr-acc": shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 50); break;
-    case "shr-acc-x": shrAcc = null; showShareMgr(); break;
+    case "shr-acc-x": { const big = sheetMode === "invite"; shrAcc = null; invDone(); renderHints(); if (big) { closeSheet(); toast("Einladung abgelehnt"); } else showShareMgr(); break; }
+    case "inv-card-go": showInvite(); break;
     case "shr-acc-go": shrCheck(pickCode($("shr-code").value)); break;
     case "shr-paste": (async () => { let t = ""; try { t = await navigator.clipboard.readText(); } catch {}
       const c = pickCode(t); if (c) { $("shr-code").value = fmtCode(c); shrCheck(c); } else { $("shr-code").focus(); toast("Bitte lange in das Feld drücken und „Einfügen“ wählen"); } })(); break;
@@ -4803,6 +4868,9 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.stjoint) { const c = ev.target.dataset.stjoint; JOINT = ev.target.checked ? [...JOINT.filter(x => x !== c), c] : JOINT.filter(x => x !== c);
     saveXst(); renderAll(); showSettings(); return; }
   if (ev.target.dataset?.xst) { const c = ev.target.dataset.xst; XST = ev.target.checked ? [...XST.filter(x => x !== c), c] : XST.filter(x => x !== c); saveXst(); renderAll(); if (sheetMode === "settings") { showSettings(); const g = document.querySelector("details.setgrp.sub"); if (g) g.open = true; } return; }
+  if (ev.target.dataset?.shrauto) { const c = contactBy(ev.target.dataset.shrauto); if (c) { c.auto = ev.target.checked; saveShr(); shrQueue(); showShareMgr(); toast(c.auto ? `Deine Termine werden automatisch mit ${c.name} geteilt` : `Nur noch ausgewählte Termine an ${c.name}`); } return; }
+  if (ev.target.dataset?.shrshow) { const c = contactBy(ev.target.dataset.shrshow); if (c) { c.show = ev.target.checked; saveShr(); shrMerge(); } return; }
+  if (ev.target.id === "shr-gcal") { SHR.gcal = ev.target.value; saveShr(); shrMirrorQueue(); toast("Geteilte Termine kommen jetzt in diesen Kalender"); return; }
   if (ev.target.dataset?.show) { SHOW[ev.target.dataset.show] = ev.target.checked; store.set("ft-show", JSON.stringify(SHOW)); renderAll(); return; }
   if (ev.target.id === "g-show") { gShow = ev.target.checked; store.set("ft-gcal-show", gShow ? "1" : "0"); renderGPill(); if (!gShow) resetGoogleWatches(); else renderAll(); if (sheetMode === "settings") showSettings(); else showGoogleSheet(); return; }
   if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; store.set("ft-gcal-sel", JSON.stringify([...s])); resetGoogleWatches(); return; }
@@ -4812,7 +4880,7 @@ document.addEventListener("input", ev => {
   if (ev.target.id === "f-title" && !$("f-place")?.value.trim() && !$("f-place")?.hidden) osmQueue(ev.target.value, true, 900);
   if (ev.target.id === "doc-q") { docQ = ev.target.value; const pos = ev.target.selectionStart; showDocs(); const i = $("doc-q"); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch {} } return; }
   if (ev.target.id === "shr-code") { const c = pickCode(ev.target.value); if (c.length === 12 && /[-\s]|^.{12}$/.test(ev.target.value.trim()) && ev.target.value.length >= 12 && !shrAcc?.checking) { shrAcc = { ...(shrAcc || {}), checking: true }; ev.target.value = fmtCode(c); shrCheck(c); } return; }
-  if (ev.target.id === "f-title" && $("f-sh-wrap") && !formShManual && !editing) { const pick = new Set(shrPick(ev.target.value)); $("f-sh-wrap").querySelectorAll("[data-fsh]").forEach(i => { const v = i.dataset.fsh; i.checked = v.startsWith("g:") ? (SHR.groups.find(g => g.id === v.slice(2))?.members || []).every(L => pick.has(L)) && pick.size > 0 : pick.has(v); }); }
+  if (ev.target.id === "f-title" && $("f-sh-wrap") && !formShManual && !editing) { const pick = new Set([...shrPick(ev.target.value), ...($("f-type")?.value === "birthday" ? [] : autoLs())]); $("f-sh-wrap").querySelectorAll("[data-fsh]").forEach(i => { const v = i.dataset.fsh; i.checked = v.startsWith("g:") ? (SHR.groups.find(g => g.id === v.slice(2))?.members || []).every(L => pick.has(L)) && pick.size > 0 : pick.has(v); }); }
   if (ev.target.id === "fam-q") { famQ = ev.target.value; clearTimeout(window.__fqT); window.__fqT = setTimeout(() => { window.__fqFocus = true; showFamily(); window.__fqFocus = false; }, 220); return; }
   if (ev.target.dataset?.fpe) { const [k, f] = ev.target.dataset.fpe.split("|"), pk = FPICK.get(k); if (pk && f === "name") pk.name = ev.target.value; return; }
   if (ev.target.id === "fam-me") { famSave({ name: ev.target.value.trim() }); return; }
