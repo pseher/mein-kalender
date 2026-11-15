@@ -17,7 +17,7 @@ const fmtY = dt => `${fmt(dt)}${dt.getFullYear()}`;
 const rngTxt = (a, b, long) => sameDay(a, b) ? (long ? fmtY(a) : fmt(a)) : `${fmt(a)} – ${long ? fmtY(b) : fmt(b)}`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const $ = id => document.getElementById(id);
-const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col"];   // Anzeige-Einstellungen: auch im Konto speichern
+const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col", "ft-entry"];   // Anzeige-Einstellungen: auch im Konto speichern
 let uiSaveHook = null;
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} if (UI_KEYS.includes(k)) uiSaveHook?.(); } };
 const TODAY = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); })();
@@ -2604,7 +2604,7 @@ function showForm(e, preset) {
   fTimeOpen = !!(v.time || v.endTime);
   const rd = v.remindDays === undefined || v.remindDays === "" ? "" : v.remindDays;
   openSheet(editing ? "Bearbeiten" : "Neu eintragen", editing ? TYPES[v.type]?.label || "" : "Felder ausfüllen und speichern", `
-    <form id="f" class="form" novalidate>
+    <form id="f" class="form" novalidate>${editing ? "" : entrySw("form")}
       <div class="two"><div><label for="f-type">Art</label>
       <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
@@ -2845,16 +2845,25 @@ async function delEvent(btn, id) {
 // =================== Assistent (wie im Chat) ===================
 let asstActions = [];
 let ASST_FILES = [];
+// Eintragen: Freitext oder Formular – jederzeit umschaltbar, die letzte Wahl wird gemerkt
+const entryMode = () => store.get("ft-entry") === "form" || !sample || !canWrite ? "form" : "text";
+const entrySw = cur => sample && canWrite ? `<div class="seg emode" role="tablist" aria-label="Eingabe"><button type="button" role="tab" data-emode="text" aria-selected="${cur === "text"}">✍️ Freitext</button><button type="button" role="tab" data-emode="form" aria-selected="${cur === "form"}">📋 Formular</button></div>` : "";
+function newEntry(preset) { if (dbState === "off") return showSignin(); entryMode() === "form" ? showForm(null, preset || iso(TODAY)) : showAssistant(); }
+function switchEntry(m) {
+  store.set("ft-entry", m);
+  if (m === "form") { const t = ($("a-in")?.value || "").trim(); showForm(null, iso(TODAY)); if (t && t.length <= 60 && !/\n/.test(t)) { const f = $("f-title"); if (f) { f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); } } }
+  else { const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""); showAssistant(); const i = $("a-in"); if (i) { const pre = d && !sameDay(d, TODAY) ? `am ${p2(d.getDate())}.${p2(d.getMonth() + 1)}. ` : ""; i.value = t ? pre + t : ""; } }
+}
 function showAssistant(keepFiles) {
   if (dbState === "off") return showSignin();
   if (!keepFiles) ASST_FILES = [];
   const ex = ["Zahnarzt Donnerstag 16 Uhr", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
   openSheet("Eintragen", "Schreib einfach, was ansteht oder sich ändert", `
-    <div class="asst">
+    <div class="asst">${entrySw("text")}
       <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
       ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
-      <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button><button type="button" class="btn ghost" id="a-form">Formular</button></div>
+      <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button></div>
       <div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
       <div id="a-out"></div>
     </div>`, "asst");
@@ -3870,6 +3879,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-gsend]"))) { const e = EV.find(x => x.id === el.dataset.gsend); if (e) { el.disabled = true; applyChanges([{ op: "update", id: e.id, event: plain(e) }]).then(() => toast("An Google gesendet"), err => toast(writeErr(err))); } return; }
   if ((el = q("[data-topic]"))) { shTopic = el.dataset.topic; renderShareBox(); return; }
   if ((el = q("[data-bday]"))) { const o = OCC.find(x => x.ev.id === el.dataset.bday && x.a.getFullYear() === selYear) || OCC.find(x => x.ev.id === el.dataset.bday); if (o) showEvent(o); else { const e = EV.find(x => x.id === el.dataset.bday); if (e) showForm(e); } return; }
+  if ((el = q("[data-emode]"))) { if (el.getAttribute("aria-selected") !== "true") switchEntry(el.dataset.emode); return; }
   if ((el = q("[data-add]"))) { showForm(null, el.dataset.add); return; }
   if ((el = q("[data-shift]"))) { shiftForm(+el.dataset.shift); return; }
   if ((el = q("[data-view]"))) { setView(el.dataset.view); return; }
@@ -3940,7 +3950,7 @@ document.addEventListener("click", ev => {
     case "test-setup": closeSheet(); startSetup(true); break;
     case "test-gate": closeSheet(); showGate(); break;
     case "signin-open": showSignin(); break;
-    case "first-add": store.set("ft-first", ""); renderHints(); showAssistant(); break;
+    case "first-add": store.set("ft-first", ""); renderHints(); newEntry(); break;
     case "first-no": store.set("ft-first", ""); renderHints(); break;
     case "sheet-close2": closeSheet(); break;
     case "app-login": window.mkSignIn?.(); break;
@@ -4053,7 +4063,7 @@ document.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "a-in" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); runAssistant(); }
   if (ev.key === "Escape") { if (moving) stopMove(); else if (!sheet.hidden) closeSheet(); }
 });
-$("add-btn").addEventListener("click", showAssistant);
+$("add-btn").addEventListener("click", () => newEntry());
 $("sheet-close").addEventListener("click", closeSheet);
 $("move-cancel").addEventListener("click", stopMove);
 $("m-prev").addEventListener("click", () => stepCal(-1));
