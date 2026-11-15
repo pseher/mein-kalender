@@ -2853,11 +2853,12 @@ let ASST_FILES = [];
 // Eintragen: Freitext oder Formular – jederzeit umschaltbar, die letzte Wahl wird gemerkt
 const entryMode = () => store.get("ft-entry") === "form" || !sample || !canWrite ? "form" : "text";
 const entrySw = cur => sample && canWrite ? `<div class="seg emode" role="tablist" aria-label="Eingabe"><button type="button" role="tab" data-emode="text" aria-selected="${cur === "text"}">✍️ Freitext</button><button type="button" role="tab" data-emode="form" aria-selected="${cur === "form"}">📋 Formular</button></div>` : "";
-function newEntry(preset) { if (dbState === "off") return showSignin(); entryMode() === "form" ? showForm(null, preset || iso(TODAY)) : showAssistant(); }
+let ASST_DAY = null;   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
+function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; showAssistant(); } }
 function switchEntry(m) {
   store.set("ft-entry", m);
-  if (m === "form") { const t = ($("a-in")?.value || "").trim(); showForm(null, iso(TODAY)); if (t && t.length <= 60 && !/\n/.test(t)) { const f = $("f-title"); if (f) { f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); } } }
-  else { const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""); showAssistant(); const i = $("a-in"); if (i) { const pre = d && !sameDay(d, TODAY) ? `am ${p2(d.getDate())}.${p2(d.getMonth() + 1)}. ` : ""; i.value = t ? pre + t : ""; } }
+  if (m === "form") { const t = ($("a-in")?.value || "").trim(); showForm(null, ASST_DAY ? iso(ASST_DAY) : iso(TODAY)); if (t && t.length <= 60 && !/\n/.test(t)) { const f = $("f-title"); if (f) { f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); } } }
+  else { const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""); ASST_DAY = d && !sameDay(d, TODAY) ? d : null; showAssistant(); const i = $("a-in"); if (i && t) i.value = t; }
 }
 function showAssistant(keepFiles) {
   if (dbState === "off") return showSignin();
@@ -2865,6 +2866,7 @@ function showAssistant(keepFiles) {
   const ex = ["Zahnarzt Donnerstag 16 Uhr", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
   openSheet("Eintragen", "Schreib einfach, was ansteht oder sich ändert", `
     <div class="asst">${entrySw("text")}
+      ${ASST_DAY ? `<div class="a-day" id="a-day">📅 für <b>${fmt(ASST_DAY)}${ASST_DAY.getFullYear() !== TODAY.getFullYear() ? ASST_DAY.getFullYear() : ""}</b><button type="button" class="link" data-act="a-day-x" aria-label="Tag entfernen">✕</button></div>` : ""}
       <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
       ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
@@ -2972,7 +2974,8 @@ Bei einer reinen Frage: actions = []. Erfinde keine ids. Wenn bei einer ÄNDERUN
 Stichworte sind erlaubt: Kurze Eingaben wie "Abholen 20.12", "Friseur Freitag", "Reifen 3.4." sind ein Auftrag zum Eintragen – IMMER sofort als "add" vorschlagen, mit dem, was da ist (title aus dem Stichwort, sinnvoll großgeschrieben; time und place leer lassen). NICHT nach Uhrzeit, Ort oder Details fragen – das kann man später ergänzen. Datum ohne Jahr: das nächste kommende. Nur wenn gar kein Datum erkennbar ist, kurz nachfragen.
 
 ${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
-Nachricht: ${txt || "(nur Anhänge)"}`;
+${ASST_DAY ? `Im Kalender gewählter Tag: ${iso(ASST_DAY)} (${WDL[ASST_DAY.getDay()]}). Nennt die Nachricht kein eigenes Datum, gilt sie für diesen Tag (from = to = ${iso(ASST_DAY)}, außer es ist erkennbar ein Zeitraum ab diesem Tag) – dann NICHT nach dem Datum fragen.
+` : ""}Nachricht: ${txt || "(nur Anhänge)"}`;
   const tools = canTools ? [{ name: "find_events", description: "Sucht eigene und Google-Termine in einem Zeitraum (höchstens 400 Tage). Gibt eine Liste mit id, quelle, titel, von, bis, zeit zurück. Optional nach Wörtern im Titel filtern.",
     inputSchema: { type: "object", properties: { from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" }, query: { type: "string", description: "optionale Suchwörter, z. B. Zahnarzt oder Urlaub" } }, required: ["from", "to"] },
     execute: async (i, ctx) => ({ termine: await lookupEvents(String(i.from || ""), String(i.to || i.from || ""), String(i.query || ""), ctx?.signal) }) }] : undefined;
@@ -3889,7 +3892,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-topic]"))) { shTopic = el.dataset.topic; renderShareBox(); return; }
   if ((el = q("[data-bday]"))) { const o = OCC.find(x => x.ev.id === el.dataset.bday && x.a.getFullYear() === selYear) || OCC.find(x => x.ev.id === el.dataset.bday); if (o) showEvent(o); else { const e = EV.find(x => x.id === el.dataset.bday); if (e) showForm(e); } return; }
   if ((el = q("[data-emode]"))) { if (el.getAttribute("aria-selected") !== "true") switchEntry(el.dataset.emode); return; }
-  if ((el = q("[data-add]"))) { showForm(null, el.dataset.add); return; }
+  if ((el = q("[data-add]"))) { newEntry(el.dataset.add); return; }
   if ((el = q("[data-shift]"))) { shiftForm(+el.dataset.shift); return; }
   if ((el = q("[data-view]"))) { setView(el.dataset.view); return; }
   if ((el = q("[data-year]"))) { setYear(+el.dataset.year); return; }
@@ -3902,6 +3905,7 @@ document.addEventListener("click", ev => {
     case "f-dup": { const v = formVals(); v.gEventId = ""; showForm(v); toast("Kopie: Daten anpassen und speichern"); break; }
     case "a-go": runAssistant(); break;
     case "a-form": showForm(null, iso(TODAY)); break;
+    case "a-day-x": ASST_DAY = null; $("a-day")?.remove(); break;
     case "a-apply": applyAssistant(); break;
     case "share-copy": copyShare(); break;
     case "share-save": saveShare(); break;
@@ -3944,7 +3948,7 @@ document.addEventListener("click", ev => {
     case "shto-save": shrSaveEv(); break;
     case "rg-trip": showForm({ ...window.__rg.base, type: "trip" }); break;
     case "rg-term": showForm({ ...window.__rg.base, type: "termin" }); break;
-    case "rg-text": { const r = window.__rg, A = parseIso(r.a), B = parseIso(r.b); showAssistant(); setTimeout(() => { const i = $("a-in"); if (i) { i.value = `vom ${p2(A.getDate())}.${p2(A.getMonth() + 1)}. bis ${p2(B.getDate())}.${p2(B.getMonth() + 1)}.: `; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 60); break; }
+    case "rg-text": { const r = window.__rg, A = parseIso(r.a), B = parseIso(r.b); ASST_DAY = null; showAssistant(); setTimeout(() => { const i = $("a-in"); if (i) { i.value = `vom ${p2(A.getDate())}.${p2(A.getMonth() + 1)}. bis ${p2(B.getDate())}.${p2(B.getMonth() + 1)}.: `; i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 60); break; }
     case "shto-x": closeSheet(); break;
     case "fam-pick-clear": FPICK = new Map(); famDelArm = ""; showFamily(); break;
     case "fam-pick-del": if (famDelArm === "*") bdDelete([...FPICK.keys()]); else { famDelArm = "*"; showFamily(); } break;
