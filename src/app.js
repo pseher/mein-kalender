@@ -3864,6 +3864,7 @@ document.addEventListener("click", ev => {
     case "fam-new": { const n = famQ.trim(); if (n) { FAMED.push({ name: n, role: "andere", birthday: "" }); famQ = ""; famSave(); showFamily(); } break; }
     case "menu-btn": toggleMenu(); break;
     case "mi-google": showGoogleSheet(); break;
+    case "g-btn": showGoogleSheet(); break;
     case "mi-docs": DOCSEL = new Set(); docQ = ""; docDelArm = false; showDocs(); break;
     case "mi-fam": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "mi-share2": showFamShare(); break;

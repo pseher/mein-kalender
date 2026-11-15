@@ -600,6 +600,7 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .form .f-att label.btn { text-transform: none; letter-spacing: normal; font-size: 14px; margin: 0; }
 .f-link { display: flex; gap: 6px; width: 100%; } .f-link input { flex: 1; min-width: 0; }
 .nt-st { font-weight: 600; margin-bottom: 8px; } .nt-st.on { color: var(--st-strong, var(--both)); } .nt-sel { width: auto; max-width: 9.5em; margin-right: 8px; font-size: 14px; padding: 6px 8px; }
+button.tb-g { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .upsec h3 b { font-size: 11px; color: var(--muted); } .upsec h3 b.hot { background: var(--holiday); color: #fff; border-radius: 999px; padding: 0 6px; }
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
@@ -838,7 +839,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
   <header class="top">
     <h1>Mein Kalender<small id="hdr-states"></small></h1>
     <div class="tb">
-    <div class="tb-b tb-g" id="g-btn" role="status" hidden aria-label="Google Kalender"><span id="g-lbl">G</span><i id="g-dot"></i><span class="badge" id="g-badge" hidden></span></div>
+    <button type="button" class="tb-b tb-g" id="g-btn" hidden aria-label="Google Kalender: Status und abgleichen"><span id="g-lbl">G</span><i id="g-dot"></i><span class="badge" id="g-badge" hidden></span></button>
     <button type="button" class="tb-b" id="menu-btn" aria-label="Menü" aria-expanded="false" aria-controls="menu"><span class="hb" aria-hidden="true"></span><i class="rdot" id="menu-dot" hidden></i></button></div>
     <nav class="menu" id="menu" hidden aria-label="Menü">
       <button type="button" class="mi" data-mi id="show-btn"><i class="dotc" style="--c:var(--both)"></i>Anzeigen</button>
