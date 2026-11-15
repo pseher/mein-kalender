@@ -429,7 +429,7 @@ button { font: inherit; color: inherit; }
 .grid .kw { font-family: var(--f-mono); font-size: 9px; color: var(--muted); display: flex; align-items: center; opacity: .7; }
 .d { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; border-radius: 5px;
   border: 0; padding: 0; margin: 0; background: transparent; color: var(--fg); cursor: pointer; min-width: 0; }
-.d:hover { outline: 1px solid var(--muted); outline-offset: -1px; }
+@media (hover: hover) { .d:hover { outline: 1px solid var(--muted); outline-offset: -1px; } }
 .d.sel { outline: 2px solid var(--fg); outline-offset: 1px; z-index: 2; }
 .d.we { color: var(--muted); }
 .d.fbe { background: var(--be); color: var(--be-ink); }
@@ -516,8 +516,9 @@ a.btn { text-decoration: none; display: inline-block; }
 .mt.hall .num { background: var(--holiday); color: var(--holiday-ink); } .mt.hbe .num { background: var(--be-strong); color: #fff; } .mt.hst .num { background: var(--st-strong); color: #fff; }
 .mt.today .num { box-shadow: 0 0 0 2px var(--fg); }
 .mt.br { box-shadow: inset 0 0 0 2px var(--bridge); }
-.mt.sel { outline: 2px solid var(--fg); outline-offset: 1px; z-index: 2; }
-.mt:hover { filter: brightness(.97); }
+.mt.sel { box-shadow: inset 0 0 0 2px var(--fg); }   /* kein z-index: sonst deckt das Kästchen die Termin-Balken zu */
+.mt.br.sel { box-shadow: inset 0 0 0 2px var(--fg), inset 0 0 0 4px var(--bridge); }
+@media (hover: hover) { .mt:hover { filter: brightness(.97); } }
 .bm.moving .mt { cursor: copy; }
 .ch { display: block; flex: none; font-size: 10.5px; line-height: 15px; font-weight: 500; padding: 0 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ch b { font-weight: 600; opacity: .85; }
