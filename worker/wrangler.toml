@@ -13,7 +13,11 @@ DAILY_LIMIT = "40"                                      # KI-Anfragen pro Nutzer
 IMAGE_DAILY_LIMIT = "10"                                # davon mit Bildern/Dokumenten
 GOOGLE_CLIENT_ID = "15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"
 
+[triggers]
+crons = ["*/5 * * * *"]                               # alle 5 Minuten: fällige Benachrichtigungen verschicken
+
 # Geheime Werte NICHT hier eintragen, sondern:
 #   npx wrangler secret put ANTHROPIC_KEY
 #   npx wrangler secret put SUPABASE_SERVICE_KEY
 #   npx wrangler secret put GOOGLE_CLIENT_SECRET
+#   npx wrangler secret put VAPID_JWK        (Schlüssel für Benachrichtigungen, erzeugt auf /vapid.html)

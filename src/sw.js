@@ -17,3 +17,16 @@ self.addEventListener("fetch", e => {
     return hit || net;
   }));
 });
+
+// ---- Benachrichtigungen ----
+self.addEventListener("push", e => {
+  let m = {}; try { m = e.data ? e.data.json() : {}; } catch { m = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(m.title || "Mein Kalender", { body: m.body || "", tag: m.tag || undefined, renotify: !!m.tag,
+    icon: "/icon-192.png", badge: "/icon-192.png", data: { url: m.url || "/app/", route: m.route || "" }, actions: m.route ? [{ action: "route", title: "🧭 Route" }] : [] }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close(); const d = e.notification.data || {};
+  if (e.action === "route" && d.route) { e.waitUntil(clients.openWindow(d.route)); return; }
+  const url = new URL(d.url || "/app/", self.location.origin).href;
+  e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(ws => { const w = ws.find(x => x.url.includes("/app/")); if (w) return w.focus(); return clients.openWindow(url); }));
+});

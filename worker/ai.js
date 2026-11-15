@@ -8,23 +8,28 @@
 //                                  MODEL_QUICK, MODEL_DEFAULT, DAILY_LIMIT, IMAGE_DAILY_LIMIT,
 //                                  GOOGLE_CLIENT_ID  (+ Secret GOOGLE_CLIENT_SECRET für /google/token)
 
+import { vapid, runSchedule, testPush } from "./push.js";
+
 const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
 export default {
+  // Zeitplan (wrangler.toml → [triggers]): fällige Benachrichtigungen verschicken
+  async scheduled(ev, env, ctx) { ctx.waitUntil(runSchedule(env).catch(e => console.log("push", e))); },
   async fetch(req, env) {
     const origin = req.headers.get("Origin") || "";
     const allowed = (env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
     const cors = {
       "Access-Control-Allow-Origin": allowed.includes(origin) ? origin : allowed[0] || "",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
       "Vary": "Origin",
     };
     const out = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15e", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page"] });
-    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15f", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -36,6 +41,8 @@ export default {
 
     // Konto löschen: Google-Freigabe zurückziehen, dann den Supabase-Nutzer löschen –
     // alle Zeilen in docs, outbox und ai_usage hängen per „on delete cascade“ daran und verschwinden mit.
+    if (route === "/push/test") return out(200, await testPush(env, user.id).catch(e => ({ ok: false, code: "error", detail: String(e).slice(0, 120) })));
+
     // Link auslesen (Buchungsbestätigung, Ticket-Seite …): Seite holen und als Text zurückgeben – nur öffentliche https-Seiten
     if (route === "/page") {
       let url = ""; try { url = String((await req.json()).url || ""); } catch {}

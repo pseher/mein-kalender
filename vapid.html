@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Schlüssel für Benachrichtigungen</title>
+<style>
+:root{--bg:#f4f5f7;--fg:#16191d;--muted:#5b636e;--card:#fff;--line:#dfe3e8;--acc:#0f6e73}
+@media (prefers-color-scheme:dark){:root{--bg:#111417;--fg:#eef1f4;--muted:#9aa4ae;--card:#1b1f24;--line:#2d333a;--acc:#2bb3b8}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:24px;margin:0 0 8px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+button{font:inherit;font-weight:600;background:var(--acc);color:#fff;border:0;border-radius:999px;padding:11px 20px;cursor:pointer}
+textarea{width:100%;box-sizing:border-box;font:13px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:110px}
+.note{color:var(--muted);font-size:14px}ol{padding-left:20px}li{margin:6px 0}code{background:var(--bg);padding:1px 5px;border-radius:5px}
+</style></head><body><main>
+<h1>Schlüssel für Benachrichtigungen</h1>
+<p class="note">Diese Seite erzeugt den geheimen Schlüssel, mit dem dein Worker Benachrichtigungen unterschreibt. Er entsteht <b>nur hier in deinem Browser</b> – er wird nirgendwohin geschickt und nicht gespeichert.</p>
+<div class="card"><button id="go">Schlüssel erzeugen</button>
+<div id="out" hidden><p><b>Dein geheimer Schlüssel</b> (komplett kopieren):</p><textarea id="k" readonly></textarea>
+<p><button id="cp">Kopieren</button> <span class="note" id="ok"></span></p></div></div>
+<div class="card"><b>So geht's weiter</b><ol>
+<li>Cloudflare → <b>Workers &amp; Pages → mein-kalender-ki → Einstellungen → Variablen und Geheimnisse</b></li>
+<li><b>Hinzufügen</b>, Typ <b>Geheimnis</b>, Name <code>VAPID_JWK</code>, Wert einfügen → <b>Bereitstellen</b></li>
+<li>In der App: <b>☰ → Benachrichtigungen → einschalten</b></li></ol>
+<p class="note">Den Schlüssel nicht weitergeben und nicht in Chats einfügen. Erzeugst du später einen neuen, müssen alle Geräte die Benachrichtigungen einmal neu einschalten.</p></div>
+</main><script>
+document.getElementById("go").onclick = async () => {
+  const k = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const j = await crypto.subtle.exportKey("jwk", k.privateKey);
+  document.getElementById("k").value = JSON.stringify({ kty: "EC", crv: "P-256", x: j.x, y: j.y, d: j.d });
+  document.getElementById("out").hidden = false;
+};
+document.getElementById("cp").onclick = async () => { const t = document.getElementById("k"); t.select(); try { await navigator.clipboard.writeText(t.value); document.getElementById("ok").textContent = "Kopiert ✓"; } catch { document.execCommand("copy"); document.getElementById("ok").textContent = "Kopiert ✓"; } };
+</script></body></html>

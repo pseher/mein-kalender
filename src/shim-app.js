@@ -32,6 +32,9 @@ window.MK_APP = true;
   const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
   const keepGoogle = s => { if (!s?.provider_token) return; lsSet(GK.at, s.provider_token); lsSet(GK.exp, String(Date.now() + 50 * 60e3)); if (s.provider_refresh_token) lsSet(GK.rt, s.provider_refresh_token); };
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
+  // Benachrichtigungen: öffentlicher Schlüssel & Test über den Worker
+  window.mkPushKey = async () => { const r = await fetch(CFG.workerUrl + "/push/key"); const b = await r.json().catch(() => ({})); if (!b.key) throw Object.assign(new Error("no key"), { code: b.code || "no_vapid" }); return b.key; };
+  window.mkPushTest = async () => { const s = await freshSession(); const r = await fetch(CFG.workerUrl + "/push/test", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: "{}" }); return r.json().catch(() => ({ ok: false })); };
   // Link auslesen (über den Worker, wegen CORS)
   window.mkReadLink = async url => {
     const s = await freshSession(); if (!s) throw new Error("Nicht angemeldet");

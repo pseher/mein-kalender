@@ -1208,7 +1208,7 @@ function renderUp() {
   $("up-empty").hidden = !(dbState === "off" || (!any && dbState === "ready"));
   $("up-empty").textContent = dbState === "off" ? (APP ? "Melde dich mit Google an (kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du." : "Melde dich bei Claude an (das Konto ist kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du.") : "In den nächsten 14 Tagen steht nichts Besonderes an.";
   $("today-lbl").textContent = `${WDL[TODAY.getDay()]}, ${TODAY.getDate()}. ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
-  renderToday(); renderHints(); renderTasks(); renderFocus();
+  renderToday(); renderHints(); renderTasks(); renderFocus(); pushPlanQueue();
   if (canWrite) osmPrefetch();
 }
 // ---- Kompakte Heute-Seite: eine Liste „Heute & Morgen“, der Rest auf Wunsch ----
@@ -2310,6 +2310,99 @@ const findOcc = (id, a) => OCC.find(o => o.ev.id === id && iso(o.a) === a) || OC
 
 // =================== Sheets ===================
 const sheet = $("sheet");
+// =================== Benachrichtigungen (Web-Push) ===================
+const NT_DEF = { eve: true, eveTime: "20:00", ev: true, evLead: 60, bd: true, fest: true, shared: true };
+let NTP = { ...NT_DEF }, ntSub = null, ntLoaded = false;
+const ntSupported = () => APP && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const ntIOSNeedsInstall = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !IS_STANDALONE;
+const swReady = () => Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 3000))]);
+const unb64u = s => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+const subId = ep => { let h = 0; for (const c of ep) h = (h * 31 + c.charCodeAt(0)) | 0; return "s" + (h >>> 0).toString(36) + ep.length.toString(36); };
+async function ntRefresh() { if (!ntSupported()) return null; try { const reg = await swReady(); ntSub = reg ? await reg.pushManager.getSubscription() : null; } catch { ntSub = null; }
+  const v = $("mi-notify-v"); if (v) v.textContent = ntSub && Notification.permission === "granted" ? "an" : ""; return ntSub; }
+function ntStart() {
+  if (!APP || !canWrite) return; const mi = $("mi-notify"); if (mi) mi.hidden = false;
+  COLL("prefs").doc("pushcfg").onSnapshot(d => { NTP = { ...NT_DEF, ...(d.exists ? d.data() || {} : {}) }; ntLoaded = true; pushPlanQueue(); if (sheetMode === "notify") showNotify(); });
+  ntRefresh().then(s => { if (s) COLL("pushsub").doc(subId(s.endpoint)).set({ ...s.toJSON(), ua: navigator.userAgent.slice(0, 120), at: new Date().toISOString() }).catch(() => {}); });
+}
+async function showNotify(msg) {
+  if (sheetMode !== "notify") closeMenu();
+  await ntRefresh();
+  const on = !!ntSub && Notification.permission === "granted", N = NTP;
+  const tg = (k, label, sub, extra = "") => `<label class="sr2"><span>${label}${sub ? `<small>${sub}</small>` : ""}</span>${extra}<input type="checkbox" class="swi" data-nt="${k}"${N[k] ? " checked" : ""}></label>`;
+  const times = ["18:00", "19:00", "20:00", "21:00", "22:00"].map(t => `<option${N.eveTime === t ? " selected" : ""}>${t}</option>`).join("");
+  const leads = [[15, "15 Min."], [30, "30 Min."], [60, "1 Std."], [120, "2 Std."], [1440, "1 Tag"]].map(([v, l]) => `<option value="${v}"${+N.evLead === v ? " selected" : ""}>${l} vorher</option>`).join("");
+  const status = !ntSupported() ? `<p class="note">Dieses Gerät oder dieser Browser kann keine Benachrichtigungen empfangen.</p>`
+    : ntIOSNeedsInstall() ? `<p class="note">Auf dem iPhone kommen Benachrichtigungen nur, wenn „Mein Kalender“ auf dem Home-Bildschirm installiert ist: in Safari <b>Teilen → Zum Home-Bildschirm</b>, dann von dort öffnen.</p>`
+    : Notification.permission === "denied" ? `<p class="note">Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Browser- bzw. App-Einstellungen (Website-Einstellungen → Benachrichtigungen) und öffne dieses Fenster erneut.</p>`
+    : on ? `<div class="nt-st on">🔔 Auf diesem Gerät eingeschaltet</div><div class="btnrow"><button type="button" class="btn ghost small" id="nt-test">Test senden</button><button type="button" class="btn ghost small" id="nt-off">Auf diesem Gerät aus</button></div>`
+    : `<div class="nt-st">Auf diesem Gerät noch aus</div><button type="button" class="btn accent big" id="nt-on">🔔 Benachrichtigungen einschalten</button>`;
+  openSheet("Benachrichtigungen", "Gilt für alle deine Geräte, auf denen sie eingeschaltet sind", `<div class="setv">
+    <div class="sg">${status}${msg ? `<p class="note" role="status">${esc(msg)}</p>` : ""}</div>
+    <div class="sg-t">Was soll kommen?</div><div class="sg">
+      ${tg("eve", "Überblick für morgen", "Termine, Aufgaben, Feiertage – nur wenn etwas ansteht", `<select class="fin nt-sel" data-ntv="eveTime">${times}</select>`)}
+      ${tg("ev", "Erinnerung vor Terminen mit Uhrzeit", "mit „Route“-Knopf, wenn ein Ort eingetragen ist", `<select class="fin nt-sel" data-ntv="evLead">${leads}</select>`)}
+      ${tg("bd", "Geburtstage, Fristen & Reisen", "am Tag selbst, mit Vorlauf („schon ein Geschenk?“) und vor Reisen („Packliste checken“)")}
+      ${tg("fest", "Weihnachten, Mutter- & Vatertag", "rechtzeitig an Geschenke für deine Liebsten denken")}
+      ${tg("shared", "Geteilte Termine", "wenn jemand etwas mit dir teilt, ändert oder löscht")}
+    </div>
+    <p class="note">Abfahrtszeit mit echter Fahrzeit („jetzt losfahren“) kann die App noch nicht berechnen – stell die Erinnerung dafür z. B. auf 1 Std. vorher und tippe auf „Route“.</p></div>`, "notify");
+}
+async function notifyOn() {
+  try {
+    if ((await Notification.requestPermission()) !== "granted") return showNotify("Ohne Erlaubnis kann ich keine Benachrichtigungen schicken.");
+    const key = await window.mkPushKey(), reg = await swReady(); if (!reg) throw new Error("no sw");
+    const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+    await COLL("pushsub").doc(subId(s.endpoint)).set({ ...s.toJSON(), ua: navigator.userAgent.slice(0, 120), at: new Date().toISOString() });
+    await COLL("prefs").doc("pushcfg").set({ ...NTP });
+    pushPlanQueue(0); showNotify("Eingeschaltet. Tippe auf „Test senden“, um es auszuprobieren.");
+  } catch (e) { showNotify(e?.code === "no_vapid" ? "Benachrichtigungen sind auf dem Server noch nicht eingerichtet (Schlüssel fehlt)." : "Einschalten hat nicht geklappt – bitte noch einmal versuchen."); }
+}
+async function notifyOff() { try { const s = ntSub || await ntRefresh(); if (s) { await COLL("pushsub").doc(subId(s.endpoint)).delete().catch(() => {}); await s.unsubscribe(); } } catch {} ntSub = null; showNotify("Auf diesem Gerät ausgeschaltet."); }
+async function notifyTest() { const b = $("nt-test"); if (b) { b.disabled = true; b.textContent = "Sende …"; } const r = await window.mkPushTest().catch(() => null);
+  showNotify(r?.ok ? "Gesendet – die Benachrichtigung sollte gleich erscheinen." : r?.code === "no_subscription" ? "Für dein Konto ist noch kein Gerät eingeschaltet." : "Senden hat nicht geklappt" + (r?.detail ? ` (${r.detail})` : "") + "."); }
+function ntSet(k, v) { NTP = { ...NTP, [k]: v }; COLL("prefs").doc("pushcfg").set({ ...NTP }).catch(() => {}); pushPlanQueue(0); }
+// Plan der nächsten 10 Tage – der Server verschickt ihn zur richtigen Zeit (auch Google-Termine, Stand: letztes Öffnen)
+let ppT = null, ppLast = "";
+function pushPlanQueue(ms = 4000) { if (!APP || !canWrite || !ntLoaded) return; clearTimeout(ppT); ppT = setTimeout(pushPlan, ms); }
+function buildPushPlan() {
+  const N = NTP, now = new Date(), end = addDays(TODAY, 10), items = [];
+  const at = (d, hm) => { const [h, m] = String(hm).split(":").map(Number); const x = new Date(d); x.setHours(h || 0, m || 0, 0, 0); return x; };
+  const add = (id, when, t, b, extra = {}) => { if (when > now && when <= addDays(end, 1)) items.push({ id, at: when.toISOString(), t, b, ...extra }); };
+  const occs = OCC.filter(o => !o.part && o.b >= TODAY && o.a <= addDays(end, 31) && o.ev.type !== "info");
+  const bdName = o => o.ev.type === "birthday" ? o.ev.title : String(o.ev.title).replace(/^geburtstag\s*(von\s*)?/i, "").trim();
+  const isBd = o => o.ev.type === "birthday" || /geburtstag|birthday/i.test(o.ev.title);
+  if (N.eve) for (let i = 0; i <= 9; i++) { const d = addDays(TODAY, i), n = addDays(d, 1);
+    const L = occs.filter(o => sameDay(o.a, n) || (o.a < n && sameDay(o.b, n) && dayDiff(o.a, o.b) >= 1 && o.ev.type === "trip")).sort((x, y) => String(x.ev.time || "").localeCompare(String(y.ev.time || "")));
+    const tk = TASKS.filter(t => !t.done && t.state !== "no" && t.due === iso(n)), h = HOL.get(iso(n)), hol = h && h.be ? h : null;
+    if (!L.length && !tk.length && !hol) continue;
+    const parts = [...(hol ? ["🎉 " + hol.name] : []), ...L.map(o => isBd(o) ? `🎂 ${bdName(o)}` : !sameDay(o.a, n) ? `🏠 Rückreise ${evName(o.ev)}` : `${o.ev.time ? o.ev.time + " " : ""}${evName(o.ev)}`), ...tk.map(t => "☐ " + t.title)];
+    const cnt = L.length + tk.length;
+    add(`eve-${iso(n)}`, at(d, N.eveTime || "20:00"), `Morgen, ${WDL[n.getDay()]}${cnt ? ` · ${cnt} ${cnt === 1 ? "Eintrag" : "Einträge"}` : ""}`, parts.slice(0, 6).join(" · ") + (parts.length > 6 ? " …" : "")); }
+  if (N.ev) occs.filter(o => o.ev.time && !isBd(o) && o.a <= end).forEach(o => { const st = at(o.a, o.ev.time), lead = +N.evLead || 60, pl = placeOf(o.ev);
+    const lt = lead >= 1440 ? "Morgen" : lead >= 60 ? `In ${lead / 60} Std.` : `In ${lead} Min.`;
+    add(`ev-${o.ev.id}-${iso(o.a)}`, new Date(st - lead * 60e3), `${lt}: ${evName(o.ev)}`, `${o.ev.time} Uhr${pl ? " · " + pl : ""}`, pl ? { r: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pl)}` } : {}); });
+  if (N.bd) occs.forEach(o => {
+    if (isBd(o)) { const age = ageTxt(o); add(`bd-${o.ev.id}-${iso(o.a)}`, at(o.a, "08:00"), `🎂 Heute: ${bdName(o)}`, age ? `${age} – vergiss nicht zu gratulieren` : "Vergiss nicht zu gratulieren");
+      const rd = Math.min(+o.ev.remindDays || 7, 21); if (rd >= 2) add(`bdv-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -rd), "09:00"), `🎁 In ${rd} Tagen: Geburtstag ${bdName(o)}`, "Schon ein Geschenk oder eine Idee?"); }
+    else if (o.ev.type === "deadline") { const rd = +o.ev.remindDays || 3; add(`dl-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -rd), "09:00"), `⏰ Frist in ${rd} Tagen`, evName(o.ev)); add(`dl1-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -1), "09:00"), "⏰ Frist morgen", evName(o.ev)); }
+    else if (o.ev.type === "trip" && o.a > TODAY) { const pk = o.ev.packlist || [], open = pk.filter(x => !x.d).length;
+      add(`tr-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -3), "18:00"), `🧳 In 3 Tagen: ${evName(o.ev)}`, pk.length ? (open ? `Noch ${open} Dinge auf der Packliste offen` : "Packliste ist komplett ✓") : "Zeit für die Packliste"); } });
+  if (N.fest) { const names = FAM().map(p => p.name).filter(Boolean), y = TODAY.getFullYear();
+    for (const yy of [y, y + 1]) { const xmas = ymd(yy, 12, 24);
+      for (const w of [21, 7]) add(`xm${w}-${yy}`, at(addDays(xmas, -w), "18:00"), `🎄 In ${w === 21 ? "3 Wochen" : "einer Woche"} ist Heiligabend`, names.length ? `Geschenke für ${names.slice(0, 6).join(", ")}${names.length > 6 ? " …" : ""}?` : "Schon an Geschenke gedacht?");
+      const may1 = ymd(yy, 5, 1), mday = addDays(may1, ((7 - may1.getDay()) % 7) + 7), fday = addDays(easter(yy), 39);
+      if (FAM().some(p => p.role === "mutter")) add(`md-${yy}`, at(addDays(mday, -7), "18:00"), "💐 In einer Woche ist Muttertag", "Schon eine Idee?");
+      if (FAM().some(p => p.role === "vater")) add(`vd-${yy}`, at(addDays(fday, -7), "18:00"), "🍺 In einer Woche ist Vatertag", "Schon eine Idee?"); } }
+  return items.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 150);
+}
+async function pushPlan() {
+  if (!APP || !canWrite || !ntLoaded || dbState !== "ready") return;
+  let items = []; try { items = buildPushPlan(); } catch (e) { console.log("plan", e); return; }
+  const data = { items, pref: { shared: NTP.shared !== false }, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }, h = JSON.stringify(data);
+  if (h === ppLast) return; ppLast = h;
+  try { await COLL("push").doc("plan").set({ ...data, at: new Date().toISOString() }); } catch {}
+}
 // ---- Konto: Abmelden & Löschen (nur eigene App) ----
 async function showAccount() {
   closeMenu();
@@ -3785,6 +3878,10 @@ document.addEventListener("click", ev => {
     case "app-logout": window.mkSignOut?.(); break;
     case "app-delacc": showDeleteAccount(); break;
     case "mi-account": showAccount(); break;
+    case "mi-notify": showNotify(); break;
+    case "nt-on": notifyOn(); break;
+    case "nt-off": notifyOff(); break;
+    case "nt-test": notifyTest(); break;
     case "delacc-go": doDeleteAccount(); break;
     case "a2hs-yes": if (APP && installEvt) doInstall(); else showA2hs(); break;
     case "app-install": doInstall(); break;
@@ -3858,6 +3955,8 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.stjoint) { const c = ev.target.dataset.stjoint; JOINT = ev.target.checked ? [...JOINT.filter(x => x !== c), c] : JOINT.filter(x => x !== c);
     saveXst(); renderAll(); showSettings(); return; }
   if (ev.target.dataset?.xst) { const c = ev.target.dataset.xst; XST = ev.target.checked ? [...XST.filter(x => x !== c), c] : XST.filter(x => x !== c); saveXst(); renderAll(); if (sheetMode === "settings") { showSettings(); const g = document.querySelector("details.setgrp.sub"); if (g) g.open = true; } return; }
+  if (ev.target.dataset?.nt) { ntSet(ev.target.dataset.nt, ev.target.checked); return; }
+  if (ev.target.dataset?.ntv) { ntSet(ev.target.dataset.ntv, ev.target.dataset.ntv === "evLead" ? +ev.target.value : ev.target.value); return; }
   if (ev.target.dataset?.shrauto) { const c = contactBy(ev.target.dataset.shrauto); if (c) { c.auto = ev.target.checked; saveShr(); shrQueue(); showShareMgr(); toast(c.auto ? `Deine Termine werden automatisch mit ${c.name} geteilt` : `Nur noch ausgewählte Termine an ${c.name}`); } return; }
   if (ev.target.dataset?.shrshow) { const c = contactBy(ev.target.dataset.shrshow); if (c) { c.show = ev.target.checked; saveShr(); shrMerge(); } return; }
   if (ev.target.id === "shr-gcal") { SHR.gcal = ev.target.value; saveShr(); shrMirrorQueue(); toast("Geteilte Termine kommen jetzt in diesen Kalender"); return; }
@@ -4041,7 +4140,7 @@ renderAll();
   COLL("docs").onSnapshot(snap => { DOCS = snap.docs.map(d => ({ ...JSON.parse(JSON.stringify(d.data() || {})), id: d.id })).filter(d => d.n > 0).map(d => ({ ...d, name: String(d.name || "Dokument"), size: +d.size || 0, n: +d.n }));
     docSync(); if (sheetMode === "docs" && !$("sheet").hidden) showDocs(); }, () => {});
   COLL("events").onSnapshot(snap => {
-    clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); } shrQueue();
+    clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); } shrQueue();
     EV = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); docSync();
     if (moving && !moving.gocc && !EV.some(e => e.id === moving.id)) stopMove();
     renderAll();
