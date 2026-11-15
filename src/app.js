@@ -1645,11 +1645,15 @@ const titleNoPlace = t => { const w = String(t).trim().split(/\s+/);
   if (/^[A-ZÄÖÜ0-9]{1,4}$/.test(String(t).trim())) return true;              // Kürzel wie „F“, „S2“, „ND“
   const k = osmKey(t); if (noPlace().has(k)) return true;
   return OCC.filter(o => osmKey(o.ev.title) === k).length >= 4 && w.length <= 2; };   // kurzer Titel, der ständig wiederkommt → Dienst/Schicht
+// Abkürzungen ausschreiben, damit „Magdeburg Hbf“ den „Magdeburg Hauptbahnhof“ findet
+const osmExpand = t => String(t).replace(/\bhbf\.?(?=\s|$)/gi, "Hauptbahnhof").replace(/\b(bhf|bf)\.?(?=\s|$)/gi, "Bahnhof").replace(/\bflugh\.?(?=\s|$)/gi, "Flughafen").replace(/\bstr\.(?=\s|$)/gi, "Straße").replace(/\bpl\.(?=\s|$)/gi, "Platz").replace(/\bkh\b/gi, "Krankenhaus");
 const osmOk = () => ["termin", "trip"].includes($("f-type")?.value);
 async function osmSearch(q, fromTitle) {
   const box = $("f-place-sug"); if (!box) return;
   if (!osmOk()) { box.hidden = true; return; }
   q = q.trim(); if (q.length < 3 || q === osmLast) return; osmLast = q;
+  if (fromTitle && titleNoPlace(q)) { box.hidden = true; return; }
+  if (fromTitle) q = osmExpand(q);
   osmAbort?.abort(); osmAbort = new AbortController();
   const [lat, lon] = STATE_LL[PA] || STATE_LL.BE;
   try {
@@ -1673,7 +1677,7 @@ async function osmFind(title) {
   if (c && Date.now() - c.t < 30 * 864e5) return c.h;
   if (osmDead) return [];
   const [lat, lon] = STATE_LL[PA] || STATE_LL.BE;
-  let j; try { j = await (await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(title)}&lang=de&limit=6&lat=${lat}&lon=${lon}`)).json(); } catch { osmDead = true; return []; }
+  title = osmExpand(title); let j; try { j = await (await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(title)}&lang=de&limit=6&lat=${lat}&lon=${lon}`)).json(); } catch { osmDead = true; return []; }
   const tw = new Set(osmWords(title)), seen = new Set();
   const h = (j.features || []).map(osmLine).filter(x => x.addr && x.name && osmWords(x.name).length && osmWords(x.name).every(w => tw.has(w))).filter(x => !seen.has(x.full) && seen.add(x.full)).slice(0, 3);
   if (h.length >= 2 && new Set(h.map(x => osmKey(x.name))).size === 1 && osmWords(h[0].name).length >= tw.size) h.length = 0;   // „Späti“ an drei Ecken → Gattungsname, kein Ort
@@ -2488,6 +2492,7 @@ function fitSheet() {
 }
 if (window.visualViewport) { visualViewport.addEventListener("resize", fitSheet); visualViewport.addEventListener("scroll", fitSheet); }
 document.addEventListener("focusin", ev => {
+  if (ev.target.id === "f-place" && !ev.target.value.trim() && $("f-title")?.value.trim()) { osmLast = ""; osmQueue($("f-title").value, true, 0); }
   const t = ev.target; if (!t.closest || !t.closest("#sheet") || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
   setTimeout(() => { fitSheet(); t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 350);
 });
