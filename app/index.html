@@ -3,7 +3,13 @@
 <meta name="robots" content="noindex"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/app/manifest.webmanifest"><meta name="theme-color" content="#0f6e73"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kalender"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>if ("serviceWorker" in navigator) addEventListener("load", function () { navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" }).catch(function () {}); });</script>
-<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0}</style>
+<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0}
+@font-face{font-family:"IBM Plex Sans";font-weight:400;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-sans-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Sans";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-sans-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Sans";font-weight:600;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-sans-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Fraunces";font-weight:600;font-display:swap;src:url(/app/vendor/fonts/fraunces-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
+</style>
 <script src="/app/supabase.js"></script>
 <script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"};</script>
 <script>
@@ -236,8 +242,6 @@ window.MK_APP = true;
 </script>
 </head><body>
 <title>Mein Kalender</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* Layout: Kopf → "Als Nächstes" → Ansicht (Monat/Woche/Liste) → aufklappbarer Jahresüberblick. Hauptland = Blau, Zweitland = Grün, beide frei = Petrol */
 :root {
@@ -808,6 +812,7 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .fchip { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg); background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px; cursor: pointer; }
 .fchip b { font-size: 11.5px; font-weight: 600; color: var(--muted); } .fchip .chev { font-size: 10px; color: var(--muted); }
 .fchip.on { background: color-mix(in srgb, var(--both) 14%, var(--surface)); border-color: color-mix(in srgb, var(--both) 45%, var(--line)); color: var(--both); } .fchip.on b, .fchip.on .chev { color: var(--both); }
+.moved { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--both); color: #fff; font-size: 14px; } .moved div { flex: 1 1 240px; display: grid; gap: 1px; } .moved span { opacity: .9; font-size: 13px; } .moved a { color: #fff; font-weight: 700; text-decoration: none; background: rgba(255,255,255,.16); border-radius: 999px; padding: 7px 14px; white-space: nowrap; }
 .upsec h3 b { font-size: 11px; color: var(--muted); } .upsec h3 b.hot { background: var(--holiday); color: #fff; border-radius: 999px; padding: 0 6px; }
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
@@ -2826,7 +2831,7 @@ async function fileBlob(f) {
 let PDFJS = null;
 function loadPdfJs() {
   if (PDFJS) return PDFJS;
-  const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", ld = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  const base = APP ? "/app/vendor/pdfjs/" : "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", ld = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
   PDFJS = ld(base + "pdf.min.js").then(() => ld(base + "pdf.worker.min.js")).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js"; return window.pdfjsLib; })
     .catch(err => { PDFJS = null; throw err; });
   return PDFJS;
@@ -4892,6 +4897,7 @@ renderAll();
   if (mcp) initGoogle(); else renderGPill();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
   if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
+  if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforeend", `<button type="button" class="link" id="app-logout" style="font-size:13px;color:var(--muted);padding:4px 0">Abmelden${meName ? " (" + esc(meName.split(/\s+/)[0]) + ")" : ""}</button>`); } }
   BASE = `data/users/${uid}/k`;      // privater Bereich: nur dieser Nutzer kann ihn lesen und schreiben

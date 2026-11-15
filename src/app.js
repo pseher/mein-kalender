@@ -1654,7 +1654,7 @@ async function fileBlob(f) {
 let PDFJS = null;
 function loadPdfJs() {
   if (PDFJS) return PDFJS;
-  const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", ld = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  const base = APP ? "/app/vendor/pdfjs/" : "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", ld = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
   PDFJS = ld(base + "pdf.min.js").then(() => ld(base + "pdf.worker.min.js")).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js"; return window.pdfjsLib; })
     .catch(err => { PDFJS = null; throw err; });
   return PDFJS;
@@ -3720,6 +3720,7 @@ renderAll();
   if (mcp) initGoogle(); else renderGPill();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
   if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
+  if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforeend", `<button type="button" class="link" id="app-logout" style="font-size:13px;color:var(--muted);padding:4px 0">Abmelden${meName ? " (" + esc(meName.split(/\s+/)[0]) + ")" : ""}</button>`); } }
   BASE = `data/users/${uid}/k`;      // privater Bereich: nur dieser Nutzer kann ihn lesen und schreiben
