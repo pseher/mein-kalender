@@ -39,7 +39,7 @@ window.MK_APP = true;
   });
   // Eine Anmeldung für beides: Konto + Zugriff auf Google Kalender (Google fragt die Kalender-Rechte einzeln ab)
   const G_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
-  window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname, scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } });
+  window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } });
   window.mkConnectGoogle = () => { try { sessionStorage.setItem("mk-wz-g", "1"); } catch {} return window.mkSignIn(); };
   // Google-Schlüssel aus der Anmeldung merken (nur in diesem Browser)
   const GK = { at: "mk-g-at", exp: "mk-g-exp", rt: "mk-g-rt" };
