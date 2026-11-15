@@ -23,6 +23,7 @@ export default {
     const out = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15b", routes: ["/ai", "/google/token", "/account/delete"] });
     if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
