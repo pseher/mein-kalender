@@ -3445,6 +3445,7 @@ Reisen: ${runs.join("; ") || "keine"}
 Einige vergangene Termine: ${pick(past).join("; ") || "keine"}
 Einige kommende Termine: ${pick(fut).join("; ") || "keine"}`, { modelTier: "default", cache: false, onText: ({ text }) => { out.innerHTML = reviewHtml(text, false); } });
     REVIEW = r.text.trim(); out.innerHTML = reviewHtml(REVIEW, true);
+    if (r.truncated) out.insertAdjacentHTML("afterbegin", `<p class="note">Der Text wurde zu lang und ist abgeschnitten – tippe auf „Neu schreiben“.</p>`);
   } catch { out.innerHTML = `<p class="err">Das hat nicht geklappt. Versuch es noch einmal.</p>`; }
   btn.disabled = false; btn.textContent = "Neu schreiben";
 }
