@@ -2471,7 +2471,7 @@ function renderFocus() {
   const sec = $("sec-focus"); if (!sec) return;
   if (SHOW.full || dbState !== "ready") { sec.hidden = true; return; }
   const end = addDays(TODAY, 1), seen = new Set();
-  const ev = OCC.filter(o => !o.part && o.a <= end && o.b >= TODAY && o.ev.type !== "info" && !seen.has(o.ev.id + iso(o.a)) && seen.add(o.ev.id + iso(o.a)))
+  const ev = OCC.filter(o => !o.part && o.a <= end && o.b >= TODAY && (o.ev.type !== "info" || !!o.ev.time) && !seen.has(o.ev.id + iso(o.a)) && seen.add(o.ev.id + iso(o.a)))
     .map(o => ({ k: "ev", d: o.a < TODAY ? TODAY : o.a, o }));
   const tk = TASKS.filter(t => !t.done && t.state !== "no" && t.due && parseIso(t.due) && parseIso(t.due) <= end).map(t => ({ k: "tk", d: parseIso(t.due) < TODAY ? TODAY : parseIso(t.due), t }));
   let rems = []; try { rems = (REMS = buildReminders()).map((r, i) => ({ r, i })); } catch {}
@@ -2519,7 +2519,7 @@ const URLAUB_RE = /\b(urlaub|ferien|holiday|vacation|auszeit)\b/i;
 const cdWhen = n => n <= 0 ? { pre: "", n: n < 0 ? "" : "Heute", unit: "" } : n === 1 ? { pre: "", n: "Morgen", unit: "" } : { pre: "in", n, unit: "Tagen" };
 function next3() {
   const end = addDays(TODAY, 2), seen = new Set();
-  const ev = OCC.filter(o => !o.part && o.a <= end && o.b >= TODAY && o.ev.type !== "info" && !seen.has(o.ev.id + iso(o.a)) && seen.add(o.ev.id + iso(o.a)))
+  const ev = OCC.filter(o => !o.part && o.a <= end && o.b >= TODAY && (o.ev.type !== "info" || !!o.ev.time) && !seen.has(o.ev.id + iso(o.a)) && seen.add(o.ev.id + iso(o.a)))
     .map(o => ({ k: "ev", d: o.a < TODAY ? TODAY : o.a, o, t: evName(o.ev) + (ageTxt(o) ? ` · ${ageTxt(o)}` : ""), c: colorOf(o.ev), run: o.a < TODAY ? `bis ${fmt(o.b)}` : "" }));
   const tk = (typeof TASKS !== "undefined" ? TASKS : []).filter(t => !t.done && t.due && parseIso(t.due) && parseIso(t.due) <= end)
     .map(t => { const d = parseIso(t.due); return { k: "tk", d: d < TODAY ? TODAY : d, t: t.title, id: t.id, late: d < TODAY ? dayDiff(d, TODAY) : 0 }; });
