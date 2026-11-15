@@ -106,7 +106,7 @@ window.MK_APP = true;
   const toB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(b); });
   const textOf = input => Array.isArray(input) ? input.map(m => (m.role === "assistant" ? "Assistent: " : "") + m.content).join("\n\n") : String(input);
   async function ask(input, opts = {}, json) {
-    const s = session || await ready; if (!s) throw Object.assign(new Error("Nicht angemeldet"), { code: "not_granted" });
+    const s = await freshSession(); if (!s) throw Object.assign(new Error("Nicht angemeldet"), { code: "not_granted" });
     const images = [];
     for (const b of (opts.images || []).slice(0, 5)) images.push({ type: b.type || "image/jpeg", data: await toB64(b) });
     const r = await fetch(CFG.workerUrl + "/ai", { method: "POST", signal: opts.signal,
@@ -133,12 +133,24 @@ window.MK_APP = true;
   const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Berlin";
   const gErr = (code, message) => Object.assign(new Error(message || code), { code });
   let refreshing = null;
+  // Supabase-Anmeldung frisch halten: nach dem Aufwachen des Handys ist der alte Schlüssel oft schon abgelaufen
+  async function freshSession(force) {
+    try {
+      if (force) { const r = await sb.auth.refreshSession(); if (r.data?.session) session = r.data.session; return session; }
+      const r = await sb.auth.getSession(); const s = r.data?.session;
+      if (s && s.expires_at && s.expires_at * 1000 < Date.now() + 60000) { const rr = await sb.auth.refreshSession(); if (rr.data?.session) { session = rr.data.session; return session; } }
+      if (s) session = s; return session || await ready;
+    } catch { return session || await ready; }
+  }
   async function gToken(force) {
     if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
     const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Kein Google-Schlüssel in diesem Browser – bitte ab- und wieder anmelden"; throw gErr("needs_reauth"); }
     refreshing ??= (async () => {
-      const s = session || await ready;
-      const r = await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) });
+      const call = async s => { try { return await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); }
+        catch { await new Promise(r => setTimeout(r, 1200)); return fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); } };
+      let r = await call(await freshSession()).catch(() => null);
+      if (r && r.status === 401) { const nb = await r.clone().json().catch(() => ({})); if (nb.code === "not_signed_in") r = await call(await freshSession(true)).catch(() => null); }   // Anmeldung über Nacht abgelaufen → einmal erneuern
+      if (!r) { window.mkGLast = "Worker nicht erreichbar (kein Netz?)"; throw gErr("upstream_error"); }
       const b = await r.json().catch(() => ({}));
       if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}`; if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
       lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
@@ -147,8 +159,11 @@ window.MK_APP = true;
   }
   async function gFetch(path, { method = "GET", body, signal } = {}, retry = true) {
     let r;
-    try { r = await fetch(GAPI + path, { method, signal, headers: { Authorization: "Bearer " + await gToken(), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined }); }
-    catch (e) { if (e?.code) throw e; throw gErr("upstream_error"); }
+    const go = async () => fetch(GAPI + path, { method, signal, headers: { Authorization: "Bearer " + await gToken(), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    try { r = await go(); }
+    catch (e) { if (e?.code) throw e; if (signal?.aborted) throw gErr("upstream_error");
+      await new Promise(res => setTimeout(res, 1200));                         // Netz nach dem Aufwachen noch nicht da → einmal nachfassen
+      try { r = await go(); } catch (e2) { if (e2?.code) throw e2; window.mkGLast = "Google nicht erreichbar (Netz?)"; throw gErr("upstream_error"); } }
     if (r.status === 401 && retry) { lsSet(GK.exp, "0"); await gToken(true); return gFetch(path, { method, body, signal }, false); }
     if (r.status === 204) return {};
     const b = await r.json().catch(() => ({}));

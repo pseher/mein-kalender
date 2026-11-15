@@ -1521,7 +1521,16 @@ const STATE_LL = { BW: [48.78, 9.18], BY: [48.14, 11.58], BE: [52.52, 13.40], BB
 let osmT = null, osmAbort = null, osmLast = "";
 const osmLine = f => { const p = f.properties || {}, street = [p.street, p.housenumber].filter(Boolean).join(" "), city = [p.postcode, p.city || p.town || p.village || p.district].filter(Boolean).join(" ");
   const name = p.name && p.name !== p.street ? p.name : ""; return { name, addr: [street, city].filter(Boolean).join(", "), full: [name, street, city].filter(Boolean).join(", ") }; };
-const osmWords = t => String(t).toLowerCase().normalize("NFKD").replace(/[^a-z0-9äöüß ]/g, " ").split(/\s+/).filter(w => w.length > 2);
+const osmWords = t => String(t).toLowerCase().normalize("NFC").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFKD").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 2);   // Umlaute ausschreiben: „Spät“ ≠ „Späti“
+// Dienste, Schichten & Co. brauchen keinen Ort
+const NOPLACE_W = /^(früh|spät|nacht|mittel|tag|wochenend)(dienst|schicht)?$|(dienst|schicht|bereitschaft)$|^(frei|ausgleich|homeoffice|home|office|ho|mobil|büro|arbeit|arbeiten|krank|urlaub|ferien|gleitzeit|überstunden|fortbildung|bd|rb|nd|fd|sd|hd)$/i;
+const NOPLACE_RE = { test: t => String(t).toLowerCase().split(/[\s\-\/+,.:]+/).some(w => w && NOPLACE_W.test(w)) };
+const noPlace = () => { try { return new Set(JSON.parse(store.get("ft-noplace") || "[]")); } catch { return new Set(); } };
+const titleNoPlace = t => { const w = String(t).trim().split(/\s+/);
+  if (w.length <= 3 && NOPLACE_RE.test(t)) return true;                       // „Spät“, „Frühdienst“, „Nacht BD“
+  if (/^[A-ZÄÖÜ0-9]{1,4}$/.test(String(t).trim())) return true;              // Kürzel wie „F“, „S2“, „ND“
+  const k = osmKey(t); if (noPlace().has(k)) return true;
+  return OCC.filter(o => osmKey(o.ev.title) === k).length >= 4 && w.length <= 2; };   // kurzer Titel, der ständig wiederkommt → Dienst/Schicht
 const osmOk = () => ["termin", "trip"].includes($("f-type")?.value);
 async function osmSearch(q, fromTitle) {
   const box = $("f-place-sug"); if (!box) return;
@@ -1532,6 +1541,7 @@ async function osmSearch(q, fromTitle) {
   try {
     const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=de&limit=6&lat=${lat}&lon=${lon}`, { signal: osmAbort.signal });
     const j = await r.json(); let hits = (j.features || []).map(osmLine).filter(h => h.addr);
+    if (fromTitle && titleNoPlace(q)) { box.hidden = true; return; }
     if (fromTitle) { const tw = new Set(osmWords(q)); hits = hits.filter(h => h.name && osmWords(h.name).length && osmWords(h.name).every(w => tw.has(w))); }   // nur Orte, deren Name ganz im Titel steht („Looms“ in „Looms Berlin“, nicht „Anna Blume“ bei „Essen mit Anna“)
     const seen = new Set(); hits = hits.filter(h => !seen.has(h.full) && seen.add(h.full)).slice(0, fromTitle ? 3 : 5);
     if (!hits.length || ($("f-place")?.value.trim() && fromTitle)) { box.hidden = true; return; }
@@ -1542,7 +1552,7 @@ async function osmSearch(q, fromTitle) {
 const osmQueue = (q, fromTitle, ms = 450) => { clearTimeout(osmT); osmT = setTimeout(() => osmSearch(q, fromTitle), ms); };
 // ---- Mitdenken auch für vorhandene Termine (z. B. aus Google): passende Adresse zum Titel vorschlagen ----
 let OSMC = null, osmDead = false;
-const osmCache = () => (OSMC ??= (() => { try { return JSON.parse(store.get("ft-osmc") || "{}"); } catch { return {}; } })());
+const osmCache = () => (OSMC ??= (() => { try { return JSON.parse(store.get("ft-osmc2") || "{}"); } catch { return {}; } })());
 const osmKey = t => osmWords(t).join(" ");
 async function osmFind(title) {
   const k = osmKey(title); if (!k) return []; const C = osmCache(), c = C[k];
@@ -1552,16 +1562,17 @@ async function osmFind(title) {
   let j; try { j = await (await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(title)}&lang=de&limit=6&lat=${lat}&lon=${lon}`)).json(); } catch { osmDead = true; return []; }
   const tw = new Set(osmWords(title)), seen = new Set();
   const h = (j.features || []).map(osmLine).filter(x => x.addr && x.name && osmWords(x.name).length && osmWords(x.name).every(w => tw.has(w))).filter(x => !seen.has(x.full) && seen.add(x.full)).slice(0, 3);
+  if (h.length >= 2 && new Set(h.map(x => osmKey(x.name))).size === 1 && osmWords(h[0].name).length >= tw.size) h.length = 0;   // „Späti“ an drei Ecken → Gattungsname, kein Ort
   C[k] = { t: Date.now(), h }; const ks = Object.keys(C); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => delete C[x]);
-  store.set("ft-osmc", JSON.stringify(C)); return h;
+  store.set("ft-osmc2", JSON.stringify(C)); return h;
 }
 const placeCand = o => { const e = o.ev; if (e.shared || !["google", "termin", "trip"].includes(e.type) || placeOf(e)) return false;
-  return !/geburtstag|birthday|urlaub|ferien/i.test(e.title) && osmWords(e.title).length > 0; };
+  return !/geburtstag|birthday|urlaub|ferien/i.test(e.title) && osmWords(e.title).length > 0 && !titleNoPlace(e.title); };
 const placeHint = o => { if (!placeCand(o)) return ""; const c = osmCache()[osmKey(o.ev.title)]; return c && c.h.length ? ` <span class="pin" title="Ortsvorschlag – antippen zum Übernehmen">📍</span>` : ""; };
 async function fillPlaceSug(o) {
   const box = $("place-sug"); if (!box) return; const h = await osmFind(o.ev.title).catch(() => []);
   if (!h.length || !$("place-sug") || sheetCtx?.id !== o.ev.id) return;
-  box.innerHTML = `<div class="osm-sug"><div class="osm-h">Meinst du diesen Ort?</div>${h.map(x => `<button type="button" data-placeset="${esc(x.full)}"><b>${esc(x.name)}</b><span>${esc(x.addr)}</span></button>`).join("")}<div class="osm-c">Kartendaten © OpenStreetMap-Mitwirkende</div></div>`;
+  box.innerHTML = `<div class="osm-sug"><div class="osm-h">Meinst du diesen Ort?</div>${h.map(x => `<button type="button" data-placeset="${esc(x.full)}"><b>${esc(x.name)}</b><span>${esc(x.addr)}</span></button>`).join("")}<button type="button" class="osm-no" data-placeno="${esc(osmKey(o.ev.title))}">Kein Ort nötig – nicht mehr fragen</button><div class="osm-c">Kartendaten © OpenStreetMap-Mitwirkende</div></div>`;
   box.hidden = false;
 }
 async function setPlace(o, addr) {
@@ -2962,7 +2973,7 @@ async function gApplyEdit(o, v) {
   await mcp.callTool(GSERVER, "update_event", inp);
   mcp.invalidate(GSERVER, "list_events").catch(() => {});
 }
-const gErr = e => e?.code === "tool_error" ? "Google hat die Änderung abgelehnt – vielleicht wurde der Termin dort schon geändert oder gelöscht." : e?.code === "needs_reauth" ? "Google-Verbindung abgelaufen. Bitte in claude.ai neu verbinden." : "Google hat nicht geantwortet. Versuch es noch einmal.";
+const gErr = e => e?.code === "tool_error" ? "Google hat die Änderung abgelehnt – vielleicht wurde der Termin dort schon geändert oder gelöscht." : e?.code === "needs_reauth" ? (APP ? "Google-Verbindung abgelaufen. Bitte oben auf „G“ tippen und neu verbinden." : "Google-Verbindung abgelaufen. Bitte in claude.ai neu verbinden.") : e?.code === "api_disabled" ? "Google-Kalender-Zugriff ist im Google-Projekt nicht freigeschaltet." : "Google war gerade nicht erreichbar – meist kurz nach dem Aufwachen des Handys. Bitte noch einmal tippen." + (APP && window.mkGLast ? ` (${window.mkGLast})` : "");
 async function saveGForm() {
   const o = gEditing, g = id => $(id).value.trim();
   const v = { title: g("gf-title"), from: g("gf-from"), to: g("gf-to") || g("gf-from"), time: g("gf-time"), endTime: g("gf-end"), loc: g("gf-loc") };
@@ -3415,6 +3426,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
   if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
   if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
+  if ((el = q("[data-placeno]"))) { const S = noPlace(); S.add(el.dataset.placeno); store.set("ft-noplace", JSON.stringify([...S].slice(-300))); const b = $("place-sug"); if (b) b.hidden = true; toast("Gemerkt – bei diesem Titel frage ich nicht mehr nach einem Ort"); renderAll(); return; }
   if ((el = q("[data-placeset]"))) { const o = sheetCtx && findOcc(sheetCtx.id, sheetCtx.a); if (o) setPlace(o, el.dataset.placeset); return; }
   if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
