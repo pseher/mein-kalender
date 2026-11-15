@@ -2475,17 +2475,19 @@ function renderFocus() {
     .map(o => ({ k: "ev", d: o.a < TODAY ? TODAY : o.a, o }));
   const tk = TASKS.filter(t => !t.done && t.state !== "no" && t.due && parseIso(t.due) && parseIso(t.due) <= end).map(t => ({ k: "tk", d: parseIso(t.due) < TODAY ? TODAY : parseIso(t.due), t }));
   let rems = []; try { rems = (REMS = buildReminders()).map((r, i) => ({ r, i })); } catch {}
-  const rm = rems.filter(({ r }) => r.n <= 1 && !(r.o && ev.some(x => x.o === r.o))).map(({ r, i }) => ({ k: "rem", d: addDays(TODAY, Math.max(0, r.n)), r, i }));
+  const rm = rems.filter(({ r }) => (r.n <= 1 || remImp(r)) && !(r.o && ev.some(x => x.o === r.o))).map(({ r, i }) => ({ k: "rem", d: r.n > 1 ? null : addDays(TODAY, Math.max(0, r.n)), imp: r.n > 1, r, i }));
   const all = [...ev, ...tk, ...rm], byTime = x => x.k === "ev" ? (x.o.ev.time || "00:00") : x.k === "tk" ? "99" : "98";
   const row = x => x.k === "ev" ? `<button type="button" class="nx" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="when">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="what"><span class="ev-dot ${x.o.ev.type}" style="background:${colorOf(x.o.ev)}"></span>${esc(evName(x.o.ev))}${placeHint(x.o)}${ageTxt(x.o) ? ` · ${esc(ageTxt(x.o))}` : ""}</span></button>`
     : x.k === "tk" ? `<div class="tk fx"><input type="checkbox" class="ckb" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(x.t.id)}"><span>${esc(x.t.title)}</span>${dueLbl(x.t.due)}</button></div>`
     : `<button type="button" class="nx" data-rem="${x.i}"><span class="when">🔔</span><span class="what">${esc(x.r.t)}<small class="note"> · ${esc(x.r.sub || "")}</small></span></button>`;
-  const day = (d, lbl) => { const L = all.filter(x => sameDay(x.d, d)).sort((a, b) => byTime(a).localeCompare(byTime(b))); return L.length ? `<div class="fx-day">${lbl}</div>${L.map(row).join("")}` : ""; };
-  const html = day(TODAY, "Heute") + day(end, "Morgen");
+  const day = (d, lbl) => { const L = all.filter(x => x.d && sameDay(x.d, d)).sort((a, b) => byTime(a).localeCompare(byTime(b))); return L.length ? `<div class="fx-day">${lbl}</div>${L.map(row).join("")}` : ""; };
+  const impL = all.filter(x => x.imp).sort((a, b) => a.r.n - b.r.n);
+  const html = day(TODAY, "Heute") + day(end, "Morgen") + (impL.length ? `<div class="fx-day">Wichtig – bald erledigen</div>${impL.map(row).join("")}` : "");
   $("focus-list").innerHTML = html || `<p class="tip" style="margin:6px 8px 2px">Heute und morgen steht nichts an.</p>`;
   $("n-focus").textContent = all.length || "";
+  const remShown = new Set(rm.map(x => x.i));
   // Rest auf Wunsch
-  const openTasks = TASKS.filter(t => !t.done && t.state !== "no").length, remN = rems.length, weekN = UPN.next || 0;
+  const openTasks = TASKS.filter(t => !t.done && t.state !== "no").length, remN = rems.filter(({ i }) => !remShown.has(i)).length, weekN = UPN.next || 0;
   const link = (k, n, lbl) => `<button type="button" class="fchip${FOCUS_OPEN[k] ? " on" : ""}" data-focus="${k}" aria-expanded="${FOCUS_OPEN[k]}">${lbl}${n ? ` <b>${n}</b>` : ""}<span class="chev" aria-hidden="true">${FOCUS_OPEN[k] ? "▴" : "▾"}</span></button>`;
   $("focus-more").innerHTML = [weekN ? link("week", weekN, "14 Tage") : "", canWrite ? link("tasks", openTasks, openTasks ? "Aufgaben" : "+ Aufgabe") : "", remN ? link("rem", remN, "Erinnerungen") : ""].join("");
   sec.hidden = false;
@@ -2695,6 +2697,8 @@ function tripCountry(e) {
 function routeLinks(place, cls = "btn ghost small") { if (!place) return ""; const q = encodeURIComponent(place);
   return `<a class="${cls}" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">Route (Google Maps)</a><a class="${cls}" href="https://maps.apple.com/?daddr=${q}" target="_blank" rel="noopener">Apple Karten</a>`; }
 const inDays = n => n === 0 ? "Heute" : n === 1 ? "Morgen" : n < 0 ? `vor ${-n} T.` : `in ${n} Tagen`;
+// Wichtig = zeitkritisch: Einreise, Vignette/Maut, Online-Check-in, Fristen bald – stehen immer in „Heute & Morgen“ (auch wenn Erinnerungen eingeklappt sind)
+const remImp = r => (r.acts || []).some(([, a]) => /^season:(visa|toll|ci-)/.test(String(a))) || (/^Frist/.test(r.t || "") && r.n <= 3);
 function buildReminders() {
   const R = [], add = r => R.push(r);
   // Geburtstage & Jahrestage
@@ -3659,6 +3663,13 @@ function buildPushPlan() {
   if (N.ev) MERK.forEach(m => { const open = (m.packlist || []).filter(x => !x.d); if (!open.length) return;
     const o = OCC.find(x => x.ev.type === "google" && x.ev.gid === m.gEventId && iso(x.a) === m.from); if (!o || o.a <= TODAY) return;
     add(`mk-${m.id}`, at(addDays(o.a, -1), "19:00"), `📝 Morgen: ${o.ev.title}`, `Noch offen: ${open.slice(0, 4).map(x => x.t).join(", ")}${open.length > 4 ? " …" : ""}`); });
+  if (N.bd) OCC.filter(o => !o.part && isTrip(o) && o.a > TODAY && o.a <= addDays(TODAY, 105)).forEach(o => { const k = `trip-${vacKey(o)}-${iso(o.a)}`, C = COUNTRIES[tripCountry(o.ev)], ds = REMP.dismissed || [], nm = evName(o.ev), ok = key => !ds.includes(key + k);
+      if (C?.entry) { if (ok("visa1-")) add(`visa1-${k}`, at(addDays(o.a, -92), "09:00"), `🛂 Einreise ${C.n}: jetzt beantragen`, `${C.entry} · für „${nm}“ ab ${fmt(o.a)} – Bearbeitung kann dauern`);
+        if (ok("visa2-")) add(`visa2-${k}`, at(addDays(o.a, -30), "09:00"), `🛂 Einreise ${C.n}: Genehmigung da?`, `${C.entry} · „${nm}“ ab ${fmt(o.a)}`); }
+      if (C?.toll && byCar(o.ev)) { const lbl = /vignette|vinjeta|matrica|rovinieta/i.test(C.toll) ? "Vignette" : "Maut";
+        if (ok("toll1-")) add(`toll1-${k}`, at(addDays(o.a, -7), "18:00"), `🚗 ${lbl} ${C.n} besorgen`, `${C.toll} · „${nm}“ ab ${fmt(o.a)}`);
+        if (ok("toll2-")) add(`toll2-${k}`, at(addDays(o.a, -1), "18:00"), `🚗 ${lbl} ${C.n}: erledigt?`, `Abfahrt ${fmt(o.a)}`); }
+      if (isFlight(o.ev) && !ds.includes("ci-" + k)) add(`ci-${k}`, at(addDays(o.a, -2), "18:00"), `✈️ Online-Check-in: ${nm}`, `Abflug ${fmt(o.a)}${o.ev.time ? " " + o.ev.time : ""} · Bordkarten aufs Handy`); });
   if (N.fest) { const names = FAM().map(p => p.name).filter(Boolean), y = TODAY.getFullYear();
     for (const yy of [y, y + 1]) { const xmas = ymd(yy, 12, 24);
       for (const w of [21, 7]) add(`xm${w}-${yy}`, at(addDays(xmas, -w), "18:00"), `🎄 In ${w === 21 ? "3 Wochen" : "einer Woche"} ist Heiligabend`, names.length ? `Geschenke für ${names.slice(0, 6).join(", ")}${names.length > 6 ? " …" : ""}?` : "Schon an Geschenke gedacht?");
