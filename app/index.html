@@ -706,6 +706,8 @@ td.mid { text-align: center; }
   .p1 .bm { border: 0; border-radius: 0; padding: 0; background: transparent; }
   .p1 .mg { gap: 2px; }
   .wrap .next-hint { display: none !important; }   /* Punkte unten + Wischen ersetzen die Hinweise */
+  #bigmonth { touch-action: pan-x; }            /* seitlich: Seiten wechseln (Browser); hoch/runter: Monat (App) */
+  #week, #year { touch-action: pan-x pan-y; }
   .pgdots { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); display: flex; gap: 7px; z-index: 30; pointer-events: none; }
   .pgdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgdots i.on { opacity: .9; transform: scale(1.15); }
   .p1 { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
