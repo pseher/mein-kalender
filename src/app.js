@@ -2963,7 +2963,8 @@ Antworte am Ende NUR mit JSON in genau dieser Form:
   {"op": "update", "id": "vorhandene id", "event": {alle Felder, vollständig}},
   {"op": "delete", "id": "vorhandene id"}
 ]}
-Bei einer reinen Frage: actions = []. Erfinde keine ids. Wenn unklar ist, welcher Termin gemeint ist, frag in reply nach und lass actions leer.
+Bei einer reinen Frage: actions = []. Erfinde keine ids. Wenn bei einer ÄNDERUNG oder LÖSCHUNG unklar ist, welcher vorhandene Termin gemeint ist, frag in reply nach und lass actions leer.
+Stichworte sind erlaubt: Kurze Eingaben wie "Abholen 20.12", "Friseur Freitag", "Reifen 3.4." sind ein Auftrag zum Eintragen – IMMER sofort als "add" vorschlagen, mit dem, was da ist (title aus dem Stichwort, sinnvoll großgeschrieben; time und place leer lassen). NICHT nach Uhrzeit, Ort oder Details fragen – das kann man später ergänzen. Datum ohne Jahr: das nächste kommende. Nur wenn gar kein Datum erkennbar ist, kurz nachfragen.
 
 ${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
 Nachricht: ${txt || "(nur Anhänge)"}`;
