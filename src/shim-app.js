@@ -212,8 +212,11 @@ window.MK_APP = true;
       if (i.startTime) q.set("timeMin", rfc(i.startTime)); if (i.endTime) q.set("timeMax", rfc(i.endTime));
       if (i.orderBy === "startTime") q.set("orderBy", "startTime"); if (i.pageToken) q.set("pageToken", i.pageToken); if (i.query) q.set("q", i.query);
       (i.eventType || []).forEach(t => q.append("eventTypes", String(t).toLowerCase()));
-      const b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal });
-      return { events: b.items || [], nextPageToken: b.nextPageToken || "", summary: b.summary || "" }; },
+      // Alle Seiten holen (Google liefert höchstens 2500 je Seite) – sonst fehlen bei vollen Kalendern die letzten Wochen eines Abschnitts
+      if ((i.pageSize || 250) >= 250 && !i.pageToken) q.set("maxResults", "2500");
+      let b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal }), items = b.items || [], summary = b.summary || "";
+      for (let n = 0; b.nextPageToken && !i.pageToken && (i.pageSize || 250) >= 250 && n < 8; n++) { q.set("pageToken", b.nextPageToken); b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal }); items = items.concat(b.items || []); }
+      return { events: items, nextPageToken: i.pageToken ? b.nextPageToken || "" : "", summary }; },
     async create_event(i) { return gFetch(`/calendars/${cal(i)}/events?sendUpdates=none`, { method: "POST", body: evBody(i) }); },
     async update_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "PATCH", body: evBody(i, true) }); },
     async delete_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "DELETE" }); },
