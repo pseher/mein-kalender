@@ -1,4 +1,5 @@
 // Mein Kalender – Web-Push (RFC 8291 aes128gcm + VAPID RFC 8292), nur WebCrypto, keine Pakete
+import { trainCheck } from "./train.js";
 const enc = new TextEncoder();
 export const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 export const unb64u = s => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
@@ -88,10 +89,15 @@ export async function runSchedule(env) {
         for (const [who, p] of per) msgs.push({ title: `👥 ${who}`, body: p.n && p.del ? `hat ${p.n} Termin(e) geteilt oder geändert und ${p.del} gelöscht` : p.n ? (p.n === 1 ? "hat einen Termin mit dir geteilt oder geändert" : `hat ${p.n} Termine mit dir geteilt oder geändert`) : (p.del === 1 ? "hat einen geteilten Termin gelöscht" : `hat ${p.del} geteilte Termine gelöscht`), tag: "share-" + who, url: "/app/" });
       }
     }
+    // Zug-Wächter: ab 2,5 Std. vorher bis 30 Min. danach alle 5 Minuten nachsehen
+    let trains = st.trains || {}, trCh = false;
+    if (pref.train !== false) for (const w of (plan.watch || []).slice(0, 4)) { const t = Date.parse(w.at); if (!(now >= t - 150 * 60e3 && now <= t + 30 * 60e3)) continue;
+      try { const r = await trainCheck(w, trains[w.id] || {}, now, plan.tz); trains = { ...trains, [w.id]: r.state }; trCh = true; (r.msgs || []).forEach(m => msgs.push(m)); } catch {} }
     if (msgs.length) sent += await sendToUser(env, uid, subs, msgs.slice(0, 8));
-    if (msgs.length || newSeen !== seen || !st.shareSeen) {
+    if (msgs.length || trCh || newSeen !== seen || !st.shareSeen) {
       const keep = [...done].filter(id => (plan.items || []).some(i => i.id === id)).slice(-400);   // nur noch geplante merken
-      await upsertDoc(env, uid, "push", "sent", { ids: keep, shareSeen: newSeen > seen ? newSeen : seen, at: new Date(now).toISOString() });
+      const tk = Object.fromEntries(Object.entries(trains).filter(([id]) => (plan.watch || []).some(w => w.id === id)));
+      await upsertDoc(env, uid, "push", "sent", { ids: keep, shareSeen: newSeen > seen ? newSeen : seen, trains: tk, at: new Date(now).toISOString() });
     }
   }
   return { users: byUser.size, sent };

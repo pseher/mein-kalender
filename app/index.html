@@ -3593,7 +3593,7 @@ const findOcc = (id, a) => OCC.find(o => o.ev.id === id && iso(o.a) === a) || OC
 // =================== Sheets ===================
 const sheet = $("sheet");
 // =================== Benachrichtigungen (Web-Push) ===================
-const NT_DEF = { eve: true, eveTime: "20:00", ev: true, evLead: 60, bd: true, fest: true, shared: true };
+const NT_DEF = { eve: true, eveTime: "20:00", ev: true, evLead: 60, bd: true, fest: true, shared: true, train: true };
 let NTP = { ...NT_DEF }, ntSub = null, ntLoaded = false;
 const ntSupported = () => APP && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const ntIOSNeedsInstall = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !IS_STANDALONE;
@@ -3627,6 +3627,7 @@ async function showNotify(msg) {
       ${tg("bd", "Geburtstage, Fristen & Reisen", "am Tag selbst, mit Vorlauf („schon ein Geschenk?“) und vor Reisen („Packliste checken“)")}
       ${tg("fest", "Weihnachten, Mutter- & Vatertag", "rechtzeitig an Geschenke für deine Liebsten denken")}
       ${tg("shared", "Geteilte Termine", "wenn jemand etwas mit dir teilt, ändert oder löscht")}
+      ${tg("train", "🚆 Züge live", "Verspätung, Gleiswechsel oder Ausfall – wenn im Termin eine Zugnummer steht (z. B. „IC 1934“) und ein Bahnhof als Ort")}
     </div>
     <p class="note">Abfahrtszeit mit echter Fahrzeit („jetzt losfahren“) kann die App noch nicht berechnen – stell die Erinnerung dafür z. B. auf 1 Std. vorher und tippe auf „Route“.</p></div>`, "notify");
 }
@@ -3689,10 +3690,32 @@ function buildPushPlan() {
       if (FAM().some(p => p.role === "vater")) add(`vd-${yy}`, at(addDays(fday, -7), "18:00"), "🍺 In einer Woche ist Vatertag", "Schon eine Idee?"); } }
   return items.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 150);
 }
+// ---- Zug-Wächter: Zugnummer + Bahnhof im Termin → der Server prüft live und meldet Verspätung/Gleis/Ausfall ----
+const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})\b/i;
+const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
+const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|ina|der|die|das|den)$/i;
+function stationOf(e) {
+  const pl = String(e.place || e.note || "").split(",")[0].trim();
+  const src = /bahnhof|hbf|bhf|\bbf\b/i.test(pl) ? pl : String(e.title || "");
+  const t = osmExpand(src.replace(TRAIN_RE, " ")), m = t.match(/((?:[\p{L}.\-]+\s+)?)(Hauptbahnhof|Bahnhof)((?:\s+[\p{L}.\-]+)?)/u);
+  if (!m) return /bahnhof|hbf/i.test(pl) ? pl : "";
+  const pre = m[1].trim(), post = m[3].trim(), city = [pre, post].find(w => w && !STOPW.test(w)) || "";
+  return m[2] === "Hauptbahnhof" ? (city ? `${city} Hbf` : "") : (src === pl ? pl : `${city ? city + " " : ""}Bahnhof`.trim());
+}
+function trainWatch() {
+  const W = [], seen = new Set();
+  OCC.filter(o => !o.part && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
+    const train = trainOf(o.ev); if (!train) return; const st = stationOf(o.ev); if (!st) return;
+    const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
+    const id = `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`; if (seen.has(id)) return; seen.add(id);
+    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev) }); });
+  return W.slice(0, 6);
+}
 async function pushPlan() {
   if (!APP || !canWrite || !ntLoaded || dbState !== "ready") return;
   let items = []; try { items = buildPushPlan(); } catch (e) { console.log("plan", e); return; }
-  const data = { items, pref: { shared: NTP.shared !== false }, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }, h = JSON.stringify(data);
+  let watch = []; try { watch = NTP.train !== false ? trainWatch() : []; } catch {}
+  const data = { items, watch, pref: { shared: NTP.shared !== false, train: NTP.train !== false }, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }, h = JSON.stringify(data);
   if (h === ppLast) return; ppLast = h;
   try { await COLL("push").doc("plan").set({ ...data, at: new Date().toISOString() }); } catch {}
 }
