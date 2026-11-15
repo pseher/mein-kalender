@@ -3241,11 +3241,12 @@ function renderOverview() {
   $("o-prev").disabled = y === YEARS[0]; $("o-next").disabled = y === YEARS[YEARS.length - 1];
   // Gemeinsam frei
   const ws = WINS.filter(w => w.b >= yS && w.a <= yE && w.a <= END);
-  $("c-wins").textContent = ws.length === 1 ? "1 Zeitraum" : `${ws.length} Zeiträume`;
+  $("c-wins").textContent = JOINT.length < 2 ? "Bundesländer wählen" : ws.length === 1 ? "1 Zeitraum" : `${ws.length} Zeiträume`;
   const ms = MONTHS.filter(x => x.y === y), from = new Date(y, ms[0].m, 1), dlist = [];
   for (let t = from; t <= yE; t = addDays(t, 1)) dlist.push(dayOf(t));
   const cell = bg => `<i style="background:var(${bg})"></i>`;
-  $("b-wins").innerHTML = (ws.length ? `<div class="wins">${ws.map(w => `<div class="win"><b>${winName(w)}</b><span class="mono">${rngTxt(w.a, w.b, w.b.getFullYear() !== y)}</span><span class="len">${dayDiff(w.a, w.b) + 1} Tage am Stück</span></div>`).join("")}</div>` : `<p class="tip">Keine gemeinsamen Zeiträume.</p>`) +
+  const winsHint = JOINT.length < 2 ? `<div class="sg shr-box" style="margin:2px 0 10px"><b>Wann habt ihr gemeinsam frei?</b><p class="tip" style="margin:4px 0 8px">Dafür brauche ich mindestens zwei Bundesländer – z. B. deins und das von Partner/in, Kindern oder Großeltern. ${PB ? `Gewählt sind ${esc(stName(PA))} und ${esc(stName(PB))}, aber nicht als „gemeinsam“ markiert.` : `Bisher ist nur ${esc(stName(PA))} eingestellt.`}</p><button type="button" class="btn accent small" id="wins-setup">Bundesländer einstellen</button></div>` : "";
+  $("b-wins").innerHTML = winsHint + (ws.length ? `<div class="wins">${ws.map(w => `<div class="win"><b>${winName(w)}</b><span class="mono">${rngTxt(w.a, w.b, w.b.getFullYear() !== y)}</span><span class="len">${dayDiff(w.a, w.b) + 1} Tage am Stück</span></div>`).join("")}</div>` : `<p class="tip">Keine gemeinsamen Zeiträume.</p>`) +
     `<div class="band"><span></span><div class="months">${ms.map(x => `<span>${MON[x.m].slice(0,3)}</span>`).join("")}</div>` +
     `<span class="lab">Ferien ${PA}</span><div class="row">${dlist.map(d => cell(d.fBE ? "--be-strong" : "--line")).join("")}</div>` +
     (PB ? `<span class="lab">Ferien ${PB}</span><div class="row">${dlist.map(d => cell(d.fST ? "--st-strong" : "--line")).join("")}</div>` : "") +
@@ -4919,6 +4920,7 @@ document.addEventListener("click", ev => {
     case "open-a2hs": showA2hs(); break;
     case "soon-more": soonAll = !soonAll; renderSoon(); break;
     case "to-cal": goPage("p1"); break;
+    case "wins-setup": showSettings(); break;
     case "to-p2": goPage("p2"); break;
     case "to-p1": goPage("p1"); break;
     case "up-col": upCollapsed = !upCollapsed; store.set("ft-up-col", upCollapsed ? "1" : "0"); renderUp(); break;
