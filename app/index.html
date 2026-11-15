@@ -2179,6 +2179,7 @@ function showShareMgr() {
       : `<label class="sr2"><span>Code</span><input class="fin mono" id="shr-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" value="${esc(shrAcc.code || "")}"></label>
         <div style="padding:0 14px"><button type="button" class="btn ghost small" id="shr-paste">📋 Einfügen</button> <span class="note">kopierten Code einfügen</span></div><p class="err" id="shr-err" style="padding:0 14px">${esc(shrAcc.err || "")}</p>
         <div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="shr-acc-go">Prüfen</button><button type="button" class="btn ghost" id="shr-acc-x">Abbrechen</button></div>`}</div>` : ""}
+    ${(() => { const H = hiddenShared(); return H.length ? `<div class="sg-t">Ausgeblendete Termine</div><div class="sg">${H.map(h => `<div class="sr2"><i class="dotc" style="--c:var(--muted)"></i><span>${esc(h.title)}<small>${esc(fmt(parseIso(h.from)))} · von ${esc(h.from_)}</small></span><button type="button" class="link" data-shunhide="${esc(h.sid)}">Einblenden</button></div>`).join("")}</div>` : ""; })()}
     <div class="sg-t">Gruppen</div>
     ${SHR.groups.length ? `<div class="sg">${SHR.groups.map(g => `<div class="sr2"><i class="dotc" style="--c:var(--trip)"></i><span>👥 ${esc(g.name)}<small>${esc(shareNames(g.members).join(", ") || "noch leer")}</small></span><button type="button" class="link" data-grpedit="${esc(g.id)}">Ändern</button><button type="button" class="ic no" data-grprm="${esc(g.id)}" aria-label="Gruppe löschen">✕</button></div>`).join("")}</div>` : ""}
     ${shrGrp ? `<div class="sg shr-box"><label class="sr2"><span>Name</span><input class="fin" id="grp-name" type="text" placeholder="z. B. Ina & Kinder" value="${esc(shrGrp.name || "")}"></label>
@@ -2218,6 +2219,10 @@ async function shrRemove(L) {   // Verbindung lösen: meine geteilten Kopien fü
   for (const m of [...MYOUT.values()].filter(m => m.l === L)) { try { await OUT(uid, "ev").doc(m.id).delete(); } catch {} }
   try { await OUT(uid, "x").doc(L).delete(); } catch {}
   toast(`${c?.name || "Person"} entfernt – ihr seht eure Termine gegenseitig nicht mehr`); }
+// Ausgeblendete geteilte Termine (noch vorhanden, nur bei mir versteckt)
+function hiddenShared() { const out = new Map();
+  for (const [L, arr] of REMOTE) for (const r of arr) if (SHR.hidden.includes(r.s) && !r.del && r.data && r.o !== uid && !out.has(r.s)) out.set(r.s, { sid: r.s, title: r.data.title || "Termin", from: r.data.from, from_: contactBy(L)?.name || "" });
+  return [...out.values()].sort((a, b) => String(a.from).localeCompare(String(b.from))); }
 // ---- Geteilten Termin löschen: nur bei mir oder für alle ----
 function showSharedDelete(e) {
   const from = e.shared.from || "der anderen Person";
@@ -4701,6 +4706,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-occ]"))) { const [id, a] = el.dataset.occ.split("|"); const o = findOcc(id, a); if (o) showEvent(o); return; }
   if ((el = q("[data-edit]"))) { const e = EV.find(x => x.id === el.dataset.edit) || RECV.find(x => x.id === el.dataset.edit); if (e) showForm(e); return; }
   if ((el = q("[data-shev]"))) { const [id, d] = el.dataset.shev.split("|"), e = EV.find(x => x.id === id); if (e) showShareEv(e, d); return; }
+  if ((el = q("[data-shunhide]"))) { SHR.hidden = SHR.hidden.filter(s => s !== el.dataset.shunhide); saveShr(); shrMerge(); showShareMgr(); toast("Wieder eingeblendet"); return; }
   if ((el = q("[data-shdel]"))) { const e = RECV.find(x => x.id === el.dataset.shdel); if (e) showSharedDelete(e); return; }
   if ((el = q("[data-shdelall]"))) { const e = RECV.find(x => x.id === el.dataset.shdelall); if (e) shrDeleteAll(e); return; }
   if ((el = q("[data-shdelme]"))) { const e = RECV.find(x => x.id === el.dataset.shdelme); if (e) { SHR.hidden = [...new Set([...SHR.hidden, e.shared.sid])]; saveShr(); closeSheet(); shrMerge(); toast("Bei dir entfernt", async () => { SHR.hidden = SHR.hidden.filter(s => s !== e.shared.sid); await saveShr(); shrMerge(); }); } return; }
