@@ -340,13 +340,13 @@ function renderBigMonth() {
   let days, lead = 0, y, m;
   if (two) days = Array.from({ length: 14 }, (_, i) => addDays(twoStart, i));
   else { ({ y, m } = MONTHS[curMi]); const n = new Date(y, m + 1, 0).getDate(); lead = (new Date(y, m, 1).getDay() + 6) % 7; days = Array.from({ length: n }, (_, i) => new Date(y, m, i + 1)); }
-  const cells = [...Array(lead).fill(null), ...days];
-  while (cells.length % 7) cells.push(null);
-  const weeks = cells.length / 7;
-  let h = `<div class="mg${two ? " wk2" : ""}" style="--wk:${weeks}"><span></span>${["Mo","Di","Mi","Do","Fr","Sa","So"].map(w => `<span class="dow">${w}</span>`).join("")}`;
+  // Tage aus Vor- und Folgemonat mit anzeigen (blasser)
+  const cells = two ? days : [...Array.from({ length: lead }, (_, i) => addDays(days[0], i - lead)), ...days];
+  while (cells.length % 7) cells.push(addDays(cells[cells.length - 1], 1));
+  const weeks = cells.length / 7, inM = dt => two || dt.getMonth() === m;
+  let h = `<div class="mg${two ? " wk2" : ""}" style="--wk:${weeks}">${["Mo","Di","Mi","Do","Fr","Sa","So"].map(w => `<span class="dow">${w}</span>`).join("")}`;
   for (let w = 0; w < weeks; w++) {
     const wd = cells.slice(w * 7, w * 7 + 7), row = w + 2;
-    h += `<span class="kw" style="grid-area:${row}/1">${isoWeek(wd.find(Boolean))}</span>`;
     wd.forEach((dt, c) => {
       if (!dt) return;
       const d = dayOf(dt), dd = dt.getDate(), cl = ["mt", tintOf(d)];
@@ -355,12 +355,13 @@ function renderBigMonth() {
       if (d && SHOW.br && BRIDGES.has(d.k)) cl.push("br");
       if (sameDay(dt, TODAY)) cl.push("today");
       if (selDay && sameDay(dt, selDay)) cl.push("sel");
+      if (!inM(dt)) cl.push("out");
       const oc = occOn(dt), hol = d && d.h && SHOW.hol ? d.h.name : "";
       const title = [hol, ...oc.map(o => evName(o.ev))].filter(Boolean).join(" · ");
       const mo = two && (dd === 1 || (w === 0 && c === 0)) ? `<span class="mo">${MON[dt.getMonth()].slice(0, 3)}</span>` : "";
-      h += `<button type="button" class="${cl.join(" ")}" style="grid-area:${row}/${c + 2}" data-day="${iso(dt)}" data-w="${w}" data-c="${c}" aria-label="${dd}. ${MON[dt.getMonth()]}${title ? ": " + esc(title) : ""}"${title ? ` title="${esc(title)}"` : ""}><span class="num">${dd}${mo}</span>${xStripe(d)}</button>`;
+      h += `<button type="button" class="${cl.join(" ")}" style="grid-area:${row}/${c + 1}" data-day="${iso(dt)}" data-w="${w}" data-c="${c}" aria-label="${dd}. ${MON[dt.getMonth()]}${title ? ": " + esc(title) : ""}"${title ? ` title="${esc(title)}"` : ""}><span class="num">${dd}${mo}</span>${c === 0 ? `<span class="kwi" aria-hidden="true">${isoWeek(dt)}</span>` : ""}${xStripe(d)}</button>`;
     });
-    h += `<div class="wb" style="grid-area:${row}/2/${row + 1}/9" data-w="${w}" aria-hidden="true">${weekBars(wd, two)}</div>`;
+    h += `<div class="wb" style="grid-area:${row}/1/${row + 1}/8" data-w="${w}" aria-hidden="true">${weekBars(wd, two)}</div>`;
   }
   bigEl.innerHTML = h + "</div>";
   fitWeeks(fill);
@@ -3465,7 +3466,7 @@ function wzClick(id, el) {
       if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
     case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
       PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); wzImport(); return true; }
-    case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (pendingInvite()) { takeInvite(); return true; } setTimeout(() => { $("p0")?.scrollIntoView({ behavior: "smooth", block: "start" }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
+    case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (pendingInvite()) { takeInvite(); return true; } setTimeout(() => { goPage("p0"); $("p0")?.scrollTo?.({ top: 0 }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
     case "wz-invite": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); shrAcc = { code: "" }; showShareMgr(); setTimeout(() => $("shr-code")?.focus(), 80); return true;
   }
   return false;
@@ -3663,9 +3664,9 @@ document.addEventListener("click", ev => {
     case "a2hs-later": store.set("ft-a2hs", "later:" + Date.now()); closeSheet(); renderHints(); break;
     case "open-a2hs": showA2hs(); break;
     case "soon-more": soonAll = !soonAll; renderSoon(); break;
-    case "to-cal": $("p1").scrollIntoView({ behavior: "smooth", block: "start" }); break;
-    case "to-p2": $("p2").scrollIntoView({ behavior: "smooth", block: "start" }); break;
-    case "to-p1": $("p1").scrollIntoView({ behavior: "smooth", block: "start" }); break;
+    case "to-cal": goPage("p1"); break;
+    case "to-p2": goPage("p2"); break;
+    case "to-p1": goPage("p1"); break;
     case "up-col": upCollapsed = !upCollapsed; store.set("ft-up-col", upCollapsed ? "1" : "0"); renderUp(); break;
     case "others-ok": OTHERS = []; renderOthers(); saveNotify({ seenAt: new Date().toISOString() }); toast("Als gesehen markiert"); break;
     case "sh-go": shPeriod = $("sh-p").value; shareTopic(shTopic, $("sh-q")?.value.trim() || "", shPeriod); break;
@@ -3796,19 +3797,32 @@ function attachRange(root) {
 }
 // Wischen: Monat oder Woche
 // Wischen: Inhalt folgt dem Finger, danach wird geblättert
+// ---- Handy-Seiten: seitlich wischen ----
+const PAGER = matchMedia("(max-width: 640px)");
+const wrapEl = document.querySelector(".wrap");
+function goPage(id, smooth = true) { const p = $(id); if (!p || p.hidden) return;
+  if (PAGER.matches) wrapEl.scrollTo({ left: p.offsetLeft, behavior: smooth ? "smooth" : "auto" }); else p.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }); }
+function pagerDots() { const P = [...wrapEl.querySelectorAll(":scope > .page")].filter(p => !p.hidden && !p.classList.contains("pg-off")), d = $("pgdots"); if (!d) return;
+  if (!PAGER.matches || P.length < 2) { d.innerHTML = ""; return; }
+  const cur = Math.round(wrapEl.scrollLeft / Math.max(1, wrapEl.clientWidth));
+  d.innerHTML = P.map((p, i) => `<i class="${i === cur ? "on" : ""}"></i>`).join("");
+  document.querySelectorAll(".nh-a").forEach(a => a.textContent = a.closest("#to-p1") ? "◀" : "▶"); }
+wrapEl.addEventListener("scroll", () => { clearTimeout(wrapEl.__t); wrapEl.__t = setTimeout(pagerDots, 60); }, { passive: true });
+PAGER.addEventListener?.("change", () => { pagerDots(); document.querySelectorAll(".nh-a").forEach(a => a.textContent = PAGER.matches ? (a.closest("#to-p1") ? "◀" : "▶") : (a.closest("#to-p1") ? "▼" : "▲")); });
+setTimeout(pagerDots, 300);
 let swipedAt = 0;
-function attachSwipe(el, go, can) {
-  let x0 = null, y0 = 0, dx = 0, horiz = null;
+function attachSwipe(el, go, can, axisFn) {
+  let x0 = null, y0 = 0, dx = 0, horiz = null, ax = "x";
   const reset = () => { el.style.transition = "transform .18s ease-out, opacity .18s"; el.style.transform = ""; el.style.opacity = ""; };
-  el.addEventListener("touchstart", e => { if (e.touches.length !== 1) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; horiz = null; el.style.transition = "none"; }, { passive: true });
+  el.addEventListener("touchstart", e => { if (e.touches.length !== 1) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; horiz = null; ax = axisFn ? axisFn() : "x"; el.style.transition = "none"; }, { passive: true });
   el.addEventListener("touchmove", e => {
     if (x0 == null || rgActive) return;
     const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
-    if (horiz === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) horiz = Math.abs(mx) > Math.abs(my) * 1.2;
+    if (horiz === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) horiz = ax === "y" ? Math.abs(my) > Math.abs(mx) * 1.2 : Math.abs(mx) > Math.abs(my) * 1.2;
     if (!horiz) return;
     if (e.cancelable) e.preventDefault();
-    dx = mx; const blocked = !can(dx < 0 ? 1 : -1);
-    el.style.transform = `translateX(${blocked ? dx * 0.15 : dx * 0.6}px)`; el.style.opacity = String(1 - Math.min(Math.abs(dx) / 900, .35));
+    dx = ax === "y" ? my : mx; const blocked = !can(dx < 0 ? 1 : -1);
+    el.style.transform = `translate${ax === "y" ? "Y" : "X"}(${blocked ? dx * 0.15 : dx * 0.6}px)`; el.style.opacity = String(1 - Math.min(Math.abs(dx) / 900, .35));
   }, { passive: false });
   const end = () => {
     if (x0 == null) return; x0 = null;
@@ -3817,17 +3831,17 @@ function attachSwipe(el, go, can) {
     const n = dx < 0 ? 1 : -1;
     if (Math.abs(dx) > 45 && can(n)) {
       el.style.transition = "none"; go(n);
-      el.style.transform = `translateX(${n * 40}px)`; el.style.opacity = ".4";
+      el.style.transform = `translate${ax === "y" ? "Y" : "X"}(${n * 40}px)`; el.style.opacity = ".4";
       requestAnimationFrame(() => requestAnimationFrame(reset));
     } else reset();
   };
   el.addEventListener("touchend", end, { passive: true });
   el.addEventListener("touchcancel", end, { passive: true });
 }
-attachSwipe(bigEl, stepCal, canStep);
+attachSwipe(bigEl, stepCal, canStep, () => PAGER.matches ? "y" : "x");   // Handy: Monat hoch/runter wischen, seitlich = Seiten
 attachRange(bigEl); attachRange(document.getElementById("year"));
 attachSwipe($("wk"), n => setWk(addDays(wkStart, 7 * n), null), n => { const t = addDays(wkStart, 7 * n); return t >= monday(START) && t <= END; });
-attachSwipe($("week"), n => setWeek(addDays(weekStart, 7 * n)), n => { const t = addDays(weekStart, 7 * n); return t >= monday(START) && t <= END; });
+attachSwipe($("week"), n => setWeek(addDays(weekStart, 7 * n)), n => { const t = addDays(weekStart, 7 * n); return t >= monday(START) && t <= END; }, () => PAGER.matches ? "none" : "x");
 attachSwipe(yearEl, n => setYear(selYear + n), n => YEARS.includes(selYear + n));
 
 window.addEventListener("resize", () => { clearTimeout(upResizeT); upResizeT = setTimeout(() => { if (view === "month" || view === "two") renderBigMonth(); }, 150); });

@@ -247,7 +247,9 @@ a.btn { text-decoration: none; display: inline-block; }
 #bigmonth, #week, #year { touch-action: pan-y; will-change: transform; }
 /* Großer Monat: Kacheln wie die Jahresansicht, mit Titelzeilen */
 .bm { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 10px 8px; }
-.mg { display: grid; grid-template-columns: 22px repeat(7, minmax(0, 1fr)); gap: 3px; font-variant-numeric: tabular-nums; }
+.mg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; font-variant-numeric: tabular-nums; }
+.mt .kwi { position: absolute; left: 4px; top: 3px; font-family: var(--f-mono); font-size: 9px; line-height: 1; color: var(--muted); opacity: .75; pointer-events: none; }
+.mt.out { opacity: .5; }
 .mg .dow { font-size: 11px; color: var(--muted); text-align: center; font-weight: 600; padding-bottom: 2px; }
 .mg .kw { font-family: var(--f-mono); font-size: 10px; color: var(--muted); display: flex; align-items: flex-start; padding-top: 8px; opacity: .7; }
 .mt { position: relative; min-height: 96px; border: 0; border-radius: 7px; padding: 4px 3px 3px; margin: 0; background: var(--soft); color: var(--fg); cursor: pointer;
@@ -300,7 +302,7 @@ details.setgrp > summary small { font-weight: 400; color: var(--muted); margin-l
 .setrow .sw { margin-right: 2px; }
 @media (max-width: 640px) {
   .bm { padding: 8px 6px 6px; }
-  .mg { grid-template-columns: 16px repeat(7, minmax(0, 1fr)); gap: 2px; }
+  .mg { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
   .mg .kw { font-size: 8.5px; }
   .mt { min-height: 66px; padding: 3px 1px 2px; border-radius: 6px; gap: 1px; }
   .mt .num { width: 21px; height: 21px; font-size: 12.5px; }
@@ -437,9 +439,19 @@ td.mid { text-align: center; }
 }
 .next-hint { display: none; }
 @media (max-width: 640px) {
-  html.snap { scroll-snap-type: y mandatory; }
-  html.snap .page { scroll-snap-align: start; }
-  .wrap { padding-block: 0; }
+  /* Handy: Heute | Kalender | Überblick nebeneinander, seitlich wischen; jede Seite scrollt für sich */
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  .wrap { padding-block: 0; padding-inline: 0; display: flex; height: 100dvh; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .wrap::-webkit-scrollbar { display: none; }
+  .wrap > .page { flex: 0 0 100%; width: 100%; height: 100dvh; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box; padding-inline: 16px; padding-bottom: 96px; }
+  .wrap > .page[hidden], .wrap > .p0.pg-off { display: none; }
+  .wrap > .p1 { padding-inline: 4px; padding-bottom: 0; }
+  .p1 .toolbar, .p1 .mhead, .p1 .legend, .p1 .next-hint { margin-inline: 8px; }
+  .p1 .bm { border: 0; border-radius: 0; padding: 0; background: transparent; }
+  .p1 .mg { gap: 2px; }
+  .wrap .next-hint { display: none !important; }   /* Punkte unten + Wischen ersetzen die Hinweise */
+  .pgdots { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); display: flex; gap: 7px; z-index: 30; pointer-events: none; }
+  .pgdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgdots i.on { opacity: .9; transform: scale(1.15); }
   .p1 { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
   html.fill .p1 { height: 100dvh; }
   html.fill #v-month { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -909,11 +921,11 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
     </div>
     <div class="list" id="list"></div>
   </div>
-  <button type="button" class="next-hint" id="to-p2">Überblick, Geburtstage, Statistik <span aria-hidden="true">▲</span></button>
+  <button type="button" class="next-hint" id="to-p2">Überblick, Geburtstage, Statistik <span aria-hidden="true" class="nh-a">▲</span></button>
   </section>
 
   <section class="page p2" id="p2">
-  <button type="button" class="next-hint up" id="to-p1"><span aria-hidden="true">▼</span> Kalender</button>
+  <button type="button" class="next-hint up" id="to-p1"><span aria-hidden="true" class="nh-a">▼</span> Kalender</button>
   <div class="ov-head">
     <h2>Überblick <span id="ov-year"></span></h2>
     <button type="button" class="arrow" id="o-prev" aria-label="Vorheriges Jahr">‹</button>
@@ -940,6 +952,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
   </div>
 
   <button type="button" class="fab" id="add-btn" hidden>+ Eintragen</button>
+<div class="pgdots" id="pgdots" aria-hidden="true"></div>
   <div class="movebar" id="movebar" hidden><div id="move-txt"></div><button type="button" class="btn small" id="move-cancel">Abbrechen</button></div>
   <div class="toast" id="toast" hidden role="status"></div>
 </div>
