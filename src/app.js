@@ -2678,6 +2678,7 @@ function showForm(e, preset) {
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}<option value="custom"${!REPEAT[v.repeat] && repSpec(v.repeat) ? " selected" : ""}>anders …</option></select></div></div>
       <div class="rep-c" id="f-repc-wrap"${!REPEAT[v.repeat] && repSpec(v.repeat) ? "" : " hidden"}><span>alle</span><input id="f-repn" type="number" inputmode="numeric" min="1" max="99" value="${repSpec(v.repeat)?.n || 2}"><select id="f-repu">${Object.entries(REP_U).map(([u, [, pl]]) => `<option value="${u}"${(repSpec(v.repeat)?.u || "w") === u ? " selected" : ""}>${pl}</option>`).join("")}</select></div>
+      <div id="f-until-wrap" class="f-until"><label for="f-until">Wiederholung endet am <small>(optional)</small></label><input id="f-until" type="date" value="${esc(v.until)}"></div>
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small">📎 Ticket / Buchung anhängen<input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <label for="f-title" id="f-title-l">Titel</label>
@@ -2702,7 +2703,6 @@ function showForm(e, preset) {
         <div id="f-ew-wrap"><label for="f-ew">Erinnern alle … Wochen</label><input id="f-ew" type="number" inputmode="numeric" min="1" max="104" value="${esc(v.everyWeeks || 8)}"></div>
         <div id="f-rem-wrap"><label for="f-rem">Erinnerung (Tage vorher)</label><input id="f-rem" type="number" inputmode="numeric" min="0" max="120" placeholder="Standard" value="${esc(rd)}"></div>
       </div>
-      <div id="f-until-wrap"><label for="f-until">Wiederholung endet am</label><input id="f-until" type="date" value="${esc(v.until)}"></div>
       <label class="tog setrow" id="f-thx-wrap" style="margin-top:6px"><input type="checkbox" id="f-thx"${v.thanks ? " checked" : ""}> Am Tag danach an „Danke sagen“ erinnern</label>
       <div id="f-trip-wrap"><label style="margin-top:8px">Anreise mit</label><div class="xchips" id="f-mode">${Object.entries(MODES).map(([k, l]) => `<label class="xchip" style="--c:var(--trip)"><input type="radio" name="fmode" value="${k}"${(v.mode || (v.flight ? "flug" : "")) === k ? " checked" : ""}><i></i>${l}</label>`).join("")}</div>
         <label class="tog setrow"><input type="checkbox" id="f-kids"${v.kids ? " checked" : ""}> Kinder reisen mit</label></div>
