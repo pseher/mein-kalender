@@ -3865,10 +3865,14 @@ function trainDetail(o) {
   return `<div class="trd"><b>${head}</b><br>${what} ${esc(s.sn || st)}: ${s.c ? `geplant ${hm(plan)}` : s.d ? `jetzt ca. <b>${hm(real)}</b> statt ${hm(plan)}` : hm(plan)}${s.pl ? ` · Gleis <b>${esc(s.pl)}</b>${s.pp && s.pp !== s.pl ? ` (statt ${esc(s.pp)})` : ""}` : ""}${s.chk ? `<br><span class="note">Stand ${hm(new Date(s.chk))} · wird alle 5 Min. aktualisiert</span>` : ""}</div>`;
 }
 // Flugnummer (z. B. LH 123, EW 9452, U2 4567) – nur bei Flug-Einträgen, damit „RE 4“ nicht als Flug gilt
-const FLNO_RE = /\b([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})[A-Z]?\b/;
+const FLNO_RE = /\b([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{2,4})[A-Z]?\b(?!\s*(?:MIN|STD|H\b|UHR|KG|EUR|€))/g;
 function flightOf(e) {
   const isF = e.pick?.mode === "flug" || (e.type === "trip" && (e.flight || e.mode === "flug")) || FLIGHT_RE.test([e.title, e.note].join(" ")) || /landung|flieg/i.test([e.title, e.note].join(" "));
-  if (!isF) return ""; for (const t of [e.pick?.no, e.note, e.title]) { const m = String(t || "").toUpperCase().match(FLNO_RE); if (m && !TRAIN_RE.test(m[0])) return `${m[1]} ${m[2]}`; } return ""; }
+  if (!isF) return ""; const known = new Set(Object.values(AIRLINES));
+  for (const t of [e.pick?.no, e.note, e.title]) for (const m of String(t || "").toUpperCase().matchAll(FLNO_RE)) {
+    if (TRAIN_RE.test(m[0]) || /^\d/.test(m[1]) && !known.has(m[1]) || /\d/.test(m[1]) && !known.has(m[1]) && t !== e.pick?.no) continue;   // „1H 35“ (Aufenthalt) ist keine Flugnummer
+    if (/[A-Z]{3}\s*$/.test(String(t).toUpperCase().slice(0, m.index)) && !known.has(m[1])) continue;
+    return `${m[1]} ${m[2]}`; } return ""; }
 // Strecke ohne Flugnummer: „BER 18:55 → MUC“ + Airline-Name → der Server sucht die Nummer im Flugplan
 const AIRLINES = { lufthansa: "LH", eurowings: "EW", ryanair: "FR", easyjet: "U2", condor: "DE", sas: "SK", klm: "KL", "air france": "AF", austrian: "OS", swiss: "LX", "british airways": "BA", tuifly: "X3", turkish: "TK", wizz: "W6", norwegian: "DY", "iberia": "IB", "ita airways": "AZ", "brussels": "SN", "pegasus": "PC", "sunexpress": "XQ", "finnair": "AY", "lot": "LO", "aegean": "A3", "vueling": "VY", "emirates": "EK", "qatar": "QR", "united": "UA", "delta": "DL", "american airlines": "AA" };
 function flightRoute(e) {
