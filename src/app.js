@@ -161,6 +161,7 @@ const TYPES = {
   trip:     { label: "Reise",            color: "--trip" },
   urlaub:   { label: "Urlaub & Ferien",  color: "--c-urlaub" },
   dienst:   { label: "Dienst & Schicht", color: "--c-dienst" },
+  abholen:  { label: "Abholen & Bringen", color: "--c-pick" },
   info:     { label: "Hinweis",          color: "--c-info" },
   birthday: { label: "Geburtstag",       color: "--event" },
   mina:     { label: "Umgang",           color: "--c-mina" },
@@ -203,7 +204,7 @@ function normalize(id, v) {
     remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks,
-    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
+    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
@@ -1975,8 +1976,8 @@ async function linksForAI(text, say) {
   return { texts, fails };
 }
 const TRAIN_RULE = `ZÜGE (wichtig, damit die App den Zug live beobachten kann): Zugnummer immer mit Gattung in den Titel schreiben ("RE 4", "ICE 1101", "IC 1934"), place = der Bahnhof, um den es geht, als "Stadt Hbf" bzw. Bahnhofsname (z. B. "Berlin Hbf", "Magdeburg Hbf"), time = die Zeit an genau diesem Bahnhof.
-- Jemanden ABHOLEN (abholen, kommt an, holen): type "termin", title "<Name> abholen · <Zug>", from = Ankunftstag, time = ANKUNFTSzeit, place = ANKUNFTSbahnhof, note = "Ankunft <Bahnhof> <Zeit> aus <Herkunft>" (+ Gleis/Wagen falls bekannt).
-- Jemanden zum Zug BRINGEN (bringen, abliefern, verabschieden): title "<Name> zum Zug bringen · <Zug>", time = ABFAHRTSzeit, place = ABFAHRTSbahnhof, note = "Abfahrt <Bahnhof> <Zeit> nach <Ziel>".
+- Jemanden ABHOLEN (abholen, kommt an, holen): type "abholen", pick = {"dir":"arr","mode":"zug"|"flug"|"bus","who":"<Name>","no":"<Zug/Flug>"}, title "<Name> abholen · <Zug>", from = Ankunftstag, time = ANKUNFTSzeit, place = ANKUNFTSbahnhof, note = "Ankunft <Bahnhof> <Zeit> aus <Herkunft>" (+ Gleis/Wagen falls bekannt).
+- Jemanden zum Zug BRINGEN (bringen, abliefern, verabschieden): type "abholen", pick = {"dir":"dep",…}, title "<Name> zum Zug bringen · <Zug>", time = ABFAHRTSzeit, place = ABFAHRTSbahnhof, note = "Abfahrt <Bahnhof> <Zeit> nach <Ziel>".
 - Eigene Zugfahrt ohne Übernachtung: type "termin", title "<Zug> <Von> → <Nach>", time = Abfahrt, endTime = Ankunft, place = Abfahrtsbahnhof. Mit Übernachtung: Reise wie unten, note beginnt mit "<Zug> ab <Abfahrtsbahnhof> <Zeit>".
 - Mehrere Teilstrecken mit Umstieg: der ERSTE Zug in den Titel, alle Teilstrecken kurz in note.`;
 const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45 · Buchung ABC123"). Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.
@@ -2741,7 +2742,9 @@ function showForm(e, preset) {
   const rd = v.remindDays === undefined || v.remindDays === "" ? "" : v.remindDays;
   openSheet(editing ? "Bearbeiten" : "Neu eintragen", editing ? TYPES[v.type]?.label || "" : "Felder ausfüllen und speichern", `
     <form id="f" class="form" novalidate>${editing ? "" : entrySw("form")}
-      <div class="two"><div><label for="f-type">Art</label>
+      <label>Was möchtest du eintragen?</label>
+      <div class="tchips" role="radiogroup" aria-label="Art">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<button type="button" role="radio" class="tchip" data-ftype="${k}" aria-checked="${v.type === k}" style="--c:${catColor(k)}"><i></i>${TYPE_ICON[k] || ""} ${t.label}</button>`).join("")}</div>
+      <div class="two"><div hidden><label for="f-type">Art</label>
       <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}<option value="custom"${!REPEAT[v.repeat] && repSpec(v.repeat) ? " selected" : ""}>anders …</option></select></div></div>
@@ -2749,11 +2752,20 @@ function showForm(e, preset) {
       <div id="f-until-wrap" class="f-until"><label for="f-until">Wiederholung endet am <small>(optional)</small></label><input id="f-until" type="date" value="${esc(v.until)}"></div>
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small">📎 Ticket / Buchung anhängen<input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
-      <label for="f-title" id="f-title-l">Titel</label>
+      <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
+        <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
+        <div class="seg emode" id="f-pk-mode" data-v="${v.pick?.mode || "zug"}">${Object.entries({ zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus" }).map(([k, l]) => `<button type="button" data-pkmode="${k}" aria-selected="${(v.pick?.mode || "zug") === k}">${l}</button>`).join("")}</div>
+        <div class="two"><div><label for="f-pk-who">Wen?</label><input id="f-pk-who" type="text" list="f-who-l" value="${esc(v.pick?.who || "")}" placeholder="z. B. Ina" autocomplete="off"></div>
+          <div><label for="f-pk-no" id="f-pk-no-l">Zug</label><input id="f-pk-no" type="text" value="${esc(v.pick?.no || "")}" placeholder="z. B. RE 4" autocomplete="off" autocapitalize="characters"></div></div>
+        <label for="f-pk-st" id="f-pk-st-l">Bahnhof</label><input id="f-pk-st" type="text" list="f-pk-stl" value="${esc(v.type === "abholen" ? v.place || "" : "")}" placeholder="z. B. Berlin Hbf" autocomplete="off">
+        <datalist id="f-pk-stl">${[...new Set(EV.filter(x => x.type === "abholen" && x.place).map(x => x.place))].slice(0, 12).map(n => `<option value="${esc(n)}">`).join("")}</datalist>
+        <p class="note" id="f-pk-prev"></p></div>
+      <div id="f-title-grp"><label for="f-title" id="f-title-l">Titel</label>
       <input id="f-title" type="text" value="${esc(v.title)}" placeholder="z. B. Zahnarzt, Ostsee, TÜV">
+      <div class="tsug" id="f-tsug"></div></div>
       <div class="f-who" id="f-who-wrap"${v.who ? "" : " data-off=\"1\""}><div><label for="f-who">Für wen?</label><input id="f-who" type="text" list="f-who-l" value="${esc(v.who || "")}" placeholder="optional, z. B. Karin" autocomplete="off"><datalist id="f-who-l">${[...new Set([...FAM().map(p => p.name), ...EV.map(x => x.who).filter(Boolean)])].slice(0, 30).map(n => `<option value="${esc(n)}">`).join("")}</datalist></div></div>
       <div id="f-col-wrap"><label id="f-col-l">${v.who ? `Farbe für ${esc(v.who)}` : "Farbe nur für diesen Eintrag"}</label><div class="fcols" role="radiogroup" aria-label="Farbe">${[["", "Wie die Art (☰ → Anzeigen → Farben)", ""], ...ECOL].map(([id, n, hex]) => `<button type="button" role="radio" class="fcol" data-fcol="${id}" title="${n}" aria-label="${n}" aria-checked="${(v.who ? (whoCols()[whoKey(v.who)] || "") : (v.color || "")) === id}" style="${hex ? `background:${hex}` : ""}">${hex ? "" : "A"}</button>`).join("")}</div></div>
-      ${SHR_ON() && !(e && e.shared) ? (SHR.contacts.length ? `<div id="f-sh-wrap"><label>Teilen mit</label>${shrChips("data-fsh", e ? effTo(e) : [...new Set([...(v.title ? shrPick(v.title) : []), ...(["birthday"].includes(v.type) ? [] : autoLs())])])}</div>` : `<p class="note" style="margin:6px 0 0">👥 Teilen mit anderen? <button type="button" class="link" id="mi-share">Personen einladen</button></p>`) : ""}
+      ${SHR_ON() && !(e && e.shared) ? (SHR.contacts.length ? `<div id="f-sh-wrap"><label>Teilen mit</label>${shrChips("data-fsh", e ? effTo(e) : [...new Set([...(v.title ? shrPick(v.title) : []), ...(["birthday"].includes(v.type) ? [] : autoLs())])])}</div>` : `<p class="note" id="f-sh-note" style="margin:6px 0 0">👥 Teilen mit anderen? <button type="button" class="link" id="mi-share">Personen einladen</button></p>`) : ""}
       ${famGroups().length && gWritable() && !v.gReadOnly ? `<div class="vis" id="f-vis" role="radiogroup" aria-label="Wer sieht das?"><button type="button" role="radio" data-vis="me" aria-checked="${!isShareCal(v.gcal)}">🔒 Nur ich</button>${famGroups().map(g => `<button type="button" role="radio" data-vis="${esc(g.cal)}" aria-checked="${v.gcal === g.cal}">👪 ${esc(calName(g.cal))}</button>`).join("")}</div>` : ""}
       <div class="two"><div><label for="f-from" id="f-from-l">Von</label><input id="f-from" type="date" value="${esc(v.from)}"></div>
       <div id="f-to-wrap"><label for="f-to">Bis</label><input id="f-to" type="date" value="${esc(v.to)}"></div></div>
@@ -2763,7 +2775,7 @@ function showForm(e, preset) {
         ${canWrite ? `<label class="tog setrow" style="margin-top:6px"><input type="checkbox" id="f-fam"${v.fam || FAM().some(p => famKey(p.name) === famKey(v.title)) ? " checked" : ""}> Gehört zu meinen Liebsten (frühere Erinnerung, Geschenkeliste)</label>` : ""}</div>
       <div class="shift" id="f-shift"><span>Verschieben</span><button type="button" class="btn ghost small" data-shift="-7">−1 Wo</button><button type="button" class="btn ghost small" data-shift="-1">−1 Tag</button><button type="button" class="btn ghost small" data-shift="1">+1 Tag</button><button type="button" class="btn ghost small" data-shift="7">+1 Wo</button></div>
       <button type="button" class="link f-time-add" id="f-time-add">🕒 Uhrzeit hinzufügen</button>
-      <div class="two" id="f-time-wrap"><div><label for="f-time">Uhrzeit</label><input id="f-time" type="time" value="${esc(v.time)}"></div>
+      <div class="two" id="f-time-wrap"><div><label for="f-time" id="f-time-l">Uhrzeit</label><input id="f-time" type="time" value="${esc(v.time)}"></div>
       <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div></div>
       <div class="two" id="f-extra">
         <div id="f-by-wrap"><label for="f-by">Geburtsjahr</label><input id="f-by" type="number" inputmode="numeric" min="1900" max="2028" placeholder="fürs Alter" value="${esc(v.birthYear || "")}"></div>
@@ -2774,11 +2786,12 @@ function showForm(e, preset) {
       <label class="tog setrow" id="f-thx-wrap" style="margin-top:6px"><input type="checkbox" id="f-thx"${v.thanks ? " checked" : ""}> Am Tag danach an „Danke sagen“ erinnern</label>
       <div id="f-trip-wrap"><label style="margin-top:8px">Anreise mit</label><div class="xchips" id="f-mode">${Object.entries(MODES).map(([k, l]) => `<label class="xchip" style="--c:var(--trip)"><input type="radio" name="fmode" value="${k}"${(v.mode || (v.flight ? "flug" : "")) === k ? " checked" : ""}><i></i>${l}</label>`).join("")}</div>
         <label class="tog setrow"><input type="checkbox" id="f-kids"${v.kids ? " checked" : ""}> Kinder reisen mit</label></div>
-      <label for="f-place">Ort / Adresse</label>
+      <div id="f-place-grp"><label for="f-place">Ort / Adresse</label>
       <input id="f-place" type="text" value="${esc(v.place || "")}" placeholder="optional, für die Navigation" autocomplete="off">
-      <div id="f-place-sug" class="osm-sug" hidden></div>
-      <label for="f-note">Notiz</label>
-      <input id="f-note" type="text" value="${esc(v.note)}" placeholder="optional">
+      <div id="f-place-sug" class="osm-sug" hidden></div></div>
+      <button type="button" class="link f-more" id="f-more" hidden></button>
+      <div id="f-note-grp"><label for="f-note">Notiz</label>
+      <input id="f-note" type="text" value="${esc(v.note)}" placeholder="optional"></div>
       <div id="f-gcal-wrap">${v.gReadOnly ? `<p class="note">Aus Google übernommen – der Google-Termin bleibt unverändert.</p>` : gWritable() ? `<label for="f-gcal">Auch in Google eintragen</label><select id="f-gcal">${gCalOptions(v.gcal)}</select>` : ""}</div>
       <div class="err" id="f-err"></div>
       <div class="btnrow">
@@ -2789,9 +2802,31 @@ function showForm(e, preset) {
       </div>
     </form>`, "form");
   formVisManual = !!editing; formShManual = false; formVis = (e && isShareCal(e.gcal)) ? e.gcal : "me";
+  fMore = !!(editing && ((v.repeat && v.repeat !== "none" && !["birthday", "anniversary"].includes(v.type)) || v.note || v.color || v.who));
   syncFormFields(); setVis(formVis);
 }
 const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom") return r; const n = Math.max(1, Math.min(99, +$("f-repn").value || 1)), u = $("f-repu").value; return n === 1 ? { d: "d1", w: "weekly", m: "monthly", y: "yearly" }[u] : u + n; };
+const TYPE_ICON = { termin: "📅", trip: "🧳", urlaub: "🏖️", dienst: "🕘", abholen: "🚉", info: "💡", birthday: "🎂", mina: "👨‍👧", anniversary: "💞", deadline: "⏰", contact: "📞" };
+// Pflicht = sofort sichtbar; alles andere unter „Mehr Optionen“
+const F_MAIN = { termin: ["title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["title", "dates"], dienst: ["title", "dates", "time", "rep"],
+  abholen: ["pick", "dates", "time"], info: ["title", "dates", "time"], birthday: ["title", "bd"], mina: ["title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["title", "dates", "extra"], contact: ["title", "dates", "extra"] };
+const F_GRP = { att: "f-att", title: "f-title-grp", rep: "f-rep-wrap", col: "f-col-wrap", share: "f-sh-wrap", vis: "f-vis", shift: "f-shift", thx: "f-thx-wrap", trip: "f-trip-wrap", place: "f-place-grp", note: "f-note-grp", gcal: "f-gcal-wrap", pick: "f-pick-wrap" };
+let fMore = false;
+const DIENST_SUG = ["Früh", "Spät", "Nacht", "Bereitschaft", "Homeoffice"];
+function formLayout(ty) {
+  const main = new Set(F_MAIN[ty] || F_MAIN.termin);
+  for (const [k, id] of Object.entries(F_GRP)) { const el = $(id) || (k === "share" ? $("f-sh-note") : null); if (!el) continue; el.classList.toggle("f-off", !main.has(k) && !fMore); }
+  $("f-pick-wrap").hidden = ty !== "abholen"; $("f-title-grp").classList.toggle("f-off", ty === "abholen");
+  if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
+  const sug = $("f-tsug"); if (sug) { const L = ty === "dienst" ? [...new Set([...DIENST_SUG, ...EV.filter(x => x.type === "dienst").map(x => x.title)])].slice(0, 8) : ty === "urlaub" ? ["Urlaub", "Ferien", "Freier Tag", "Brückentag"] : [];
+    sug.innerHTML = L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = !L.length; }
+  if (ty === "urlaub" && !$("f-title").value) $("f-title").placeholder = "z. B. Urlaub, Ferien";
+  if (ty === "dienst" && !$("f-title").value) $("f-title").placeholder = "z. B. Spät";
+  const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
+  if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : "Mehr Optionen (Wiederholung, Farbe, Notiz, Google …) ▾"; }
+  document.querySelectorAll("[data-ftype]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.ftype === ty)));
+  document.querySelector(`[data-ftype="${ty}"]`)?.scrollIntoView?.({ block: "nearest", inline: "center" });
+}
 function syncFormFields() {
   const t = $("f-type"), r = $("f-rep"); if (!t) return;
   const ty = t.value, contact = ty === "contact";
@@ -2815,13 +2850,23 @@ function syncFormFields() {
     $("f-from").closest(".two").hidden = true; $("f-until-wrap").hidden = true;
     if (!$("f-bd").value.trim()) { const a = parseIso($("f-from").value); if (a) $("f-bd").value = `${p2(a.getDate())}.${p2(a.getMonth() + 1)}.`; } }
   else { $("f-from").closest(".two").hidden = false; $("f-place").hidden = false; $("f-place").previousElementSibling.hidden = false; $("f-title").placeholder = "z. B. Zahnarzt, Ostsee, TÜV"; }
-  $("f-from-l").textContent = contact ? "Zuletzt gemeldet" : ty === "deadline" ? "Fällig am" : "Von";
+  $("f-from-l").textContent = contact ? "Zuletzt gemeldet" : ty === "deadline" ? "Fällig am" : ty === "abholen" ? "Datum" : "Von";
+  formLayout(ty);
 }
 function shiftForm(n) {
   const f = $("f-from"), t = $("f-to"), a = parseIso(f.value); if (!a) { $("f-err").textContent = "Erst ein Von-Datum eingeben."; return; }
   const b = parseIso(t.value) || a; f.value = iso(addDays(a, n)); t.value = iso(addDays(b, n));
 }
-function formVals() {
+const PK_ICON = { zug: "🚆", flug: "✈️", bus: "🚌" };
+const pickVals = () => ({ dir: $("f-pk-dir")?.dataset.v || "arr", mode: $("f-pk-mode")?.dataset.v || "zug", who: ($("f-pk-who")?.value || "").trim(), no: ($("f-pk-no")?.value || "").trim().replace(/^([a-z]+)\s*(\d)/i, (m, a, b) => a.toUpperCase() + " " + b) });
+const pickTitle = k => { const where = k.mode === "flug" ? "Flughafen" : k.mode === "bus" ? "Bus" : "Zug"; const w = k.who || "";
+  return `${w ? w + " " : ""}${k.dir === "arr" ? (w ? "abholen" : "Abholen") : (w ? "zum " + where + " bringen" : "Zum " + where + " bringen")}${k.no ? " · " + k.no : ""}`.trim(); };
+function pickPreview() { const el = $("f-pk-prev"); if (!el) return; const k = pickVals(); el.textContent = `Wird eingetragen als: ${pickTitle(k)}${$("f-pk-st").value.trim() ? " · " + $("f-pk-st").value.trim() : ""}`;
+  $("f-pk-no-l").textContent = k.mode === "flug" ? "Flugnummer" : k.mode === "bus" ? "Linie" : "Zug"; $("f-pk-no").placeholder = k.mode === "flug" ? "z. B. LH 123" : k.mode === "bus" ? "optional" : "z. B. RE 4, ICE 1101";
+  $("f-pk-st-l").textContent = k.mode === "flug" ? "Flughafen" : k.mode === "bus" ? "Haltestelle" : "Bahnhof"; $("f-pk-st").placeholder = k.mode === "flug" ? "z. B. Flughafen BER" : "z. B. Berlin Hbf";
+  $("f-time-l").textContent = k.dir === "arr" ? "Ankunft" : "Abfahrt"; }
+function formVals() { if ($("f-type")?.value === "abholen") { const k = pickVals(); $("f-title").value = pickTitle(k); $("f-place").value = $("f-pk-st").value.trim(); $("f-to").value = $("f-from").value; const v = formVals0(); v.pick = k; return v; } return formVals0(); }
+function formVals0() {
   const g = id => $(id).value.trim();
   const type = g("f-type");
   if (type === "birthday" && $("f-bd")) { // vereinfachte Eingabe: Tag.Monat (+ optional Jahr)
@@ -2845,6 +2890,7 @@ function formVals() {
 }
 const fMode = () => document.querySelector("[name=fmode]:checked")?.value || "";
 function validate(v) {
+  if (v.type === "abholen" && !v.time) return `Bitte die Uhrzeit der ${v.pick?.dir === "dep" ? "Abfahrt" : "Ankunft"} eingeben.`;
   if (!v.title) return "Bitte einen Titel eingeben.";
   const a = parseIso(v.from), b = parseIso(v.to);
   if (!a) return v.type === "birthday" ? "Bitte den Geburtstag als Tag.Monat eingeben, z. B. 18.05." : "Bitte ein gültiges Von-Datum eingeben.";
@@ -2872,7 +2918,7 @@ const writeErr = e => ["permission_denied", "not_granted", "forbidden"].includes
 const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", birthYear: e.birthYear || 0, note: e.note || "", gcal: e.gcal || "", gEventId: e.gEventId || "",
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
-  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
+  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
   shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
 let gWarn = 0;
 let LAST_ADDED = [];
@@ -3110,7 +3156,7 @@ Es gibt zwei Arten von Terminen:
 ${canTools ? `WICHTIG: Du siehst unten nur die eigenen Termine. Für jede Frage, ob/was an einem Datum oder in einem Zeitraum ansteht, und bevor du etwas änderst oder neu einträgst, rufe das Werkzeug find_events auf. Es liefert eigene UND Google-Termine. Behaupte nie, ein Tag sei frei, ohne find_events für diesen Tag aufgerufen zu haben.` : `Unten stehen alle Termine des relevanten Zeitraums, eigene und Google.`}
 
 Felder für neue/geänderte eigene Termine:
-- type: "termin" (alles andere) | "trip" (Reise mit Ziel/Unterkunft/Anreise) | "urlaub" (Urlaub, Ferien, freie Tage ohne Reise) | "dienst" (Dienst, Schicht, Bereitschaft) | "info" (reiner Hinweis) | "birthday" | "mina" (Umgang) | "anniversary" | "deadline"
+- type: "termin" (alles andere) | "trip" (Reise mit Ziel/Unterkunft/Anreise) | "urlaub" (Urlaub, Ferien, freie Tage ohne Reise) | "dienst" (Dienst, Schicht, Bereitschaft) | "abholen" (jemanden vom Zug/Flug abholen oder hinbringen) | "info" (reiner Hinweis) | "birthday" | "mina" (Umgang) | "anniversary" | "deadline"
 - title: kurz. Bei "birthday" nur der Name der Person.
 - from, to: "YYYY-MM-DD" (to = from bei einem Tag)
 - time, endTime: "HH:MM" oder ""
@@ -4039,6 +4085,10 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
+  if ((el = q("[data-ftype]"))) { const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
+  if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
+  if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
+  if ((el = q("#f-more"))) { fMore = !fMore; syncFormFields(); return; }
   if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
   if ((el = q("[data-tkn]"))) { const d = $("tk-due"), k = el.dataset.tkn, v = k === "w" ? iso(addDays(monday(TODAY), 6)) : iso(addDays(TODAY, +k)); d.value = d.value === v ? "" : v; d.dataset.man = "1"; tkUi(); $("tk-in").focus(); return; }
   if ((el = q("[data-umg]"))) { const [id, a] = el.dataset.umg.split("|"); const o = findOcc(id, a); if (!o) return; const on = umgToggle(o.ev.title);
@@ -4251,6 +4301,7 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; saveGSel(s); resetGoogleWatches(); return; }
   if (["f-type", "f-rep", "f-repu"].includes(ev.target.id)) syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
 document.addEventListener("input", ev => {
+  if (["f-pk-who", "f-pk-no", "f-pk-st"].includes(ev.target.id)) pickPreview();
   if (ev.target.id === "adm-free") { ADM_FREE = Math.max(1, +ev.target.value || 30); clearTimeout(window.__admT); window.__admT = setTimeout(() => { showAdmin(); $("adm-free")?.focus(); }, 600); return; }
   if (ev.target.id === "tk-in") { const d = $("tk-due"); if (!d.dataset.man) { const p = parseTask(ev.target.value); d.value = p.due || ""; } tkUi(); }
   if (ev.target.id === "tk-due") { ev.target.dataset.man = "1"; tkUi(); }

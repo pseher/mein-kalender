@@ -11,7 +11,7 @@
   --holiday: #c8312b; --holiday-ink: #ffffff;
   --bridge: #d9861a;
   --event: #c0306f; --trip: #6a4bc4; --opt: rgba(110, 80, 30, .30); --opt-solid: #8a6a3a; --gcal: #2f6fe0;
-  --c-mina: #8a6a3a; --c-urlaub: #2e9e5e; --c-dienst: #8d6e63; --c-termin: #455a64; --c-info: #90a4ae; --c-anniv: #c2185b; --c-deadline: #c45d00; --c-contact: #2e7d32; --c-season: #6d4c9f; --be-tint: #e6f0fa; --st-tint: #e7f4e7; --both-tint: #d3eaea; --lane: 19px;
+  --c-mina: #8a6a3a; --c-urlaub: #2e9e5e; --c-pick: #0277bd; --c-dienst: #8d6e63; --c-termin: #455a64; --c-info: #90a4ae; --c-anniv: #c2185b; --c-deadline: #c45d00; --c-contact: #2e7d32; --c-season: #6d4c9f; --be-tint: #e6f0fa; --st-tint: #e7f4e7; --both-tint: #d3eaea; --lane: 19px;
   --f-display: "Fraunces", Georgia, serif;
   --f-body: "IBM Plex Sans", system-ui, sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -22,7 +22,7 @@
   --st: #213f28; --st-ink: #c3eacb; --st-strong: #5cb870;
   --both: #24a3a9; --both-ink: #08191a; --both-soft: #173335;
   --holiday: #e5534b; --bridge: #e8a23a; --event: #ee6fa5; --trip: #a58bf0; --opt: rgba(255, 225, 170, .28); --opt-solid: #d2b27a; --gcal: #7fa8ff;
-  --c-mina: #9a7744; --c-urlaub: #4cbf7f; --c-dienst: #a1887f; --c-termin: #607d8b; --c-info: #78909c; --c-anniv: #f06292; --c-deadline: #ff9a3c; --c-contact: #66bb6a; --c-season: #b39ddb; --be-tint: #172636; --st-tint: #17281b; --both-tint: #123134;
+  --c-mina: #9a7744; --c-urlaub: #4cbf7f; --c-pick: #4fc3f7; --c-dienst: #a1887f; --c-termin: #607d8b; --c-info: #78909c; --c-anniv: #f06292; --c-deadline: #ff9a3c; --c-contact: #66bb6a; --c-season: #b39ddb; --be-tint: #172636; --st-tint: #17281b; --both-tint: #123134;
   color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #111417; --surface: #1a1f24; --fg: #f7f9fa; --muted: #e4e8ec; --line: #333c44; --soft: #242b31;
@@ -30,7 +30,7 @@
   --st: #213f28; --st-ink: #c3eacb; --st-strong: #5cb870;
   --both: #24a3a9; --both-ink: #08191a; --both-soft: #173335;
   --holiday: #e5534b; --bridge: #e8a23a; --event: #ee6fa5; --trip: #a58bf0; --opt: rgba(255, 225, 170, .28); --opt-solid: #d2b27a; --gcal: #7fa8ff;
-  --c-urlaub: #4cbf7f; --c-dienst: #a1887f; --c-mina: #9a7744; --c-termin: #607d8b; --c-info: #78909c; --c-anniv: #f06292; --c-deadline: #ff9a3c; --c-contact: #66bb6a; --c-season: #b39ddb; --be-tint: #172636; --st-tint: #17281b; --both-tint: #123134;
+  --c-urlaub: #4cbf7f; --c-pick: #4fc3f7; --c-dienst: #a1887f; --c-mina: #9a7744; --c-termin: #607d8b; --c-info: #78909c; --c-anniv: #f06292; --c-deadline: #ff9a3c; --c-contact: #66bb6a; --c-season: #b39ddb; --be-tint: #172636; --st-tint: #17281b; --both-tint: #123134;
   color-scheme: dark }
 
 [hidden] { display: none !important; }
@@ -164,6 +164,9 @@ button { font: inherit; color: inherit; }
 .adm h3 { margin: 18px 0 6px; font-size: 15px; } .adm table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; } .adm th, .adm td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); } .adm td.n, .adm th.n { text-align: right; }
 .adm-bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; padding: 4px 0; border-bottom: 1px solid var(--line); } .adm-bars i { flex: 1; background: var(--both); border-radius: 2px 2px 0 0; min-height: 1px; }
 .adm .note { color: var(--muted); font-size: 13px; } .adm-sim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .adm-sim input { width: 80px; }
+.tchips { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 6px; margin: 2px -4px 14px; padding: 2px 4px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; } .tchips::-webkit-scrollbar { display: none; } .tchip { flex: none; } .tchip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 14.5px; cursor: pointer; }
+.tchip i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; } .tchip[aria-checked="true"] { background: var(--c); border-color: var(--c); color: #fff; font-weight: 600; } .tchip[aria-checked="true"] i { background: #fff; }
+.f-off { display: none !important; } .f-more { display: block; margin: 10px 0 4px; } .tsug { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; } #f-pick-wrap .seg.emode { margin-bottom: 8px; } #f-pk-prev { margin: 6px 0 2px; font-weight: 600; color: var(--fg); }
 .rep-c { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; } #f .rep-c input { width: 84px; flex: 0 0 84px; } #f .rep-c select { flex: 1 1 auto; width: auto; min-width: 0; }
 .seg.emode { display: flex; margin: 0 0 12px; } .seg.emode button { flex: 1; padding: 9px 10px; font-size: 15px; }
 .toolbar .sp { flex: 1; }
