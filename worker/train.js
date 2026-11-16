@@ -26,11 +26,13 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
   // geplante Fahrt einmal suchen – an allen passenden Bahnhöfen (z. B. „Berlin Hbf“ und „Berlin Hbf (tief)“), Stunde der Terminzeit ±1
   if (!s.sid) {
     const x0 = await tt(env, `/station/${encodeURIComponent(w.st)}`);
-    const sts = x0 ? [...x0.matchAll(/<station\b([^>]*?)\/?>/g)].map(m => attrs(m[1])).filter(x => x.eva).slice(0, 4) : [];
-    dbg?.push(`Bahnhof „${w.st}“: ${sts.map(x => `${x.name} (${x.eva})`).join(", ") || (x0 === null ? "Abfrage fehlgeschlagen" : "nichts gefunden")}`);
+    const found = x0 ? [...x0.matchAll(/<station\b([^>]*?)\/?>/g)].map(m => attrs(m[1])).filter(x => x.eva).slice(0, 3) : [];
+    // Große Bahnhöfe haben weitere Nummern im Feld „meta“ (z. B. Berlin Hbf oben/tief/S-Bahn) – die Fahrten liegen oft dort
+    const sts = []; for (const x of found) for (const e of [x.eva, ...String(x.meta || "").split("|").filter(Boolean)]) if (!sts.some(y => y.eva === e)) sts.push({ eva: e, name: e === x.eva ? x.name : `${x.name} [${e}]` });
+    dbg?.push(`Bahnhof „${w.st}“: ${found.map(x => `${x.name} (${x.eva}${x.meta ? ", weitere: " + x.meta.replace(/\|/g, ", ") : ""})`).join("; ") || (x0 === null ? `Abfrage fehlgeschlagen (${LASTERR})` : "nichts gefunden")}`);
     if (!sts.length) return { state: { ...s, err: "station" }, msgs: [] };
     let best = null;
-    for (const st of sts) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
+    for (const st of sts.slice(0, 5)) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
       if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort (${LASTERR})`); continue; }
       const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr: ${all.length} Fahrten, ${hit.length}× ${w.train}${all.length ? "" : ` – Antwort: ${x.replace(/\s+/g, " ").slice(0, 160)}`}`);
       if (all.length && !hit.length && dh === 0) dbg?.push(`Beispiele: ${all.slice(0, 6).map(p => `${p.tl.c || "?"} ${p.tl.n || ""}${(p.ar || p.dp || {}).l ? " (Linie " + (p.ar || p.dp).l + ")" : ""}`).join(", ")}`);
