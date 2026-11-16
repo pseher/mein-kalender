@@ -9,6 +9,7 @@
 //                                  GOOGLE_CLIENT_ID  (+ Secret GOOGLE_CLIENT_SECRET für /google/token)
 
 import { vapid, runSchedule, testPush } from "./push.js";
+import { trainCheck } from "./train.js";
 
 const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
@@ -28,8 +29,8 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16a", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
-    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16b", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -57,6 +58,16 @@ export default {
       ]);
       const users = (ur.users || []).map(u => ({ id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id }));
       return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length });
+    }
+    // Zug-Wächter prüfen (nur Admin, eigene Züge): zeigt Schritt für Schritt, was die Bahn antwortet – ohne Benachrichtigung
+    if (route === "/admin/train") {
+      if (!isAdmin) return out(403, { code: "not_admin" });
+      const sv = { apikey: env.SUPABASE_SERVICE_KEY, ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
+      const rows = await fetch(`${env.SUPABASE_URL}/rest/v1/docs?user_id=eq.${user.id}&coll=eq.push&id=in.(plan,sent)&select=id,data`, { headers: sv }).then(r => r.ok ? r.json() : []);
+      const plan = rows.find(r => r.id === "plan")?.data || {}, sent = rows.find(r => r.id === "sent")?.data || {};
+      const res = [];
+      for (const w of (plan.watch || []).slice(0, 6)) { const dbg = []; try { const r = await trainCheck(env, w, {}, Date.now(), plan.tz, dbg); res.push({ w, dbg, msgs: r.msgs, state: sent.trains?.[w.id] || null }); } catch (e) { res.push({ w, dbg: [...dbg, "Fehler: " + String(e).slice(0, 120)] }); } }
+      return out(200, { planAt: plan.at || plan.updated || null, pref: plan.pref || {}, watch: res, lastRun: sent.at || null });
     }
     if (route === "/push/test") return out(200, await testPush(env, user.id).catch(e => ({ ok: false, code: "error", detail: String(e).slice(0, 120) })));
 

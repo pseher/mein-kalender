@@ -1050,6 +1050,8 @@ async function showAdmin(reload) {
     <p>${over} von ${actU} aktiven Nutzern (${Math.round(over / actU * 100)} %) hätten in den letzten 30 Tagen mehr gebraucht. Median ${pc(.5)}, 90 % der Nutzer ≤ ${pc(.9)} KI-Aktionen.<br>
       Ein Nutzer, der das Freikontingent voll ausschöpft, kostet ca. <b>${usd(capCost || 0)}</b> im Monat. Kosten je aktivem KI-Nutzer: Median ${usd(costU[Math.floor(costU.length / 2)] || 0)}, höchster ${usd(costU.at(-1) || 0)}.</p>
     <p class="note">Stand ${new Date(D.at).toLocaleString("de-DE")} · Preise: ${Object.entries(AI_PRICE).filter(([m]) => m === D.models.quick || m === D.models.default).map(([m, p]) => `${m} ${p[0]}/${p[1]} $ je 1 Mio.`).join(" · ")}. Ältere Einträge ohne Modell werden mit ${esc(D.models.default)} gerechnet.</p>
+    <h3>Zug-Wächter (deine Züge)</h3><p class="note">Prüft deine beobachteten Züge jetzt direkt bei der Bahn und zeigt jeden Schritt – ohne Benachrichtigung.</p>
+    <p><button type="button" class="btn ghost small" id="adm-train">Jetzt prüfen</button></p><div id="adm-train-out"></div>
     <p><button type="button" class="btn ghost small" id="adm-reload">Aktualisieren</button></p></div>`;
   openSheet("Betreiber-Dashboard", `${D.users.length} Nutzer · ${act(d30)} aktiv`, html, "adm");
 }
@@ -4142,6 +4144,11 @@ document.addEventListener("click", ev => {
     case "mi-account": showAccount(); break;
     case "mi-admin": showAdmin(true); break;
     case "adm-reload": showAdmin(true); break;
+    case "adm-train": { const o = $("adm-train-out"); o.innerHTML = `<p class="note">frage bei der Bahn …</p>`; window.mkAdminTrain?.().then(r => {
+      if (!r || r.code) { o.innerHTML = `<p>Fehler: ${esc(r?.code || "keine Antwort")}</p>`; return; }
+      o.innerHTML = `<p class="note">Plan hochgeladen: ${r.planAt ? new Date(r.planAt).toLocaleString("de-DE") : "nie"} · letzter Server-Lauf: ${r.lastRun ? new Date(r.lastRun).toLocaleString("de-DE") : "–"} · Züge live: ${r.pref?.train === false ? "aus" : "an"}</p>` +
+        (r.watch.length ? r.watch.map(x => `<div class="sg" style="padding:10px 12px;margin:8px 0"><b>${esc(x.w.train)} · ${esc(x.w.st)} · ${new Date(x.w.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b><ul style="margin:6px 0 0;padding-left:18px">${x.dbg.map(d => `<li>${esc(d)}</li>`).join("")}</ul>${x.msgs?.length ? `<p class="note">würde melden: ${x.msgs.map(m => esc(m.title + " – " + m.body)).join(" | ")}</p>` : ""}</div>`).join("") : `<p>Keine Züge im hochgeladenen Plan. Steht im Termin Uhrzeit, Zugnummer und Bahnhof, und sind Benachrichtigungen auf diesem Gerät an?</p>`);
+    }).catch(e => { o.innerHTML = `<p>Fehler: ${esc(String(e))}</p>`; }); break; }
     case "mi-notify": showNotify(); break;
     case "nt-on": notifyOn(); break;
     case "nt-off": notifyOff(); break;

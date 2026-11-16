@@ -37,6 +37,7 @@ window.MK_APP = true;
   const wPost = async route => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); return r.json().catch(() => null); };
   window.mkAdminMe = () => wPost("/admin/me").catch(() => null);
   window.mkAdminStats = () => wPost("/admin/stats");
+  window.mkAdminTrain = () => wPost("/admin/train");
   window.mkPushTest = async () => { const s = await freshSession(); const r = await fetch(CFG.workerUrl + "/push/test", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: "{}" }); return r.json().catch(() => ({ ok: false })); };
   // Link auslesen (über den Worker, wegen CORS)
   window.mkReadLink = async url => {

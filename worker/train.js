@@ -17,24 +17,31 @@ const local = (d, tz) => Object.fromEntries(new Intl.DateTimeFormat("en-US", { t
 const matches = (s, want) => { const c = s.tl.c || "", n = s.tl.n || "", l = (s.ar || s.dp || {}).l || ""; return norm(c + n) === want || (l && (norm(c + l) === want || norm(l) === want)); };
 
 // w: { id, train: "IC 1934", st: "Magdeburg Hbf", at: ISO (geplant am Bahnhof), title }
-export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin") {
-  if (!env.DB_CLIENT_ID || !env.DB_API_KEY) return { state: prev, msgs: [] };
+export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
+  if (!env.DB_CLIENT_ID || !env.DB_API_KEY) { dbg?.push("keine DB-Schlüssel"); return { state: prev, msgs: [] }; }
   let s = { ...prev };
-  if (!s.eva) { const x = await tt(env, `/station/${encodeURIComponent(w.st)}`); const st = x && el(x, "station"); if (!st?.eva) return { state: { ...s, err: "station" }, msgs: [] }; s.eva = st.eva; s.sn = st.name; }
   const t0 = new Date(w.at), want = norm(w.train);
-  // geplante Fahrt einmal suchen (Stunde der Terminzeit und die davor/danach)
+  // geplante Fahrt einmal suchen – an allen passenden Bahnhöfen (z. B. „Berlin Hbf“ und „Berlin Hbf (tief)“), Stunde der Terminzeit ±1
   if (!s.sid) {
+    const x0 = await tt(env, `/station/${encodeURIComponent(w.st)}`);
+    const sts = x0 ? [...x0.matchAll(/<station\b([^>]*?)\/?>/g)].map(m => attrs(m[1])).filter(x => x.eva).slice(0, 4) : [];
+    dbg?.push(`Bahnhof „${w.st}“: ${sts.map(x => `${x.name} (${x.eva})`).join(", ") || (x0 === null ? "Abfrage fehlgeschlagen" : "nichts gefunden")}`);
+    if (!sts.length) return { state: { ...s, err: "station" }, msgs: [] };
     let best = null;
-    for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${s.eva}/${L.year}${L.month}${L.day}/${L.hour}`); if (!x) continue;
-      for (const p of stops(x)) if (matches(p, want)) for (const [k, e] of [["arr", p.ar], ["dep", p.dp]]) { if (!e?.pt) continue; const pt = fromTT(e.pt, tz), diff = Math.abs(pt - t0) + (k === "dep" ? 60e3 : 0);
-        if (!best || diff < best.diff) best = { diff, sid: p.id, kind: k, pt: pt.toISOString(), pp: e.pp || "" }; }
+    for (const st of sts) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
+      if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort`); continue; }
+      const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr: ${all.length} Fahrten, ${hit.length}× ${w.train}`);
+      for (const p of hit) for (const [k, e] of [["arr", p.ar], ["dep", p.dp]]) { if (!e?.pt) continue; const pt = fromTT(e.pt, tz), diff = Math.abs(pt - t0) + (k === "dep" ? 60e3 : 0);
+        if (!best || diff < best.diff) best = { diff, sid: p.id, kind: k, pt: pt.toISOString(), pp: e.pp || "", eva: st.eva, sn: st.name }; }
       if (best && best.diff < 20 * 60e3) break; }
-    if (!best || best.diff > 3 * 3600e3) return { state: { ...s, miss: (s.miss || 0) + 1 }, msgs: [] };
-    Object.assign(s, { sid: best.sid, kind: best.kind, pt: best.pt, pp: best.pp });
+    if (!best || best.diff > 3 * 3600e3) { dbg?.push("kein passender Zug im Fahrplan"); return { state: { ...s, miss: (s.miss || 0) + 1 }, msgs: [] }; }
+    Object.assign(s, { sid: best.sid, kind: best.kind, pt: best.pt, pp: best.pp, eva: best.eva, sn: best.sn });
+    dbg?.push(`gefunden: ${best.kind === "arr" ? "Ankunft" : "Abfahrt"} ${best.sn} geplant ${best.pt} Gleis ${best.pp || "?"}`);
   }
   // Echtzeit-Änderungen am Bahnhof
-  const x = await tt(env, `/fchg/${s.eva}`); if (!x) return { state: s, msgs: [] };
+  const x = await tt(env, `/fchg/${s.eva}`); if (!x) { dbg?.push("Echtzeit: keine Antwort"); return { state: s, msgs: [] }; }
   const ch = stops(x).find(p => p.id === s.sid), e = ch ? (s.kind === "arr" ? ch.ar : ch.dp) : null;
+  dbg?.push(`Echtzeit: ${e ? `neu ${e.ct || "–"} Gleis ${e.cp || "–"}${e.cs === "c" ? " AUSFALL" : ""}` : "keine Änderung gemeldet (= planmäßig)"}`);
   const plan = new Date(s.pt), real = e?.ct ? fromTT(e.ct, tz) : plan, d = Math.max(0, Math.round((real - plan) / 60e3));
   const pl = e?.cp || s.pp || "", cancelled = e?.cs === "c";
   const hm = t => t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz });
