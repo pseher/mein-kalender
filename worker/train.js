@@ -25,14 +25,17 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
   const t0 = new Date(w.at), want = norm(w.train);
   // geplante Fahrt einmal suchen – an allen passenden Bahnhöfen (z. B. „Berlin Hbf“ und „Berlin Hbf (tief)“), Stunde der Terminzeit ±1
   if (!s.sid) {
-    const x0 = await tt(env, `/station/${encodeURIComponent(w.st)}`);
-    const found = x0 ? [...x0.matchAll(/<station\b([^>]*?)\/?>/g)].map(m => attrs(m[1])).filter(x => x.eva).slice(0, 3) : [];
+    // Bahnhof suchen – auch Varianten wie „Berlin Hbf (tief)“, dort liegen bei großen Bahnhöfen oft die Fahrten
+    let x0 = null, found = [];
+    for (const q of [w.st, `${w.st} (tief)`, `${w.st}*`]) { const x = await tt(env, `/station/${encodeURIComponent(q)}`); if (x) { x0 = x0 || x;
+      for (const m of x.matchAll(/<station\b([^>]*?)\/?>/g)) { const a = attrs(m[1]); if (a.eva && !found.some(f => f.eva === a.eva)) found.push(a); } } }
+    found = found.slice(0, 4);
     // Große Bahnhöfe haben weitere Nummern im Feld „meta“ (z. B. Berlin Hbf oben/tief/S-Bahn) – die Fahrten liegen oft dort
     const sts = []; for (const x of found) for (const e of [x.eva, ...String(x.meta || "").split("|").filter(Boolean)]) if (!sts.some(y => y.eva === e)) sts.push({ eva: e, name: e === x.eva ? x.name : `${x.name} [${e}]` });
     dbg?.push(`Bahnhof „${w.st}“: ${found.map(x => `${x.name} (${x.eva}${x.meta ? ", weitere: " + x.meta.replace(/\|/g, ", ") : ""})`).join("; ") || (x0 === null ? `Abfrage fehlgeschlagen (${LASTERR})` : "nichts gefunden")}`);
     if (!sts.length) return { state: { ...s, err: "station" }, msgs: [] };
     let best = null;
-    for (const st of sts.slice(0, 5)) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
+    for (const st of sts.slice(0, 6)) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
       if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort (${LASTERR})`); continue; }
       const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr (/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}): ${all.length} Fahrten, ${hit.length}× ${w.train}${all.length ? "" : ` – Antwort: ${x.replace(/\s+/g, " ").slice(0, 160)}`}`);
       if (all.length && !hit.length && dh === 0) dbg?.push(`Beispiele: ${all.slice(0, 6).map(p => `${p.tl.c || "?"} ${p.tl.n || ""}${(p.ar || p.dp || {}).l ? " (Linie " + (p.ar || p.dp).l + ")" : ""}`).join(", ")}`);
