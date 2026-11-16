@@ -1328,7 +1328,7 @@ function renderFocus() {
   let rems = []; try { rems = (REMS = buildReminders()).map((r, i) => ({ r, i })); } catch {}
   const rm = rems.filter(({ r }) => (r.n <= 1 || remImp(r)) && !(r.o && ev.some(x => x.o === r.o))).map(({ r, i }) => ({ k: "rem", d: r.n > 1 ? null : addDays(TODAY, Math.max(0, r.n)), imp: r.n > 1, r, i }));
   const all = [...ev, ...tk, ...rm], byTime = x => x.k === "ev" ? (x.o.ev.time || "00:00") : x.k === "tk" ? "99" : "98";
-  const row = x => x.k === "ev" ? `<button type="button" class="nx" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="when">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="what"><span class="ev-dot ${x.o.ev.type}" style="background:${colorOf(x.o.ev)}"></span>${esc(evName(x.o.ev))}${placeHint(x.o)}${ageTxt(x.o) ? ` · ${esc(ageTxt(x.o))}` : ""}</span></button>`
+  const row = x => x.k === "ev" ? `<button type="button" class="nx" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="when">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="what"><span class="ev-dot ${x.o.ev.type}" style="background:${colorOf(x.o.ev)}"></span>${esc(evName(x.o.ev))}${trainBadge(x.o)}${placeHint(x.o)}${ageTxt(x.o) ? ` · ${esc(ageTxt(x.o))}` : ""}</span></button>`
     : x.k === "tk" ? `<div class="tk fx"><input type="checkbox" class="ckb" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(x.t.id)}"><span>${esc(x.t.title)}</span>${dueLbl(x.t.due)}</button></div>`
     : `<button type="button" class="nx" data-rem="${x.i}"><span class="when">🔔</span><span class="what">${esc(x.r.t)}<small class="note"> · ${esc(x.r.sub || "")}</small></span></button>`;
   const day = (d, lbl) => { const L = all.filter(x => x.d && sameDay(x.d, d)).sort((a, b) => byTime(a).localeCompare(byTime(b))); return L.length ? `<div class="fx-day">${lbl}</div>${L.map(row).join("")}` : ""; };
@@ -2564,6 +2564,28 @@ function stationOf(e) {
   const pre = m[1].trim(), post = m[3].trim(), city = [pre, post].find(w => w && !STOPW.test(w)) || "";
   return m[2] === "Hauptbahnhof" ? (city ? `${city} Hbf` : "") : (src === pl ? pl : `${city ? city + " " : ""}Bahnhof`.trim());
 }
+let TRST = {}, TRST_T = 0, TRST_AT = 0;
+const trainKey = o => `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`;
+async function trainStatusLoad(force) {
+  if (!APP || !db || dbState !== "ready") return; if (!force && Date.now() - TRST_AT < 60e3) return; TRST_AT = Date.now();
+  try { const d = (await COLL("push").doc("sent").get())?.data?.() || {}; const n = JSON.stringify(d.trains || {}); if (n !== JSON.stringify(TRST)) { TRST = d.trains || {}; renderFocus?.(); } } catch {}
+}
+function trainStatusLoop() { clearInterval(TRST_T); TRST_T = setInterval(() => { if (document.visibilityState === "visible" && trainWatch().some(w => Math.abs(Date.parse(w.at) - Date.now()) < 3 * 3600e3)) trainStatusLoad(); }, 90e3); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") trainStatusLoad(true); });
+// kurzes Zeichen für die Liste
+function trainBadge(o) { const s = TRST[trainKey(o)]; if (!s?.seen) return "";
+  const [c, t, cls] = s.c ? ["❌", "fällt aus", "bad"] : s.d >= 5 ? ["🔴", `+${s.d}`, "bad"] : s.d >= 2 ? ["🟡", `+${s.d}`, "warn"] : ["✅", "", "ok"];
+  return ` <span class="trb ${cls}" title="${esc(s.c ? "Zug fällt aus" : s.d ? `+${s.d} Min.` : "pünktlich")}">${c}${t ? " " + esc(t) : ""}${s.pl ? ` · Gl. ${esc(s.pl)}` : ""}</span>`; }
+// ausführlich im Termin
+function trainDetail(o) {
+  const tr = trainOf(o.ev); if (!tr || !o.ev.time) return ""; const s = TRST[trainKey(o)], st = stationOf(o.ev);
+  const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
+  const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (!s?.seen) return at > new Date() ? `<p class="trd">🚆 ${esc(tr)} wird ab ${hm(new Date(at - 150 * 60e3))} Uhr live beobachtet${st ? ` (${esc(st)})` : ""}.</p>` : "";
+  const plan = new Date(s.pt || at), real = new Date(plan.getTime() + (s.d || 0) * 60e3), what = s.kind === "dep" ? "Abfahrt" : "Ankunft";
+  const head = s.c ? `❌ ${esc(tr)} fällt aus` : s.d >= 5 ? `🔴 ${esc(tr)}: +${s.d} Min.` : s.d >= 2 ? `🟡 ${esc(tr)}: fast pünktlich (+${s.d} Min.)` : `✅ ${esc(tr)} pünktlich`;
+  return `<div class="trd"><b>${head}</b><br>${what} ${esc(s.sn || st)}: ${s.c ? `geplant ${hm(plan)}` : s.d ? `jetzt ca. <b>${hm(real)}</b> statt ${hm(plan)}` : hm(plan)}${s.pl ? ` · Gleis <b>${esc(s.pl)}</b>${s.pp && s.pp !== s.pl ? ` (statt ${esc(s.pp)})` : ""}` : ""}${s.chk ? `<br><span class="note">Stand ${hm(new Date(s.chk))} · wird alle 5 Min. aktualisiert</span>` : ""}</div>`;
+}
 function trainWatch() {
   const W = [], seen = new Set();
   OCC.filter(o => !o.part && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
@@ -2701,7 +2723,7 @@ function showEvent(o) {
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
@@ -3572,7 +3594,7 @@ function showGoogleEvent(o) {
     (merkable(o) ? `<button type="button" class="btn ghost small" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "") +
     (!isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) ? `<button type="button" class="btn ghost small" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : "") +
     (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
-  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 // ---- Google-Termine direkt ändern ----
@@ -4482,7 +4504,7 @@ renderAll();
     docSync(); if (sheetMode === "docs" && !$("sheet").hidden) showDocs(); }, () => {});
   COLL("events").onSnapshot(snap => {
     clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); } shrQueue();
-    if (!window.__us) { window.__us = 1; use("app_start"); adminCheck().catch(() => {}); }
+    if (!window.__us) { window.__us = 1; use("app_start"); adminCheck().catch(() => {}); setTimeout(() => { trainStatusLoad(true); trainStatusLoop(); }, 1500); }
     const all = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); MERK = all.filter(e => e.mOnly); EV = all.filter(e => !e.mOnly); docSync();
     if (sheetMode === "event" && !$("sheet").hidden && sheetCtx?.id?.startsWith?.("g:")) { const b = document.querySelector("[data-gmerk]"); if (b) { const o = findOcc(sheetCtx.id, sheetCtx.a); if (o) b.textContent = merkBtn(o); } }
     if (moving && !moving.gocc && !EV.some(e => e.id === moving.id)) stopMove();

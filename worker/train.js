@@ -62,7 +62,7 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
   const hm = t => t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz });
   const what = `${s.kind === "arr" ? "Ankunft" : "Abfahrt"} ${(s.sn || w.st).trim()}`, msgs = [], tag = "zug-" + w.id;
   const m = (title, body, urgent) => msgs.push({ title, body, tag, url: "/app/", urgent });
-  const pd = prev.seen ? (prev.d || 0) : 0, ns = { ...s, d, pl, c: cancelled, seen: true };
+  const pd = prev.seen ? (prev.d || 0) : 0, ns = { ...s, d, pl, c: cancelled, seen: true, chk: new Date(now).toISOString() };
   if (cancelled) { if (!prev.c) m(`⚠️ ${w.train} fällt aus`, `${what}, geplant ${hm(plan)}${w.title ? ` – „${w.title}“` : ""} – bitte Alternativen prüfen`, true); return { state: ns, msgs }; }
   if (d >= 5 && (!prev.seen || pd < 5 || Math.abs(d - pd) >= 5)) m(`🚆 ${w.train}: +${d} Min.`, `${what} jetzt ca. ${hm(real)} statt ${hm(plan)}${pl ? ` · Gleis ${pl}` : ""}`, true);
   else if (d < 3 && prev.seen && pd >= 5) m(`🚆 ${w.train} wieder fast pünktlich`, `${what} ca. ${hm(real)}${pl ? ` · Gleis ${pl}` : ""}`);
