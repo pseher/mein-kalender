@@ -2845,8 +2845,7 @@ function showEvent(o) {
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
-  const qcol = canWrite && !e.gReadOnly ? `<div class="qcol"><div class="qcol-h"><b>🎨 Farbe</b><button type="button" class="link" id="set-farben">Farbe für alle „${esc(TYPES[e.type]?.label || "Einträge")}“ ändern</button></div>
-    <div class="fcols sm" role="radiogroup" aria-label="Farbe dieses Eintrags">${[["", "Wie die Art", ""], ...ECOL].map(([cid, n, hex]) => `<button type="button" role="radio" class="fcol" data-qcol="${id}|${cid}" title="${n}" aria-label="${n}" aria-checked="${(e.color || "") === cid}" style="background:${hex || catColor(catOf(e) || e.type)}">${hex ? "" : "A"}</button>`).join("")}</div></div>` : "";
+  const qcol = canWrite && !e.gReadOnly ? qcolBox(id, e.color, catColor(catOf(e) || e.type), "Farbe dieses Eintrags", `Farbe für alle „${TYPES[e.type]?.label || "Einträge"}“ ändern`) : "";
   openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
@@ -3147,7 +3146,7 @@ const gTitle = v => v.type === "birthday" ? `Geburtstag ${v.title}` : v.title;
 const tpad = t => { const [h, m] = String(t).split(":"); return `${p2(+h)}:${p2(+m)}`; };
 const localStamp = d => `${iso(d)}T${p2(d.getHours())}:${p2(d.getMinutes())}:00`;
 function gInput(v) {
-  const to = v.to || v.from, inp = { summary: gTitle(v), notificationLevel: "NONE" }; { const c = v.color || (v.who ? whoId(v.who) : ""); if (c) inp.colorId = c; }
+  const to = v.to || v.from, inp = { summary: gTitle(v), notificationLevel: "NONE" }; { const c = v.color || (v.who ? whoId(v.who) : ""); if (c) inp.colorId = c; else if (v.colorClear) inp.colorId = ""; }
   if (v.time && to > v.from && !v.endTime) {   // mehrtägig mit Abfahrtszeit (Reise, Urlaub): in Google über alle Tage, Uhrzeit in die Beschreibung
     inp.allDay = true; inp.startTime = `${v.from}T00:00:00`; inp.endTime = `${iso(addDays(parseIso(to), 1))}T00:00:00`;
     inp.description = [`Beginn ${tpad(v.time)} Uhr`, v.note].filter(Boolean).join("\n"); if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal; return inp;
@@ -3174,10 +3173,21 @@ async function gCreate(v) {
     const res = await mcp.callTool(GSERVER, "create_event", inp); const id = gIdOf(res?.payload); if (!id) gWarn++; return id; }
   catch { gWarn++; return ""; }
 }
+function qcolBox(key, cur, base, label, typeLink) {
+  return `<div class="qcol"><div class="qcol-h"><b>🎨 Farbe</b>${typeLink ? `<button type="button" class="link" id="set-farben">${esc(typeLink)}</button>` : ""}</div>
+    <div class="fcols sm" role="radiogroup" aria-label="${esc(label)}">${[["", "Standardfarbe", ""], ...ECOL].map(([cid, n, hex]) => `<button type="button" role="radio" class="fcol" data-qcol="${esc(key)}|${cid}" title="${n}" aria-label="${n}" aria-checked="${(cur || "") === cid}" style="background:${hex || base}">${hex ? "" : "A"}</button>`).join("")}</div></div>`;
+}
+async function quickGColor(evid, cid) {
+  const o = OCC.find(x => x.ev.id === evid), e = o?.ev; if (!e || !mcp || gState !== "ok") return; use("farbe_schnell_google");
+  try { const inp = { eventId: e.gid, colorId: cid || "", notificationLevel: "NONE" }; if (e.calId && e.calId !== "primary") inp.calendarId = e.calId; await mcp.callTool(GSERVER, "update_event", inp); }
+  catch (err) { toast("Die Farbe ließ sich in Google nicht ändern – evtl. darfst du in diesem Kalender nicht schreiben."); return; }
+  const [c0, i0] = gColor(e.calId); e.colorId = cid; e.ecol = !!cid; e.color = cid ? ECOLM[cid] : c0; e.ink = cid ? lumInk(e.color) : i0;
+  renderAll(); if (sheetMode === "event" && sheetCtx?.id === evid) showGoogleEvent(o); toast(cid ? "Farbe geändert – auch in Google" : "Wieder in der Kalenderfarbe"); gResync(800);
+}
 async function quickColor(eid, cid) {
   const e = EV.find(x => x.id === eid); if (!e) return; use("farbe_schnell");
   e.color = cid; try { await COLL("events").doc(eid).update({ color: cid }); } catch (err) { toast(writeErr(err)); return; }
-  if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e, color: cid }).then(() => gResync(400)).catch(() => {});
+  if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e, color: cid, colorClear: !cid }).then(() => gResync(400)).catch(() => {});
   renderAll(); const o = sheetCtx?.id === eid ? findOcc(eid, sheetCtx.a) : null; if (o && sheetMode === "event") showEvent(o);
   toast(cid ? "Farbe geändert" : "Wieder in der Farbe der Art");
 }
@@ -3622,7 +3632,7 @@ function mapG(e, calId) {
   } else return null;
   if (!a) return null; if (!b || b < a) b = a;
   let [color, ink] = gColor(calId); const ecol = !!(e.colorId && ECOLM[e.colorId]); if (ecol) { color = ECOLM[e.colorId]; ink = lumInk(color); }
-  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, rid: String(e.recurringEventId || ""), type: "google", color, ink, ecol, title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
+  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, rid: String(e.recurringEventId || ""), type: "google", color, ink, ecol, colorId: ecol ? String(e.colorId) : "", title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
     repeat: "none", a, b, cal: calLabel(calId), creator: isMe(e.creator) ? "" : String(e.creator?.displayName || (e.creator?.email || "").split("@")[0] || ""),
     created: String(e.created || ""), updated: String(e.updated || ""), link: /^https:\/\/(www\.)?google\.com\/calendar\//.test(e.htmlLink || "") ? e.htmlLink : "" };
   return { ev, a, b };
@@ -3774,6 +3784,8 @@ function showGoogleEvent(o) {
   if (tripParts(o).length) items.push(`<li><i style="background:var(--trip)"></i><div><b>Dazu gehört</b><div class="note" style="white-space:pre-line">${esc(partsList(o))}</div></div></li>`);
   if (o.part) items.push(`<li><i style="background:var(--trip)"></i><div><b>Teil der Reise</b><div class="note">${esc(evName(o.part.ev))} · ${fmt(o.part.a)}–${fmt(o.part.b)}</div></div></li>`);
   const id = esc(e.id), w = canWrite && gWritable();
+  const gcal = gCals.find(c => c.id === e.calId || (e.calId === "primary" && c.primary)), gw = w && !!mcp && gState === "ok" && (!gcal?.accessRole || ["owner", "writer"].includes(gcal.accessRole));
+  const qcol = gw ? qcolBox(e.id, e.ecol ? e.colorId : "", gColor(e.calId)[0], "Farbe dieses Google-Termins", "") : "";
   const acts = (w ? `<button type="button" class="btn small" data-gedit="${id}|${iso(o.a)}">Bearbeiten</button><button type="button" class="btn ghost small" data-gmove="${id}|${iso(o.a)}">Verschieben</button>` : "") +
     `<button type="button" class="btn ghost small" data-share="${id}|${iso(o.a)}">Teilen</button>` +
     (e.link ? `<a class="btn ghost small" href="${esc(e.link)}" target="_blank" rel="noopener">In Google öffnen</a>` : "") +
@@ -3782,7 +3794,7 @@ function showGoogleEvent(o) {
     (merkable(o) ? `<button type="button" class="btn ghost small" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "") +
     (!isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) ? `<button type="button" class="btn ghost small" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : "") +
     (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
-  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div><div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 // ---- Google-Termine direkt ändern ----
@@ -4322,7 +4334,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-ftype]"))) { const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
   if ((el = q("[data-admtab]"))) { ADM_TAB = el.dataset.admtab; showAdmin(); return; }
-  if ((el = q("[data-qcol]"))) { const [eid, cid] = el.dataset.qcol.split("|"); quickColor(eid, cid); return; }
+  if ((el = q("[data-qcol]"))) { const v = el.dataset.qcol, cid = v.slice(v.lastIndexOf("|") + 1), eid = v.slice(0, v.lastIndexOf("|")); if (eid.startsWith("g:")) quickGColor(eid, cid); else quickColor(eid, cid); return; }
   if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
   if ((el = q("#f-more"))) { fMore = !fMore; syncFormFields(); return; }
   if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }

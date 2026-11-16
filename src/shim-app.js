@@ -211,6 +211,7 @@ window.MK_APP = true;
   const evBody = (i, partial) => { const b = {};
     if (i.summary != null) b.summary = i.summary; if (i.description != null) b.description = i.description; if (i.location != null) b.location = i.location;
     if (i.startTime) b.start = when(i, "startTime", partial); if (i.endTime) b.end = when(i, "endTime", partial);
+    if (i.colorId !== undefined) b.colorId = i.colorId ? String(i.colorId) : null;   // Google-Farbe 1–11, leer = Kalenderfarbe
     if (i.recurrenceData) b.recurrence = i.recurrenceData; if (i.id && !partial) b.id = i.id; if (i.status) b.status = i.status; return b; };
   const TOOLS = {
     async list_calendars() { const b = await gFetch("/users/me/calendarList?maxResults=250");
