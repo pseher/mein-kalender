@@ -2891,8 +2891,8 @@ const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom"
 const TYPE_SHORT = { termin: "Termin", trip: "Reise", urlaub: "Urlaub", dienst: "Dienst", abholen: "Abholen", info: "Hinweis", birthday: "Geburtstag", mina: "Umgang", anniversary: "Jahrestag", deadline: "Frist", contact: "Kontakt" };
 const TYPE_ICON = { termin: "📅", trip: "🧳", urlaub: "🏖️", dienst: "🕘", abholen: "🚉", info: "💡", birthday: "🎂", mina: "👨‍👧", anniversary: "💞", deadline: "⏰", contact: "📞" };
 // Pflicht = sofort sichtbar; alles andere unter „Mehr Optionen“
-const F_MAIN = { termin: ["title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["att", "title", "dates"], dienst: ["title", "dates", "time", "rep"],
-  abholen: ["att", "pick", "dates", "time"], info: ["title", "dates", "time"], birthday: ["title", "bd"], mina: ["title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["title", "dates", "extra"], contact: ["title", "dates", "extra"] };
+const F_MAIN = { termin: ["att", "title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["att", "title", "dates"], dienst: ["title", "dates", "time", "rep"],
+  abholen: ["att", "pick", "dates", "time"], info: ["att", "title", "dates", "time"], birthday: ["title", "bd"], mina: ["att", "title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["att", "title", "dates", "extra"], contact: ["title", "dates", "extra"] };
 const F_GRP = { att: "f-att", title: "f-title-grp", rep: "f-rep-wrap", col: "f-col-wrap", share: "f-sh-wrap", vis: "f-vis", shift: "f-shift", thx: "f-thx-wrap", trip: "f-trip-wrap", place: "f-place-grp", note: "f-note-grp", gcal: "f-gcal-wrap", pick: "f-pick-wrap" };
 let fMore = false;
 const DIENST_SUG = ["Früh", "Spät", "Nacht", "Bereitschaft", "Homeoffice"];
@@ -2914,6 +2914,7 @@ function titleSug(ty) {
 }
 function formLayout(ty) {
   const main = new Set(F_MAIN[ty] || F_MAIN.termin);
+  const fa = $("f-att"), fd = $("f-from")?.closest(".two"); if (fa && fd) { const at = ty === "abholen" ? $("f-pick-wrap") : fd; if (at && fa.nextElementSibling !== at) at.before(fa); }
   for (const [k, id] of Object.entries(F_GRP)) { const el = $(id) || (k === "share" ? $("f-sh-note") : null); if (!el) continue; el.classList.toggle("f-off", !main.has(k) && !fMore); }
   $("f-pick-wrap").hidden = ty !== "abholen"; $("f-title-grp").classList.toggle("f-off", ty === "abholen");
   if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
