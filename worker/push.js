@@ -1,6 +1,6 @@
 // Mein Kalender – Web-Push (RFC 8291 aes128gcm + VAPID RFC 8292), nur WebCrypto, keine Pakete
 import { trainCheck } from "./train.js";
-import { flightCheck } from "./flight.js";
+import { flightCheck, STAT } from "./flight.js";
 const enc = new TextEncoder();
 export const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 export const unb64u = s => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
@@ -56,20 +56,35 @@ const getDocs = async (env, q) => { const r = await rest(env, `docs?${q}`); retu
 const upsertDoc = (env, user_id, coll, id, data) => rest(env, "docs?on_conflict=user_id,coll,id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ user_id, coll, id, data, updated_at: new Date().toISOString() }) });
 const delDoc = (env, user_id, coll, id) => rest(env, `docs?user_id=eq.${user_id}&coll=eq.${coll}&id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
 
-async function sendToUser(env, uid, subs, msgs) {
+async function sendToUser(env, uid, subs, msgs, S) {
   let ok = 0;
   for (const s of subs) for (const m of msgs) {
     const st = await sendPush(env, s.data, m);
-    if (st === 404 || st === 410) { await delDoc(env, uid, "pushsub", s.id); break; }
-    if (st >= 200 && st < 300) ok++;
+    if (st === 404 || st === 410) { await delDoc(env, uid, "pushsub", s.id); if (S) S.gone++; break; }
+    if (st >= 200 && st < 300) ok++; else if (S) S.fail++;
   }
   return ok;
+}
+// Betriebszahlen je Tag beim Betreiber-Konto ablegen (docs/sys/<Tag>) – nur Zähler, keine Inhalte
+let ADMIN_ID = null;
+async function adminId(env) {
+  if (ADMIN_ID !== null) return ADMIN_ID;
+  const mails = String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean); if (!mails.length) return (ADMIN_ID = "");
+  const r = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: svcH(env) }).catch(() => null), j = r && r.ok ? await r.json().catch(() => ({})) : {};
+  return (ADMIN_ID = (j.users || []).find(u => mails.includes(String(u.email || "").toLowerCase()))?.id || "");
+}
+async function saveStats(env, S) {
+  try { const aid = await adminId(env); if (!aid) return; const day = new Date().toISOString().slice(0, 10);
+    const cur = (await getDocs(env, `user_id=eq.${aid}&coll=eq.sys&id=eq.${day}&select=data`))[0]?.data || {}, n = { ...cur };
+    for (const [k, v] of Object.entries(S)) if (typeof v === "number") n[k] = (cur[k] || 0) + v;
+    n.last = new Date().toISOString(); n.users = S.users; await upsertDoc(env, aid, "sys", day, n); } catch {}
 }
 export async function runSchedule(env) {
   if (!(await vapid(env))) return { skipped: "no VAPID_JWK" };
   const now = Date.now(), subsAll = await getDocs(env, "coll=eq.pushsub&select=user_id,id,data");
   const byUser = new Map(); subsAll.forEach(s => (byUser.get(s.user_id) || byUser.set(s.user_id, []).get(s.user_id)).push(s));
-  if (!byUser.size) return { users: 0 };
+  const S = { runs: 1, users: byUser.size, sent: 0, fail: 0, gone: 0, wt: 0, wf: 0, found: 0, wmsg: 0, al: 0 }; STAT.al = 0;
+  if (!byUser.size) { await saveStats(env, S); return { users: 0 }; }
   const ids = [...byUser.keys()].join(",");
   const plans = await getDocs(env, `coll=eq.push&id=in.(plan,sent)&user_id=in.(${ids})&select=user_id,id,data`);
   const shares = await getDocs(env, `coll=eq.prefs&id=eq.share&user_id=in.(${ids})&select=user_id,data`);
@@ -93,14 +108,16 @@ export async function runSchedule(env) {
     // Zug-Wächter: ab 2,5 Std. vorher bis 30 Min. danach alle 5 Minuten nachsehen
     let trains = st.trains || {}, trCh = false;
     if (pref.train !== false) for (const w of (plan.watch || []).slice(0, 6)) { const t = Date.parse(w.at), fl = w.mode === "flug"; if (!(now >= t - (fl ? 180 : 150) * 60e3 && now <= t + (fl ? 60 : 30) * 60e3)) continue;
-      try { const r = await (fl ? flightCheck : trainCheck)(env, w, trains[w.id] || {}, now, plan.tz); trains = { ...trains, [w.id]: r.state }; trCh = true; (r.msgs || []).forEach(m => msgs.push(m)); } catch {} }
-    if (msgs.length) sent += await sendToUser(env, uid, subs, msgs.slice(0, 8));
+      try { const r = await (fl ? flightCheck : trainCheck)(env, w, trains[w.id] || {}, now, plan.tz); trains = { ...trains, [w.id]: r.state }; trCh = true; (r.msgs || []).forEach(m => msgs.push(m));
+        S[fl ? "wf" : "wt"]++; if (r.state?.seen) S.found++; S.wmsg += (r.msgs || []).length; } catch {} }
+    if (msgs.length) sent += await sendToUser(env, uid, subs, msgs.slice(0, 8), S);
     if (msgs.length || trCh || newSeen !== seen || !st.shareSeen) {
       const keep = [...done].filter(id => (plan.items || []).some(i => i.id === id)).slice(-400);   // nur noch geplante merken
       const tk = Object.fromEntries(Object.entries(trains).filter(([id]) => (plan.watch || []).some(w => w.id === id)));
       await upsertDoc(env, uid, "push", "sent", { ids: keep, shareSeen: newSeen > seen ? newSeen : seen, trains: tk, at: new Date(now).toISOString() });
     }
   }
+  S.sent = sent; S.al = STAT.al; await saveStats(env, S);
   return { users: byUser.size, sent };
 }
 export async function testPush(env, uid) {

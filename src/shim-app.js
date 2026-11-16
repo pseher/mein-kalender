@@ -136,11 +136,14 @@ window.MK_APP = true;
     const s = await freshSession(); if (!s) throw Object.assign(new Error("Nicht angemeldet"), { code: "not_granted" });
     const images = [];
     for (const b of (opts.images || []).slice(0, 5)) images.push({ type: b.type || "image/jpeg", data: await toB64(b) });
+    const task0 = opts.task || window.MK_TASK || "allgemein";
     const r = await fetch(CFG.workerUrl + "/ai", { method: "POST", signal: opts.signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
       body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || window.MK_TASK || "" }) }); window.MK_TASK = "";
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) { window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    const kiErr = c => { try { dispatchEvent(new CustomEvent("mk-ki-err", { detail: { task: task0, code: c } })); } catch {} };
+    if (!r.ok) { kiErr(body.code || "http_" + r.status); window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    if (json && body.value == null) kiErr("kein_json"); else if (body.truncated) kiErr("abgeschnitten");
     if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");
     opts.onText?.({ text: body.text || "", delta: body.text || "" });
     return body;

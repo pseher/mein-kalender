@@ -1,5 +1,6 @@
 // Mein Kalender – Flug-Wächter: Verspätung, Gate, Gepäckband, Landung, Ausfall (Daten: AirLabs, Secret AIRLABS_KEY)
 const AL = "https://airlabs.co/api/v9/flight";
+export const STAT = { al: 0 };   // AirLabs-Aufrufe im aktuellen Lauf (fürs Dashboard)
 const hmT = (d, tz) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz || "Europe/Berlin" });
 // w: { id, mode: "flug", train: "LH 123", st, at (geplante Zeit am Flughafen), prefer: "arr"|"dep", title }
 export async function flightCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
@@ -11,7 +12,7 @@ export async function flightCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) 
   // keine Flugnummer (z. B. Screenshot ohne Nummer): einmal über Strecke + Abflugzeit im Flugplan nachschlagen
   if (!code && w.route?.dep && w.route?.arr) {
     const q = new URLSearchParams({ dep_iata: w.route.dep, arr_iata: w.route.arr, api_key: env.AIRLABS_KEY }); if (w.route.al) q.set("airline_iata", w.route.al);
-    const rs = await fetch(`https://airlabs.co/api/v9/schedules?${q}`).catch(() => null), js = rs && rs.ok ? await rs.json().catch(() => ({})) : {};
+    STAT.al++; const rs = await fetch(`https://airlabs.co/api/v9/schedules?${q}`).catch(() => null), js = rs && rs.ok ? await rs.json().catch(() => ({})) : {};
     const L = Array.isArray(js.response) ? js.response : [], want = w.route.time || "";
     const hit = L.filter(x => !want || String(x.dep_time || "").slice(11, 16) === want).sort((a, b) => Math.abs((a.dep_time_ts || 0) * 1000 - t0) - Math.abs((b.dep_time_ts || 0) * 1000 - t0))[0];
     dbg?.push(`Flugplan ${w.route.dep} → ${w.route.arr}${w.route.al ? " (" + w.route.al + ")" : ""}${want ? " ab " + want : ""}: ${L.length} Flüge${hit ? ", gefunden " + hit.flight_iata : rs && !rs.ok ? " (HTTP " + rs.status + ")" : ", keiner passt"}`);
@@ -19,7 +20,7 @@ export async function flightCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) 
     code = hit.flight_iata; prev = { ...prev, code };
   }
   if (!code) { dbg?.push("keine Flugnummer und keine Strecke erkannt"); return { state: prev, msgs: [] }; }
-  const r = await fetch(`${AL}?flight_iata=${encodeURIComponent(code)}&api_key=${encodeURIComponent(env.AIRLABS_KEY)}`).catch(() => null);
+  STAT.al++; const r = await fetch(`${AL}?flight_iata=${encodeURIComponent(code)}&api_key=${encodeURIComponent(env.AIRLABS_KEY)}`).catch(() => null);
   if (!r || !r.ok) { dbg?.push(`AirLabs: keine Antwort (${r ? "HTTP " + r.status : "Netzwerk"})`); return { state: { ...prev, chk: new Date(now).toISOString() }, msgs: [] }; }
   const j = await r.json().catch(() => ({})), f = j.response;
   if (j.error || !f) { dbg?.push(`AirLabs: ${j.error?.message || "Flug nicht gefunden"}`); return { state: { ...prev, chk: new Date(now).toISOString(), miss: (prev.miss || 0) + 1 }, msgs: [] }; }

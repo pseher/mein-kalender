@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116192114";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116192911";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -151,11 +151,14 @@ window.MK_APP = true;
     const s = await freshSession(); if (!s) throw Object.assign(new Error("Nicht angemeldet"), { code: "not_granted" });
     const images = [];
     for (const b of (opts.images || []).slice(0, 5)) images.push({ type: b.type || "image/jpeg", data: await toB64(b) });
+    const task0 = opts.task || window.MK_TASK || "allgemein";
     const r = await fetch(CFG.workerUrl + "/ai", { method: "POST", signal: opts.signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
       body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || window.MK_TASK || "" }) }); window.MK_TASK = "";
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) { window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    const kiErr = c => { try { dispatchEvent(new CustomEvent("mk-ki-err", { detail: { task: task0, code: c } })); } catch {} };
+    if (!r.ok) { kiErr(body.code || "http_" + r.status); window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    if (json && body.value == null) kiErr("kein_json"); else if (body.truncated) kiErr("abgeschnitten");
     if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");
     opts.onText?.({ text: body.text || "", delta: body.text || "" });
     return body;
@@ -439,7 +442,9 @@ button { font: inherit; color: inherit; }
 .adm-k { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 4px 0 14px; } .adm-k div { background: var(--soft); border-radius: 12px; padding: 10px 12px; } .adm-k b { display: block; font-size: 22px; } .adm-k span { color: var(--muted); font-size: 13px; }
 .adm h3 { margin: 18px 0 6px; font-size: 15px; } .adm table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; } .adm th, .adm td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); } .adm td.n, .adm th.n { text-align: right; }
 .adm-bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; padding: 4px 0; border-bottom: 1px solid var(--line); } .adm-bars i { flex: 1; background: var(--both); border-radius: 2px 2px 0 0; min-height: 1px; }
-.adm .note { color: var(--muted); font-size: 13px; } .adm-sim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .adm-sim input { width: 80px; }
+.adm .note { color: var(--muted); font-size: 13px; } .adm-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin: 0 0 12px; scrollbar-width: thin; } .adm-tabs button { flex: none; border: 1px solid var(--line); background: var(--soft); color: var(--fg); border-radius: 999px; padding: 7px 12px; font: 600 13.5px/1 inherit; cursor: pointer; } .adm-tabs button[aria-selected="true"] { background: var(--both); border-color: var(--both); color: var(--both-ink, #fff); }
+.adm-l { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 6px; } .adm-l li { line-height: 1.4; } .adm-l code { font-size: 12px; background: var(--soft); padding: 1px 4px; border-radius: 4px; word-break: break-word; }
+.adm-bar { display: inline-block; width: 46px; height: 6px; border-radius: 3px; background: var(--soft); vertical-align: middle; margin-left: 4px; overflow: hidden; } .adm-bar i { display: block; height: 100%; background: var(--both); } .adm-sim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .adm-sim input { width: 80px; }
 .tchips { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; margin: 2px 0 14px; }
 .tchip { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 1px solid var(--line); border-top: 3px solid var(--c); background: var(--bg); color: var(--fg); border-radius: 10px; padding: 6px 2px 5px; font: inherit; font-size: 12.5px; line-height: 1.15; cursor: pointer; min-width: 0; }
 .tchip .ti { font-size: 19px; line-height: 1; } .tchip .tl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2294,51 +2299,99 @@ let shrNew = null, shrAcc = null, shrGrp = null;
 const AI_PRICE = { "claude-sonnet-5-5": [2, 10], "claude-haiku-4-5-20251001": [1, 5], "claude-haiku-4-5": [1, 5], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-5-5": [5, 25] };   // $ pro 1 Mio. Tokens (Eingabe, Ausgabe)
 let ADM = null, ADM_FREE = 30;
 async function adminCheck() { if (!APP || !window.mkAdminMe) return; const r = await window.mkAdminMe(); const mi = $("mi-admin"); if (mi) mi.hidden = !r?.admin; }
+let ADM_TAB = "ueb";
 async function showAdmin(reload) {
   if (!ADM || reload) { openSheet("Betreiber-Dashboard", "lädt …", `<p class="note">Zahlen werden geholt …</p>`, "adm"); ADM = await window.mkAdminStats?.().catch(() => null); }
   const D = ADM; if (!D || D.code) { openSheet("Betreiber-Dashboard", "", `<p>Keine Daten (${esc(D?.code || "Fehler")}).</p>`, "adm"); return; }
-  const now = Date.now(), d30 = iso(addDays(TODAY, -29)), d7 = iso(addDays(TODAY, -6)), short = id => id ? id.slice(0, 6) : "–";
+  const d30 = iso(addDays(TODAY, -29)), d7 = iso(addDays(TODAY, -6)), m0 = iso(TODAY).slice(0, 8) + "01", today = iso(TODAY), short = id => id ? id.slice(0, 6) : "–";
   const cost = r => { const [task, model0] = String(r.task).split("|"), model = model0 || D.models.default, P = AI_PRICE[model] || [3, 15]; return { task, model, c: (r.tok_in * P[0] + r.tok_out * P[1]) / 1e6 }; };
   const ai = D.ai.map(r => ({ ...r, ...cost(r) })), ai30 = ai.filter(r => r.day >= d30), use30 = D.use.filter(r => r.d >= d30);
   const sum = (a, f) => a.reduce((x, r) => x + f(r), 0), usd = v => v < 0.01 && v > 0 ? "<0,01 $" : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
-  const act = (from) => new Set([...D.use.filter(r => r.d >= from).map(r => r.u), ...ai.filter(r => r.day >= from).map(r => r.user_id)]).size;
+  const num = v => Math.round(v).toLocaleString("de-DE"), pct = (a, b) => b ? Math.round(a / b * 100) + " %" : "–";
+  const act = from => new Set([...D.use.filter(r => r.d >= from).map(r => r.u), ...ai.filter(r => r.day >= from).map(r => r.user_id)]).size;
   const neu30 = D.users.filter(u => u.created && u.created.slice(0, 10) >= d30).length;
-  // KI-Kosten pro Tag
-  const days = Array.from({ length: 30 }, (_, i) => iso(addDays(TODAY, i - 29))), perDay = days.map(d => sum(ai.filter(r => r.day === d), r => r.c)), mx = Math.max(...perDay, 1e-9);
-  // pro Funktion
+  const uName = id => `${short(id)}${D.users.find(u => u.id === id)?.me ? " (du)" : ""}`, uLast = id => D.users.find(u => u.id === id)?.last?.slice(0, 10) || "";
+  const dShort = s => s ? fmt(parseIso(s.slice(0, 10))) : "–";
+  const tbl = (head, rows, empty = "noch keine Daten") => rows.length ? `<table><tr>${head.map(h => `<th${h.startsWith("#") ? ' class="n"' : ""}>${esc(h.replace(/^#/, ""))}</th>`).join("")}</tr>${rows.join("")}</table>` : `<p class="note">${empty}</p>`;
+  const tr = cells => `<tr>${cells.map(c => typeof c === "number" || /^#/.test(String(c)) ? `<td class="n">${String(c).replace(/^#/, "")}</td>` : `<td>${c}</td>`).join("")}</tr>`;
+  // Funktionszähler aus der App: KI-Fehler, Limits und App-Fehler getrennt von der normalen Nutzung
+  const SYSF = /^(ki_fehler|ki_limit|app_fehler)/;
+  const byF = new Map(), sysF = new Map();
+  use30.forEach(r => Object.entries(r.f).forEach(([k, n]) => { const M = SYSF.test(k) ? sysF : byF, x = M.get(k) || { n: 0, u: new Set() }; x.n += n; x.u.add(r.u); M.set(k, x); }));
   const byT = new Map(); ai30.forEach(r => { const k = r.task, x = byT.get(k) || { n: 0, ti: 0, to: 0, c: 0, u: new Set() }; x.n += r.calls; x.ti += r.tok_in; x.to += r.tok_out; x.c += r.c; x.u.add(r.user_id); byT.set(k, x); });
-  // pro Nutzer
   const byU = new Map(); ai30.forEach(r => { const x = byU.get(r.user_id) || { n: 0, c: 0 }; x.n += r.calls; x.c += r.c; byU.set(r.user_id, x); });
-  const uLast = id => D.users.find(u => u.id === id)?.last?.slice(0, 10) || "";
-  // Funktionsnutzung (App)
-  const byF = new Map(); use30.forEach(r => Object.entries(r.f).forEach(([k, n]) => { const x = byF.get(k) || { n: 0, u: new Set() }; x.n += n; x.u.add(r.u); byF.set(k, x); }));
-  // Abo-Simulation: KI-Aktionen der letzten 30 Tage je aktivem Nutzer
+  const calls30 = sum(ai30, r => r.calls), cost30 = sum(ai30, r => r.c), tok30 = sum(ai30, r => r.tok_in + r.tok_out), perCall = calls30 ? cost30 / calls30 : 0, perTok = tok30 ? cost30 / tok30 : 0;
+  const S = D.sys || [], S30 = S.filter(x => x.d >= d30), sS = k => sum(S30, x => x[k] || 0), lastRun = S.map(x => x.last).filter(Boolean).sort().at(-1);
+  const runAge = lastRun ? (Date.now() - Date.parse(lastRun)) / 60e3 : Infinity;
+  const L = D.limits || null, devs = D.dev || [];
+  const newest = devs.map(x => x.b).filter(Boolean).sort().at(-1) || "", curB = window.MK_BUILD || newest;
+  const kErr = [...sysF].filter(([k]) => k.startsWith("ki_fehler")).reduce((s, [, x]) => s + x.n, 0), kLim = sysF.get("ki_limit")?.n || 0, aErr = sysF.get("app_fehler")?.n || 0;
+  // Ampel
+  const lamp = (ok, warn) => ok ? "🟢" : warn ? "🟡" : "🔴";
+  const K = D.keys || {}, lamps = [
+    [lamp(runAge < 15, runAge < 60), "5-Minuten-Takt", lastRun ? `letzter Lauf ${new Date(lastRun).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} (vor ${Math.round(runAge)} Min.)` : "noch kein Lauf aufgezeichnet"],
+    [lamp(K.anthropic), "KI (Anthropic)", K.anthropic ? `Modelle ${D.models.default} / ${D.models.quick}` : "ANTHROPIC_KEY fehlt"],
+    [lamp(K.supabase), "Datenbank (Supabase)", "verbunden"],
+    [lamp(K.google), "Google-Anmeldung", K.google ? "Client-Schlüssel gesetzt" : "GOOGLE_CLIENT_SECRET fehlt"],
+    [lamp(K.vapid), "Benachrichtigungen", K.vapid ? `${num(sS("sent"))} verschickt · ${num(sS("fail"))} fehlgeschlagen · ${num(sS("gone"))} abgelaufene Geräte entfernt (30 Tage)` : "VAPID_JWK fehlt"],
+    [lamp(K.db), "Bahn (DB Timetables)", K.db ? `${num(sS("wt"))} Zug-Prüfungen (30 Tage)` : "DB-Schlüssel fehlen"],
+    [lamp(K.airlabs), "Flüge (AirLabs)", K.airlabs ? `${num(sum(S.filter(x => x.d >= m0), x => x.al || 0))} Abfragen diesen Monat` : "AIRLABS_KEY fehlt"],
+    [lamp(!aErr, aErr < 20), "App-Fehler bei Nutzern", aErr ? `${aErr} in 30 Tagen` : "keine"],
+  ];
+  const bad = lamps.filter(l => l[0] !== "🟢").length;
+  // ---- Abschnitte ----
+  const T = {};
+  T.ueb = `<div class="adm-k"><div><b>${D.users.length}</b><span>Nutzer gesamt</span></div><div><b>${act(d7)}</b><span>aktiv (7 Tage)</span></div><div><b>${act(d30)}</b><span>aktiv (30 Tage)</span></div>
+      <div><b>${neu30}</b><span>neu (30 Tage)</span></div><div><b>${D.push}</b><span>mit Benachrichtigungen</span></div><div><b>${usd(cost30)}</b><span>KI-Kosten 30 Tage</span></div>
+      <div><b>${calls30}</b><span>KI-Aufrufe 30 Tage</span></div><div><b>${num(tok30 / 1e3)} k</b><span>Tokens 30 Tage</span></div><div><b>${bad ? "⚠️ " + bad : "✅"}</b><span>${bad ? "System-Hinweise" : "System in Ordnung"}</span></div></div>
+    <h3>System auf einen Blick</h3><ul class="adm-l">${lamps.map(([l, n, t]) => `<li>${l} <b>${esc(n)}</b> <span class="note">${esc(t)}</span></li>`).join("")}</ul>`;
+  const days = Array.from({ length: 30 }, (_, i) => iso(addDays(TODAY, i - 29))), perDay = days.map(d => sum(ai.filter(r => r.day === d), r => r.c)), mx = Math.max(...perDay, 1e-9);
   const calls = [...byU.values()].map(x => x.n).sort((a, b) => a - b), over = calls.filter(n => n > ADM_FREE).length, actU = act(d30) || 1;
   const pc = q => calls.length ? calls[Math.min(calls.length - 1, Math.floor(q * calls.length))] : 0, costU = [...byU.values()].map(x => x.c).sort((a, b) => a - b);
-  const capCost = sum(ai30, r => r.c) / Math.max(1, sum(ai30, r => r.calls)) * ADM_FREE;
-  const html = `<div class="adm">
-    <div class="adm-k"><div><b>${D.users.length}</b><span>Nutzer gesamt</span></div><div><b>${act(d7)}</b><span>aktiv (7 Tage)</span></div><div><b>${act(d30)}</b><span>aktiv (30 Tage)</span></div>
-      <div><b>${neu30}</b><span>neu (30 Tage)</span></div><div><b>${D.push}</b><span>mit Benachrichtigungen</span></div><div><b>${usd(sum(ai30, r => r.c))}</b><span>KI-Kosten 30 Tage</span></div>
-      <div><b>${sum(ai30, r => r.calls)}</b><span>KI-Aufrufe 30 Tage</span></div><div><b>${((sum(ai30, r => r.tok_in) + sum(ai30, r => r.tok_out)) / 1e3).toLocaleString("de-DE", { maximumFractionDigits: 0 })} k</b><span>Tokens 30 Tage</span></div></div>
-    <h3>KI-Kosten pro Tag (30 Tage)</h3><div class="adm-bars" role="img" aria-label="KI-Kosten pro Tag">${perDay.map((v, i) => `<i style="height:${Math.round(v / mx * 100)}%" title="${fmt(parseIso(days[i]))}: ${usd(v)}"></i>`).join("")}</div>
-    <p class="note">höchster Tag: ${usd(mx > 1e-9 ? mx : 0)}</p>
-    <h3>KI nach Funktion (30 Tage)</h3><table><tr><th>Funktion</th><th class="n">Aufrufe</th><th class="n">Nutzer</th><th class="n">Tokens</th><th class="n">Kosten</th><th class="n">Ø/Aufruf</th></tr>
-      ${[...byT].sort((a, b) => b[1].c - a[1].c).map(([k, x]) => `<tr><td>${esc(k)}</td><td class="n">${x.n}</td><td class="n">${x.u.size}</td><td class="n">${Math.round((x.ti + x.to) / 1e3)} k</td><td class="n">${usd(x.c)}</td><td class="n">${(x.c / Math.max(1, x.n) * 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} ct</td></tr>`).join("") || `<tr><td colspan="6" class="note">Noch keine KI-Aufrufe erfasst.</td></tr>`}</table>
-    <h3>Nutzer mit den höchsten KI-Kosten (30 Tage)</h3><table><tr><th>Nutzer</th><th class="n">Aufrufe</th><th class="n">Kosten</th><th class="n">zuletzt</th></tr>
-      ${[...byU].sort((a, b) => b[1].c - a[1].c).slice(0, 20).map(([id, x]) => `<tr><td>${short(id)}${D.users.find(u => u.id === id)?.me ? " (du)" : ""}</td><td class="n">${x.n}</td><td class="n">${usd(x.c)}</td><td class="n">${uLast(id) ? fmt(parseIso(uLast(id))) : ""}</td></tr>`).join("") || `<tr><td colspan="4" class="note">–</td></tr>`}</table>
-    <h3>Genutzte Funktionen (30 Tage)</h3><table><tr><th>Funktion</th><th class="n">Anzahl</th><th class="n">Nutzer</th><th class="n">Anteil Nutzer</th></tr>
-      ${[...byF].sort((a, b) => b[1].u.size - a[1].u.size || b[1].n - a[1].n).map(([k, x]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td class="n">${x.n}</td><td class="n">${x.u.size}</td><td class="n">${Math.round(x.u.size / actU * 100)} %</td></tr>`).join("") || `<tr><td colspan="4" class="note">Noch keine Nutzung erfasst – die Zählung läuft ab jetzt.</td></tr>`}</table>
-    <h3>Grenzen pro Nutzer</h3>${D.limits ? `<p>KI: <b>${D.limits.day}</b> Anfragen/Tag, davon <b>${D.limits.img}</b> mit Tickets/Bildern · <b>${D.limits.month}</b> Anfragen bzw. <b>${(D.limits.tok / 1e6).toLocaleString("de-DE")} Mio.</b> Tokens/Monat · max. ${D.limits.maxImages} Bilder je Anfrage.<br>
+  // Monatsstand je Nutzer gegen die Grenzen
+  const mU = new Map(); ai.filter(r => r.day >= m0).forEach(r => { const x = mU.get(r.user_id) || { n: 0, t: 0, c: 0, d: 0 }; x.n += r.calls; x.t += r.tok_in + r.tok_out; x.c += r.c; if (r.day === today) x.d += r.calls; mU.set(r.user_id, x); });
+  const bar = (v, max) => `<span class="adm-bar"><i style="width:${Math.min(100, Math.round(v / (max || 1) * 100))}%;${v / (max || 1) >= .8 ? "background:var(--holiday)" : ""}"></i></span>`;
+  T.ki = `<h3>KI-Kosten pro Tag (30 Tage)</h3><div class="adm-bars" role="img" aria-label="KI-Kosten pro Tag">${perDay.map((v, i) => `<i style="height:${Math.round(v / mx * 100)}%" title="${fmt(parseIso(days[i]))}: ${usd(v)}"></i>`).join("")}</div>
+    <p class="note">höchster Tag: ${usd(mx > 1e-9 ? mx : 0)} · Ø je Aufruf ${(perCall * 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} ct</p>
+    <h3>KI nach Funktion (30 Tage)</h3>${tbl(["Funktion", "#Aufrufe", "#Nutzer", "#Tokens", "#Kosten", "#Ø/Aufruf"], [...byT].sort((a, b) => b[1].c - a[1].c).map(([k, x]) => tr([esc(k), x.n, x.u.size, `#${Math.round((x.ti + x.to) / 1e3)} k`, `#${usd(x.c)}`, `#${(x.c / x.n * 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} ct`])))}
+    <h3>Fehlerquote der KI (30 Tage)</h3><p>${kErr} Fehler bei ${calls30} Aufrufen = <b>${pct(kErr, calls30)}</b> · Limit erreicht: <b>${kLim}×</b></p>
+    ${tbl(["Funktion", "Art", "#Anzahl"], [...sysF].filter(([k]) => k.startsWith("ki_fehler")).sort((a, b) => b[1].n - a[1].n).map(([k, x]) => { const [, t, c] = k.match(/^ki_fehler_(.*?)(?:__(.*))?$/) || []; return tr([esc(t || k), esc(c || ""), x.n]); }), "keine Fehler gezählt (wird seit diesem Update erfasst)")}
+    <h3>Grenzen pro Nutzer</h3>${L ? `<p>KI: <b>${L.day}</b> Anfragen/Tag, davon <b>${L.img}</b> mit Tickets/Bildern · <b>${L.month}</b> Anfragen, <b>${(L.tok / 1e6).toLocaleString("de-DE")} Mio.</b> Tokens oder <b>${usd(L.usd || 0)}</b> pro Monat – was zuerst erreicht ist.<br>
       Dateien: max. 5 MB, max. ${PDF_MAX_PAGES} PDF-Seiten, die KI liest davon die ersten ${PDF_AI_PAGES} · max. 6 Dateien je Auswertung.</p>
-      <p class="note">Ändern in Cloudflare → Worker → Einstellungen → Variablen (DAILY_LIMIT, IMAGE_DAILY_LIMIT, MONTHLY_LIMIT, MONTHLY_TOKENS).</p>` : `<p class="note">Worker noch nicht aktualisiert.</p>`}
-      ${(() => { const m0 = iso(TODAY).slice(0, 8) + "01", mu = new Map(); ai.filter(r => r.day >= m0).forEach(r => mu.set(r.user_id, (mu.get(r.user_id) || 0) + r.calls)); const top = Math.max(0, ...mu.values()); return D.limits ? `<p class="note">Dieser Monat: höchster Nutzer ${top} von ${D.limits.month} Anfragen.</p>` : ""; })()}
+      <h3>Grenzen als Kosten (US-Dollar)</h3><p class="note">gerechnet mit euren Durchschnittswerten der letzten 30 Tage (${(perCall * 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} ct je Aufruf)</p>
+      ${tbl(["Grenze", "#entspricht höchstens"], [tr([`${L.day} Anfragen am Tag`, `#${usd(L.day * perCall)} am Tag`]), tr([`${L.day} × 30 Tage`, `#${usd(L.day * 30 * perCall)} im Monat`]), tr([`${L.month} Anfragen im Monat`, `#${usd(L.month * perCall)}`]), tr([`${(L.tok / 1e6).toLocaleString("de-DE")} Mio. Tokens`, `#${usd(L.tok * perTok)}`]), tr([`Kostengrenze`, `#<b>${usd(L.usd || 0)}</b>`])])}
+      <p class="note">Ändern in Cloudflare → Worker → Einstellungen → Variablen (DAILY_LIMIT, IMAGE_DAILY_LIMIT, MONTHLY_LIMIT, MONTHLY_TOKENS, MONTHLY_USD).</p>
+      <h3>Wer ist nah an der Grenze? (dieser Monat)</h3>${tbl(["Nutzer", "heute", "Monat", "Kosten"], [...mU].sort((a, b) => b[1].c - a[1].c).slice(0, 12).map(([id, x]) => tr([uName(id), `${x.d}/${L.day} ${bar(x.d, L.day)}`, `${x.n}/${L.month} ${bar(x.n, L.month)}`, `${usd(x.c)}/${usd(L.usd || 0)} ${bar(x.c, L.usd)}`])))}` : `<p class="note">Worker noch nicht aktualisiert.</p>`}
+    <h3>Nutzer mit den höchsten KI-Kosten (30 Tage)</h3>${tbl(["Nutzer", "#Aufrufe", "#Kosten", "#zuletzt"], [...byU].sort((a, b) => b[1].c - a[1].c).slice(0, 20).map(([id, x]) => tr([uName(id), x.n, `#${usd(x.c)}`, `#${uLast(id) ? fmt(parseIso(uLast(id))) : "–"}`])))}
     <h3>Abo-Simulation</h3><div class="adm-sim"><label for="adm-free">Freie KI-Aktionen pro Monat</label><input id="adm-free" type="number" min="1" max="500" value="${ADM_FREE}"></div>
     <p>${over} von ${actU} aktiven Nutzern (${Math.round(over / actU * 100)} %) hätten in den letzten 30 Tagen mehr gebraucht. Median ${pc(.5)}, 90 % der Nutzer ≤ ${pc(.9)} KI-Aktionen.<br>
-      Ein Nutzer, der das Freikontingent voll ausschöpft, kostet ca. <b>${usd(capCost || 0)}</b> im Monat. Kosten je aktivem KI-Nutzer: Median ${usd(costU[Math.floor(costU.length / 2)] || 0)}, höchster ${usd(costU.at(-1) || 0)}.</p>
-    <p class="note">Stand ${new Date(D.at).toLocaleString("de-DE")} · Preise: ${Object.entries(AI_PRICE).filter(([m]) => m === D.models.quick || m === D.models.default).map(([m, p]) => `${m} ${p[0]}/${p[1]} $ je 1 Mio.`).join(" · ")}. Ältere Einträge ohne Modell werden mit ${esc(D.models.default)} gerechnet.</p>
-    <h3>Zug- &amp; Flug-Wächter (deine Fahrten)</h3><p class="note">Prüft deine beobachteten Züge (Bahn) und Flüge (AirLabs) jetzt direkt und zeigt jeden Schritt – ohne Benachrichtigung. Beobachtet wird ab ca. 2½ Std. (Zug) bzw. 3 Std. (Flug) vor der Abfahrt.</p>
-    <p><button type="button" class="btn ghost small" id="adm-train">Jetzt prüfen</button></p><div id="adm-train-out"></div>
-    <p><button type="button" class="btn ghost small" id="adm-reload">Aktualisieren</button></p></div>`;
+      Ein Nutzer, der das Freikontingent voll ausschöpft, kostet ca. <b>${usd(perCall * ADM_FREE)}</b> im Monat. Kosten je aktivem KI-Nutzer: Median ${usd(costU[Math.floor(costU.length / 2)] || 0)}, höchster ${usd(costU.at(-1) || 0)}.</p>
+    <p class="note">Stand ${new Date(D.at).toLocaleString("de-DE")} · Preise: ${Object.entries(AI_PRICE).filter(([m]) => m === D.models.quick || m === D.models.default).map(([m, p]) => `${m} ${p[0]}/${p[1]} $ je 1 Mio.`).join(" · ")}.</p>`;
+  // Nutzer: Einrichtungsstand, Bleiben, Funktionen, Hilfe-Fragen
+  const devOf = id => devs.filter(x => x.u === id), yes = b => b ? "✅" : "–";
+  const setupRows = D.users.slice().sort((a, b) => (b.last || "").localeCompare(a.last || "")).map(u => { const ds = devOf(u.id), b = ds.map(x => x.b).filter(Boolean).sort().at(-1) || "";
+    return tr([uName(u.id), `#${D.evn?.[u.id] || 0}`, `#${ds.length}`, yes(ds.some(x => x.sa)), yes(ds.some(x => x.g === "ok")), yes((D.pushBy?.[u.id] || 0) > 0), b ? (b === curB ? "✅ aktuell" : "⚠️ alt") : "–", `#${u.last ? dShort(u.last) : "–"}`]); });
+  const actDays = new Map(); D.use.forEach(r => (actDays.get(r.u) || actDays.set(r.u, new Set()).get(r.u)).add(r.d)); ai.forEach(r => (actDays.get(r.user_id) || actDays.set(r.user_id, new Set()).get(r.user_id)).add(r.day));
+  const ret = n => { const C = D.users.filter(u => u.created && iso(addDays(parseIso(u.created.slice(0, 10)), n)) <= today); const k = C.filter(u => [...(actDays.get(u.id) || [])].some(d => d >= iso(addDays(parseIso(u.created.slice(0, 10)), n)))).length; return `${k} von ${C.length} (${pct(k, C.length)})`; };
+  T.nutzer = `<h3>Einrichtungsstand je Nutzer</h3>${tbl(["Nutzer", "#Einträge", "#Geräte", "App", "Google", "Push", "Version", "#zuletzt"], setupRows)}
+    <p class="note">App = als App installiert · Google = auf mindestens einem Gerät verbunden · Version = neueste genutzte App-Version. Geräte melden sich seit diesem Update.</p>
+    <h3>Bleiben die Nutzer?</h3><p>noch aktiv nach 1 Tag: <b>${ret(1)}</b> · nach 7 Tagen: <b>${ret(7)}</b> · nach 30 Tagen: <b>${ret(30)}</b></p>
+    <h3>Häufigste Hilfe-Fragen</h3>${(D.helpq || []).length ? `<ul class="adm-l">${D.helpq.slice(0, 40).map(h => `<li>„${esc(h.q)}“ <span class="note">${dShort(h.at)} · ${short(h.u)}</span></li>`).join("")}</ul>` : `<p class="note">noch keine Fragen gestellt</p>`}
+    <h3>Genutzte Funktionen (30 Tage)</h3>${tbl(["Funktion", "#Anzahl", "#Nutzer", "#Anteil Nutzer"], [...byF].sort((a, b) => b[1].u.size - a[1].u.size || b[1].n - a[1].n).map(([k, x]) => tr([esc(k.replace(/_/g, " ")), x.n, x.u.size, `#${Math.round(x.u.size / actU * 100)} %`])))}`;
+  T.waechter = `<h3>Zug- &amp; Flug-Wächter (30 Tage)</h3>${tbl(["", "#Anzahl"], [tr(["Zug-Prüfungen", num(sS("wt"))]), tr(["Flug-Prüfungen", num(sS("wf"))]), tr(["davon mit Live-Daten gefunden", `#${num(sS("found"))} (${pct(sS("found"), sS("wt") + sS("wf"))})`]), tr(["Meldungen (Verspätung, Gleis, Gate …)", num(sS("wmsg"))]), tr(["AirLabs-Abfragen diesen Monat", num(sum(S.filter(x => x.d >= m0), x => x.al || 0))])])}
+    <p class="note">AirLabs zählt jede Abfrage gegen dein Kontingent (im kostenlosen Tarif begrenzt) – Flüge werden bis 1 Std. vor Abflug nur alle 15 Min. abgefragt.</p>
+    <h3>Deine Fahrten jetzt prüfen</h3><p class="note">Prüft deine beobachteten Züge (Bahn) und Flüge (AirLabs) direkt und zeigt jeden Schritt – ohne Benachrichtigung. Beobachtet wird ab ca. 2½ Std. (Zug) bzw. 3 Std. (Flug) vor der Abfahrt.</p>
+    <p><button type="button" class="btn ghost small" id="adm-train">Jetzt prüfen</button></p><div id="adm-train-out"></div>`;
+  const vers = new Map(); devs.forEach(x => vers.set(x.b || "?", (vers.get(x.b || "?") || 0) + 1));
+  const errs = devs.filter(x => x.le).sort((a, b) => String(b.leAt || "").localeCompare(String(a.leAt || ""))).slice(0, 15);
+  T.system = `<h3>Dienste</h3><ul class="adm-l">${lamps.map(([l, n, t]) => `<li>${l} <b>${esc(n)}</b> <span class="note">${esc(t)}</span></li>`).join("")}</ul><p class="note">Worker-Version ${esc(D.version || "?")}</p>
+    <h3>Benachrichtigungen (30 Tage)</h3>${tbl(["", "#Anzahl"], [tr(["verschickt", num(sS("sent"))]), tr(["fehlgeschlagen", num(sS("fail"))]), tr(["abgelaufene Geräte (entfernt)", num(sS("gone"))]), tr(["Läufe des 5-Minuten-Takts", num(sS("runs"))])])}
+    <h3>App-Versionen auf den Geräten</h3>${tbl(["Version", "#Geräte", ""], [...vers].sort((a, b) => b[0].localeCompare(a[0])).map(([b, n]) => tr([esc(b.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d).*/, "$3.$2.$1 $4:$5 UTC")), n, b === curB ? "✅ aktuell" : "⚠️ alt"])), "noch keine Geräte gemeldet")}
+    <h3>Fehler aus der App</h3><p>${aErr} Fehler in 30 Tagen</p>${errs.length ? `<ul class="adm-l">${errs.map(x => `<li><code>${esc(x.le)}</code> <span class="note">${x.leAt ? dShort(x.leAt) : ""} · ${short(x.u)} · ${esc(x.m || "")}</span></li>`).join("")}</ul>` : ""}`;
+  const TABS = [["ueb", "📊 Übersicht"], ["ki", "🤖 KI & Kosten"], ["nutzer", "👥 Nutzer"], ["waechter", "🚆 Wächter"], ["system", `⚙️ System${bad ? " ⚠️" : ""}`]];
+  if (!T[ADM_TAB]) ADM_TAB = "ueb";
+  const html = `<div class="adm"><div class="adm-tabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" data-admtab="${k}" aria-selected="${ADM_TAB === k}">${l}</button>`).join("")}</div>
+    ${T[ADM_TAB]}<p style="margin-top:16px"><button type="button" class="btn ghost small" id="adm-reload">Aktualisieren</button></p></div>`;
   openSheet("Betreiber-Dashboard", `${D.users.length} Nutzer · ${act(d30)} aktiv`, html, "adm");
 }
 function showShareMgr() {
@@ -5130,7 +5183,19 @@ function renderHints() { renderHints0(); let one = false; document.querySelector
 let relInstalled = false;
 if (APP && !IS_STANDALONE && navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(a => { relInstalled = !!a?.length; try { renderHints(); } catch {} }).catch(() => {});
 const laterK = (k, days) => { const v = +(store.get(k) || 0); return v && Date.now() - v < days * 864e5; };
+// Gerät meldet sich (fürs Dashboard: Version, App installiert, Google, Benachrichtigungen) – nur Zustände, keine Inhalte
+let DEV_ERR = 0, DEV_LE = "", DEV_LEAT = "", devLast = "", devT = 0;
+const devId = () => { let v = store.get("mk-dev"); if (!v) { v = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); store.set("mk-dev", v); } return v; };
+function devReport() {
+  if (!APP || !db || dbState !== "ready" || !canWrite) return;
+  const d = { b: window.MK_BUILD || "", sa: IS_STANDALONE, m: IS_IOS ? "iOS" : IS_ANDROID ? "Android" : "Computer", g: gState, p: !!(ntSub && Notification?.permission === "granted"), err: DEV_ERR, le: DEV_LE, leAt: DEV_LEAT };
+  const h = JSON.stringify(d); if (h === devLast) return; clearTimeout(devT); devT = setTimeout(() => { devLast = h; COLL("dev").doc(devId()).set({ ...d, at: new Date().toISOString() }).catch(() => {}); }, 3000);
+}
+addEventListener("error", e => { const m = String(e?.message || ""); if (!m || /ResizeObserver|Script error/i.test(m)) return; DEV_ERR++; DEV_LE = m.slice(0, 140); DEV_LEAT = new Date().toISOString(); try { use("app_fehler"); devReport(); } catch {} });
+addEventListener("unhandledrejection", e => { const m = String(e?.reason?.message || e?.reason || ""); if (!m || /abort|Failed to fetch|NetworkError|Load failed/i.test(m)) return; DEV_ERR++; DEV_LE = m.slice(0, 140); DEV_LEAT = new Date().toISOString(); try { use("app_fehler"); devReport(); } catch {} });
+addEventListener("mk-ki-err", e => { const { task, code } = e.detail || {}; if (code === "rate_limited") use("ki_limit"); else use(`ki_fehler_${String(task || "allgemein").replace(/[^\w-]/g, "").slice(0, 30)}__${String(code || "").replace(/[^\w-]/g, "").slice(0, 20)}`); });
 function renderDevCards() {
+  try { devReport(); } catch {}
   const ok = APP && dbState === "ready" && canWrite && PROFILE.setupDone, set = (id, on) => { const c = $(id); if (c) c.hidden = !on; };
   set("app-card", ok && IS_MOBILE && !IS_STANDALONE && (relInstalled || store.get("ft-a2hs") === "done") && !laterK("ft-appcard", 3));
   const usedG = !!(PROFILE.gcalAsked || PROFILE.gcalSel?.length);
@@ -5542,6 +5607,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-ftype]"))) { const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
+  if ((el = q("[data-admtab]"))) { ADM_TAB = el.dataset.admtab; showAdmin(); return; }
   if ((el = q("[data-qcol]"))) { const [eid, cid] = el.dataset.qcol.split("|"); quickColor(eid, cid); return; }
   if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
   if ((el = q("#f-more"))) { fMore = !fMore; syncFormFields(); return; }
@@ -6023,7 +6089,7 @@ Updates kommen automatisch beim Öffnen. Wiederholungen: täglich bis „alle 3 
 function showHelp(open) {
   closeMenu?.(); use("hilfe");
   openSheet("Hilfe", "Wie geht …?", `<div class="help">
-    ${sample ? `<div class="help-ask"><textarea class="in" id="help-in" rows="2" placeholder="Deine Frage, z. B. „Wie trage ich meine Bahnfahrt ein?“"></textarea><button type="button" class="btn accent" id="help-go">Fragen</button></div><div id="help-out" role="status"></div>` : ""}
+    ${sample ? `<div class="help-ask"><textarea class="in" id="help-in" rows="2" placeholder="Deine Frage, z. B. „Wie trage ich meine Bahnfahrt ein?“"></textarea><button type="button" class="btn accent" id="help-go">Fragen</button><span class="note">Fragen werden gespeichert, damit wir die Hilfe verbessern können – bitte keine persönlichen Angaben.</span></div><div id="help-out" role="status"></div>` : ""}
     <div class="sg-t">Häufige Fragen</div>
     ${HELP.map(([q, a], i) => `<details class="help-q"${open === i ? " open" : ""}><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}
   </div>`, "help");
@@ -6033,6 +6099,7 @@ async function helpAsk() {
   const hit = HELP.find(([h]) => h.toLowerCase().replace(/[?„“]/g, "") === q.toLowerCase().replace(/[?„“]/g, ""));
   if (hit) { out.innerHTML = `<p class="help-a">${esc(hit[1])}</p>`; return; }
   out.innerHTML = `<p class="note">Einen Moment …</p>`; use("hilfe_ki");
+  if (APP && db && canWrite) COLL("helpq").add({ q: q.slice(0, 300), at: new Date().toISOString() }).catch(() => {});
   try { window.MK_TASK = "hilfe"; const r = await sample(`${HELP_GUIDE}\n\nHäufige Fragen und Antworten:\n${HELP.map(([a, b]) => `- ${a} ${b}`).join("\n")}\n\nFrage des Nutzers: ${q.slice(0, 600)}\nAntworte nur mit der Antwort (Klartext, keine Überschriften).`, { modelTier: "quick" });
     out.innerHTML = `<p class="help-a">${esc((r.text || "").trim()).replace(/\n/g, "<br>")}</p>`; }
   catch (err) { out.innerHTML = `<p class="err">${err?.code === "rate_limited" ? esc(RL(err)) : "Das hat gerade nicht geklappt – schau bei den häufigen Fragen unten."}</p>`; }

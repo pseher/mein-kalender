@@ -12,6 +12,8 @@ import { vapid, runSchedule, testPush } from "./push.js";
 import { trainCheck } from "./train.js";
 import { flightCheck } from "./flight.js";
 
+const VERSION = "2026-11-16o";
+const PRICE = { "claude-sonnet-5-5": [2, 10], "claude-haiku-4-5-20251001": [1, 5], "claude-haiku-4-5": [1, 5], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-5-5": [5, 25] };   // $ je 1 Mio. Tokens (Ein-, Ausgabe) – wie im Dashboard
 const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
 export default {
@@ -30,7 +32,7 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16n", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: VERSION, model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
     if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
@@ -51,14 +53,22 @@ export default {
       const sv = { apikey: env.SUPABASE_SERVICE_KEY, ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
       const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
       const j = async u => { const r = await fetch(u, { headers: sv }); return r.ok ? r.json() : []; };
-      const [ai, use, subs, ur] = await Promise.all([
+      const aidOf = () => user.id, since30 = new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10);
+      const [ai, use, subs, ur, sys, dev, helpq, evs] = await Promise.all([
         j(`${env.SUPABASE_URL}/rest/v1/ai_usage?day=gte.${since}&select=user_id,day,task,calls,tok_in,tok_out&limit=20000`),
         j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.usage&id=gte.${since}&select=user_id,id,data&limit=20000`),
         j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.pushsub&select=user_id&limit=20000`),
         fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: sv }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+        j(`${env.SUPABASE_URL}/rest/v1/docs?user_id=eq.${aidOf()}&coll=eq.sys&id=gte.${since30}&select=id,data&limit=40`),
+        j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.dev&select=user_id,id,data&limit=2000`),
+        j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.helpq&select=user_id,data,updated_at&order=updated_at.desc&limit=80`),
+        j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.events&select=user_id&limit=50000`),
       ]);
+      const evn = {}; for (const r of evs) evn[r.user_id] = (evn[r.user_id] || 0) + 1;
       const users = (ur.users || []).map(u => ({ id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id }));
-      return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length });
+      return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { usd: +(env.MONTHLY_USD || 3), day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length, pushBy: subs.reduce((m, s) => (m[s.user_id] = (m[s.user_id] || 0) + 1, m), {}),
+        sys: sys.map(r => ({ d: r.id, ...r.data })), dev: dev.map(r => ({ u: r.user_id, id: r.id, ...r.data })), helpq: helpq.map(r => ({ u: r.user_id, q: String(r.data?.q || "").slice(0, 300), at: r.updated_at })), evn,
+        version: VERSION, keys: { airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET } });
     }
     // Zug-Wächter prüfen (nur Admin, eigene Züge): zeigt Schritt für Schritt, was die Bahn antwortet – ohne Benachrichtigung
     if (route === "/admin/train") {
@@ -130,7 +140,9 @@ export default {
     const mrows = u.ok ? await u.json() : [], rows = mrows.filter(r => r.day === today);
     const used = rows.reduce((s, r) => s + r.calls, 0), usedImg = rows.filter(r => String(r.task).startsWith("bilder")).reduce((s, r) => s + r.calls, 0);
     const mCalls = mrows.reduce((s, r) => s + r.calls, 0), mTok = mrows.reduce((s, r) => s + (r.tok_in || 0) + (r.tok_out || 0), 0);
-    const L = { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000) };
+    const L = { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), usd: +(env.MONTHLY_USD || 3) };
+    const mUsd = mrows.reduce((s, r) => { const P = PRICE[String(r.task).split("|")[1]] || PRICE[env.MODEL_DEFAULT] || [2, 10]; return s + ((r.tok_in || 0) * P[0] + (r.tok_out || 0) * P[1]) / 1e6; }, 0);
+    if (L.usd > 0 && mUsd >= L.usd) return out(429, { code: "rate_limited", message: "Monatslimit für KI-Anfragen erreicht – ab dem 1. geht es weiter. Das Formular funktioniert weiterhin." });
     if (used >= L.day) return out(429, { code: "rate_limited", message: `Tageslimit erreicht (${L.day} KI-Anfragen) – morgen geht es weiter.` });
     if (images.length && usedImg >= L.img) return out(429, { code: "rate_limited", message: `Tageslimit für Tickets/Bilder erreicht (${L.img}) – morgen geht es weiter. Ohne Anhang klappt es weiterhin.` });
     if (mCalls >= L.month || mTok >= L.tok) return out(429, { code: "rate_limited", message: "Monatslimit für KI-Anfragen erreicht – ab dem 1. geht es weiter. Das Formular funktioniert weiterhin." });
