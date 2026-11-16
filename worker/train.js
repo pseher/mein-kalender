@@ -34,11 +34,15 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
     let best = null;
     for (const st of sts.slice(0, 5)) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
       if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort (${LASTERR})`); continue; }
-      const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr: ${all.length} Fahrten, ${hit.length}× ${w.train}${all.length ? "" : ` – Antwort: ${x.replace(/\s+/g, " ").slice(0, 160)}`}`);
+      const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr (/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}): ${all.length} Fahrten, ${hit.length}× ${w.train}${all.length ? "" : ` – Antwort: ${x.replace(/\s+/g, " ").slice(0, 160)}`}`);
       if (all.length && !hit.length && dh === 0) dbg?.push(`Beispiele: ${all.slice(0, 6).map(p => `${p.tl.c || "?"} ${p.tl.n || ""}${(p.ar || p.dp || {}).l ? " (Linie " + (p.ar || p.dp).l + ")" : ""}`).join(", ")}`);
       for (const p of hit) for (const [k, e] of [["arr", p.ar], ["dep", p.dp]]) { if (!e?.pt) continue; const pt = fromTT(e.pt, tz), diff = Math.abs(pt - t0) + (k === "dep" ? 60e3 : 0);
         if (!best || diff < best.diff) best = { diff, sid: p.id, kind: k, pt: pt.toISOString(), pp: e.pp || "", eva: st.eva, sn: st.name }; }
       if (best && best.diff < 20 * 60e3) break; }
+    if (!best && dbg) {   // Gegenprobe: Frankfurt Hbf jetzt, und Echtzeit-Liste des ersten Bahnhofs
+      const L = local(new Date(), tz), xf = await tt(env, `/plan/8000105/${L.year}${L.month}${L.day}/${L.hour}`); dbg.push(`Gegenprobe Frankfurt Hbf ${L.hour} Uhr: ${xf ? stops(xf).length + " Fahrten" : "keine Antwort (" + LASTERR + ")"}`);
+      const xc = await tt(env, `/fchg/${sts[0].eva}`); const sc = xc ? stops(xc) : []; dbg.push(`Echtzeit-Liste ${sts[0].name}: ${xc ? sc.length + " Einträge" : "keine Antwort (" + LASTERR + ")"}${sc.length ? " – z. B. " + xc.slice(xc.indexOf("<s "), xc.indexOf("<s ") + 220).replace(/\s+/g, " ") : ""}`);
+    }
     if (!best || best.diff > 3 * 3600e3) { dbg?.push("kein passender Zug im Fahrplan"); return { state: { ...s, miss: (s.miss || 0) + 1 }, msgs: [] }; }
     Object.assign(s, { sid: best.sid, kind: best.kind, pt: best.pt, pp: best.pp, eva: best.eva, sn: best.sn });
     dbg?.push(`gefunden: ${best.kind === "arr" ? "Ankunft" : "Abfahrt"} ${best.sn} geplant ${best.pt} Gleis ${best.pp || "?"}`);
