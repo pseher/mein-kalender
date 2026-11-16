@@ -204,10 +204,10 @@ window.MK_APP = true;
   }
   const rfc = local => new Date(local).toISOString();                       // "2026-11-20T00:00:00" (Ortszeit) → UTC
   const cal = i => encodeURIComponent(i?.calendarId || "primary");
-  const when = (i, k) => i.allDay ? { date: String(i[k]).slice(0, 10) } : { dateTime: i[k], timeZone: TZ };
+  const when = (i, k, partial) => i.allDay ? { date: String(i[k]).slice(0, 10), ...(partial ? { dateTime: null, timeZone: null } : {}) } : { dateTime: i[k], timeZone: TZ, ...(partial ? { date: null } : {}) };   // PATCH mischt Felder: das jeweils andere ausdrücklich leeren
   const evBody = (i, partial) => { const b = {};
     if (i.summary != null) b.summary = i.summary; if (i.description != null) b.description = i.description; if (i.location != null) b.location = i.location;
-    if (i.startTime) b.start = when(i, "startTime"); if (i.endTime) b.end = when(i, "endTime");
+    if (i.startTime) b.start = when(i, "startTime", partial); if (i.endTime) b.end = when(i, "endTime", partial);
     if (i.recurrenceData) b.recurrence = i.recurrenceData; if (i.id && !partial) b.id = i.id; if (i.status) b.status = i.status; return b; };
   const TOOLS = {
     async list_calendars() { const b = await gFetch("/users/me/calendarList?maxResults=250");

@@ -3096,6 +3096,10 @@ const tpad = t => { const [h, m] = String(t).split(":"); return `${p2(+h)}:${p2(
 const localStamp = d => `${iso(d)}T${p2(d.getHours())}:${p2(d.getMinutes())}:00`;
 function gInput(v) {
   const to = v.to || v.from, inp = { summary: gTitle(v), notificationLevel: "NONE" }; { const c = v.color || (v.who ? whoId(v.who) : ""); if (c) inp.colorId = c; }
+  if (v.time && to > v.from && !v.endTime) {   // mehrtägig mit Abfahrtszeit (Reise, Urlaub): in Google über alle Tage, Uhrzeit in die Beschreibung
+    inp.allDay = true; inp.startTime = `${v.from}T00:00:00`; inp.endTime = `${iso(addDays(parseIso(to), 1))}T00:00:00`;
+    inp.description = [`Beginn ${tpad(v.time)} Uhr`, v.note].filter(Boolean).join("\n"); if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal; return inp;
+  }
   if (v.time) {
     inp.startTime = `${v.from}T${tpad(v.time)}:00`;
     if (v.endTime) inp.endTime = `${to}T${tpad(v.endTime)}:00`;
@@ -3117,6 +3121,13 @@ async function gCreate(v) {
   try { const inp = gInput(v), r = gRecur(v); if (r) inp.recurrenceData = r;
     const res = await mcp.callTool(GSERVER, "create_event", inp); const id = gIdOf(res?.payload); if (!id) gWarn++; return id; }
   catch { gWarn++; return ""; }
+}
+// einmalig: mehrtägige Einträge mit Uhrzeit, die früher nur als 1 Stunde am ersten Tag in Google standen, über alle Tage ziehen
+async function gFixSpans() {
+  let done = []; try { done = JSON.parse(store.get("ft-gfix") || "[]"); } catch {}
+  const L = EV.filter(e => e.gEventId && !e.gReadOnly && !e.shared && e.time && !e.endTime && (e.to || e.from) > e.from && !done.includes(e.id)).slice(0, 20);
+  for (const e of L) { if (await gUpdate({ ...e, gcal: e.gcal })) done.push(e.id); }
+  if (L.length) { store.set("ft-gfix", JSON.stringify(done.slice(-300))); gResync(500); }
 }
 async function gUpdate(v) {
   if (!mcp || gState !== "ok") { gWarn++; return true; }
@@ -3633,7 +3644,7 @@ async function initGoogle() {
     const list = Array.isArray(r?.payload?.calendars) ? r.payload.calendars : [];
     gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}), ...(c.accessRole ? { accessRole: String(c.accessRole) } : {}) }));
     store.set("ft-gcals", JSON.stringify(gCals));
-    gState = "ok"; gTry = 0; gLiveAt = Date.now(); shrMirrorQueue();
+    gState = "ok"; gTry = 0; gLiveAt = Date.now(); shrMirrorQueue(); setTimeout(() => gFixSpans().catch(() => {}), 4000);
     { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
       const wzOff = () => !$("wz") || $("wz").hidden;
       if (back && PROFILE.gcalAsked) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} back = false; }   // nur neu verbunden – Einrichtung gab es schon
