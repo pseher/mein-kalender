@@ -834,6 +834,10 @@ function renderTasks() {
     (done.length ? `<button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? done.map(t => `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") : ""}` : "");
   window.__tkSug = sug;
 }
+// Aufgabe eintragen: Text frei, Frist im eigenen Feld. Ein Datum im Text wird nur vorgeschlagen (sichtbar im Feld), der Text bleibt wie getippt.
+function tkReset() { const i = $("tk-in"), d = $("tk-due"); if (i) i.value = ""; if (d) { d.value = ""; delete d.dataset.man; } tkUi(); }
+function tkUi() { const v = ($("tk-in")?.value || "").trim(), d = $("tk-due"); $("tk-go").disabled = !v; $("tk-go").textContent = v ? "Hinzufügen" : "+"; $("tk-due-row").hidden = !v;
+  const q = { 0: iso(TODAY), 1: iso(addDays(TODAY, 1)), w: iso(addDays(monday(TODAY), 6)) }; document.querySelectorAll("[data-tkn]").forEach(b => b.setAttribute("aria-pressed", String(!!d.value && q[b.dataset.tkn] === d.value))); }
 async function addTask(t) { try { await COLL("tasks").add({ title: t.title, due: t.due || "", done: false, key: t.key || "", state: t.state || "", created: new Date().toISOString(), fixed: true }); } catch (err) { toast(writeErr(err)); } }
 function showTaskEdit(id) {
   const t = TASKS.find(x => x.id === id); if (!t) return;
@@ -3960,6 +3964,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
+  if ((el = q("[data-tkn]"))) { const d = $("tk-due"), k = el.dataset.tkn, v = k === "w" ? iso(addDays(monday(TODAY), 6)) : iso(addDays(TODAY, +k)); d.value = d.value === v ? "" : v; d.dataset.man = "1"; tkUi(); $("tk-in").focus(); return; }
   if ((el = q("[data-umg]"))) { const [id, a] = el.dataset.umg.split("|"); const o = findOcc(id, a); if (!o) return; const on = umgToggle(o.ev.title);
     toast(on ? `Alle „${o.ev.title}“-Einträge zählen jetzt als Umgang` : `„${o.ev.title}“ ist wieder ein normaler Termin`); renderAll(); const o2 = findOcc(id, a) || o; showGoogleEvent(o2); return; }
   if ((el = q("[data-gmerk]"))) { const [id, a] = el.dataset.gmerk.split("|"); const o = findOcc(id, a); if (o) openMerk(o); return; }
@@ -4027,7 +4032,7 @@ document.addEventListener("click", ev => {
     case "open-setup": case "open-family": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "fam-pick-go": (async () => { const ppl = bdPeople(); let n = 0; for (const [k, pk] of FPICK) { const c = ppl.find(x => x.key === k); if (c && pk.name.trim()) { await famAdd(c, pk.role, pk, true); n++; } }
       FPICK = new Map(); famQ = ""; famSave(); showFamily(); toast(`${n} ${n === 1 ? "Person" : "Personen"} übernommen`); })(); break;
-    case "tk-go": { const i = $("tk-in"), v = i.value.trim(); if (v) { addTask(parseTask(v)); i.value = ""; } break; }
+    case "tk-go": { const i = $("tk-in"), v = i.value.trim(); if (v) { addTask({ title: v[0].toUpperCase() + v.slice(1), due: $("tk-due").value || "" }); tkReset(); i.focus(); toast("Aufgabe eingetragen"); } break; }
     case "tk-all": tkAll = !tkAll; renderTasks(); break;
     case "tk-showdone": tkShowDone = !tkShowDone; renderTasks(); break;
     case "mi-share": shrNew = null; shrAcc = null; shrGrp = null; showShareMgr(); break;
@@ -4160,6 +4165,8 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; saveGSel(s); resetGoogleWatches(); return; }
   if (["f-type", "f-rep", "f-repu"].includes(ev.target.id)) syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
 document.addEventListener("input", ev => {
+  if (ev.target.id === "tk-in") { const d = $("tk-due"); if (!d.dataset.man) { const p = parseTask(ev.target.value); d.value = p.due || ""; } tkUi(); }
+  if (ev.target.id === "tk-due") { ev.target.dataset.man = "1"; tkUi(); }
   if (ev.target.id === "f-who") { const w = ev.target.value.trim(), l = $("f-col-l"); if (l) l.textContent = w ? `Farbe für ${w}` : "Farbe nur für diesen Eintrag";
     const c = w ? (whoCols()[whoKey(w)] || "") : ""; document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.fcol === c))); }
   if (ev.target.id === "f-place") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(v, false); else { const b = $("f-place-sug"); if (b) b.hidden = true; } }
@@ -4330,8 +4337,7 @@ renderAll();
       store.set("ft-xst", JSON.stringify(XST)); store.set("ft-joint", JSON.stringify(JOINT)); store.set("ft-xhide", JSON.stringify(XHIDE)); renderAll(); if (sheetMode === "settings" && !$("sheet").hidden) showSettings(); } }, () => {});
   COLL("prefs").doc("notify").onSnapshot(d => { const v = d.exists ? JSON.parse(JSON.stringify(d.data() || {})) : {}; NOTIFY = { cals: Array.isArray(v.cals) ? v.cals.map(String) : null, seenAt: String(v.seenAt || "") }; if (gState === "ok") scanOthers(); }, () => {});
   COLL("tasks").onSnapshot(snap => { TASKS = snap.docs.map(d => ({ id: d.id, ...JSON.parse(JSON.stringify(d.data() || {})) })).map(t => ({ ...t, title: String(t.title || ""), due: String(t.due || "") })); renderTasks(); renderFocus();
-    TASKS.filter(t => !t.done && !t.key && !t.fixed).forEach(t => { const p = parseTask(t.title, t.created ? new Date(t.created) : TODAY); // ältere Aufgaben nachträglich mit Frist versehen
-      tkSet(t.id, { title: p.title, due: t.due || p.due, fixed: true }); });
+
     TASKS.filter(t => t.done && t.doneAt && Date.now() - Date.parse(t.doneAt) > 30 * 864e5).forEach(t => COLL("tasks").doc(t.id).delete().catch(() => {})); // Erledigtes nach 30 Tagen aufräumen
   }, () => {});
   COLL("docs").onSnapshot(snap => { DOCS = snap.docs.map(d => ({ ...JSON.parse(JSON.stringify(d.data() || {})), id: d.id })).filter(d => d.n > 0).map(d => ({ ...d, name: String(d.name || "Dokument"), size: +d.size || 0, n: +d.n }));

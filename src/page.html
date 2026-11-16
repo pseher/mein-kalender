@@ -792,8 +792,13 @@ button.tb-g { font: inherit; color: inherit; background: transparent; border: 0;
 .due { font-style: normal; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; } .due.soon { color: var(--both); } .due.late { color: var(--holiday); }
 .tk-sug { margin: 4px 0 2px; border-radius: 10px; background: color-mix(in srgb, var(--both) 7%, transparent); padding: 2px 0; }
 .tk.sg2 { cursor: default; } .tk.sg2 > span { display: flex; flex-direction: column; white-space: normal; } .tk.sg2 b { font-weight: 600; font-size: 13.5px; } .tk.sg2 small { font-size: 12px; color: var(--muted); }
-.tk-add { display: flex; gap: 6px; margin: 6px 4px 4px; } .tk-add input { flex: 1; min-width: 0; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; background: var(--bg); color: var(--fg); }
-.tk-add .ic.ok { height: 34px; width: 38px; font-size: 18px; }
+.tk-add { margin: 6px 4px 4px; } .tk-row { display: flex; gap: 6px; } .tk-add input { flex: 1; min-width: 0; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; background: var(--bg); color: var(--fg); }
+.tk-go { height: 36px; min-width: 40px; border: 0; border-radius: 9px; font-family: inherit; font-weight: 700; font-size: 18px; line-height: 1; background: var(--soft); color: var(--muted); cursor: pointer; padding: 0 12px; }
+.tk-go:not(:disabled) { background: var(--both); color: var(--both-ink); font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.tk-due { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: 14px; } .tk-due span { color: var(--muted); font-weight: 600; margin-right: 2px; }
+.tkq { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 6px 11px; font: inherit; font-size: 14px; cursor: pointer; } .tkq[aria-pressed="true"] { background: var(--both); border-color: var(--both); color: var(--both-ink); }
+.tk-due input[type=date] { flex: 0 1 150px; padding: 5px 8px; }
+html.typing #add-btn { display: none !important; }
 .tk-dl { margin: 2px 6px; font-size: 12px; color: var(--muted); }
 /* Sichtbarkeit */
 .vis { display: inline-flex; gap: 4px; background: var(--soft); border-radius: 10px; padding: 3px; margin-top: 6px; }
@@ -877,7 +882,8 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
     <div class="upsec" id="sec-next" hidden><h3><span id="next-ttl">Nächste 14 Tage</span> <b id="n-next"></b><button type="button" class="link" id="wk-back" hidden>Zurück zu heute</button></h3><div id="next" class="soon"><div id="next-list"></div></div></div>
     <div class="upsec" id="sec-others" hidden><h3>Neu von anderen <b id="n-others" class="hot"></b><button type="button" class="link" id="others-ok">Gesehen</button></h3><div id="others" class="soon"><div id="others-list"></div></div></div>
     <div class="upsec" id="sec-tasks" hidden><h3>Aufgaben <b id="n-tasks"></b></h3><div id="tasks-list"></div>
-      <form class="tk-add" id="tk-form" onsubmit="return false"><input id="tk-in" type="text" placeholder="Neue Aufgabe – z. B. Reifen wechseln bis Ende Oktober" aria-label="Neue Aufgabe" enterkeyhint="done"><button type="submit" class="ic ok" id="tk-go" aria-label="Aufgabe hinzufügen">+</button></form></div>
+      <form class="tk-add" id="tk-form" onsubmit="return false"><div class="tk-row"><input id="tk-in" type="text" placeholder="Neue Aufgabe – z. B. Reifen wechseln" aria-label="Neue Aufgabe" enterkeyhint="done" autocomplete="off"><button type="submit" class="tk-go" id="tk-go" aria-label="Aufgabe hinzufügen" disabled>+</button></div>
+        <div class="tk-due" id="tk-due-row" hidden><span>Bis wann?</span><button type="button" class="tkq" data-tkn="0">Heute</button><button type="button" class="tkq" data-tkn="1">Morgen</button><button type="button" class="tkq" data-tkn="w">Diese Woche</button><input type="date" id="tk-due" aria-label="Bis wann erledigt?"></div></form></div>
     <div class="upsec" id="sec-soon" hidden><h3>Erinnerungen <b id="n-soon"></b></h3><div id="soon" class="soon"><div id="soon-list"></div></div></div>
     <p class="tip" id="up-empty" hidden>In den nächsten 14 Tagen steht nichts Besonderes an.</p>
   </section>
