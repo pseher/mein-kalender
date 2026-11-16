@@ -160,6 +160,10 @@ button { font: inherit; color: inherit; }
 .catrow { border-bottom: 1px solid var(--line); } .catn { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; padding: 12px 2px; font: inherit; font-weight: 600; color: var(--fg); cursor: pointer; text-align: left; } .catn span { flex: 1; } .catn em { font-style: normal; font-weight: 400; color: var(--muted); font-size: 14px; } .catn b { color: var(--muted); } .catsw { width: 22px; height: 22px; border-radius: 50%; flex: none; }
 .fcols.sm { margin: 0 0 12px; gap: 8px; } .fcols.sm .fcol { width: 32px; height: 32px; font-size: 12px; }
 .f-until { margin: -4px 0 8px; }
+.adm-k { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 4px 0 14px; } .adm-k div { background: var(--soft); border-radius: 12px; padding: 10px 12px; } .adm-k b { display: block; font-size: 22px; } .adm-k span { color: var(--muted); font-size: 13px; }
+.adm h3 { margin: 18px 0 6px; font-size: 15px; } .adm table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; } .adm th, .adm td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); } .adm td.n, .adm th.n { text-align: right; }
+.adm-bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; padding: 4px 0; border-bottom: 1px solid var(--line); } .adm-bars i { flex: 1; background: var(--both); border-radius: 2px 2px 0 0; min-height: 1px; }
+.adm .note { color: var(--muted); font-size: 13px; } .adm-sim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .adm-sim input { width: 80px; }
 .rep-c { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; } #f .rep-c input { width: 84px; flex: 0 0 84px; } #f .rep-c select { flex: 1 1 auto; width: auto; min-width: 0; }
 .seg.emode { display: flex; margin: 0 0 12px; } .seg.emode button { flex: 1; padding: 9px 10px; font-size: 15px; }
 .toolbar .sp { flex: 1; }
@@ -861,6 +865,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
       <button type="button" class="mi" data-mi id="mi-google"><i class="dotc" style="--c:var(--gcal)"></i>Google Kalender</button>
       <button type="button" class="mi" data-mi id="mi-fam"><i class="dotc" style="--c:var(--event)"></i>Familie &amp; Liebste<i class="rdot inl" id="mi-fam-dot" hidden></i></button>
       <button type="button" class="mi" data-mi id="mi-docs" hidden><i class="dotc" style="--c:var(--trip)"></i>Dokumente<em id="mi-docs-n"></em></button>
+      <button type="button" class="mi" data-mi id="mi-admin" hidden><i class="dotc" style="--c:var(--c-deadline, #d50000)"></i>Betreiber-Dashboard</button>
       <button type="button" class="mi" data-mi id="mi-share"><i class="dotc" style="--c:var(--both)"></i>Teilen mit …</button>
       <button type="button" class="mi" data-mi id="mi-notify" hidden><i class="dotc" style="--c:var(--deadline, var(--both))"></i>Benachrichtigungen<em class="mi-v" id="mi-notify-v"></em></button>
       <button type="button" class="mi" id="theme-btn" aria-label="Darstellung wechseln"><i class="dotc" style="--c:var(--muted)"></i>Darstellung<em><span id="theme-ico" aria-hidden="true">◐</span> <span id="theme-lbl">Auto</span></em></button>

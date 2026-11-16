@@ -49,6 +49,9 @@ window.MK_APP = true;
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
   // Benachrichtigungen: öffentlicher Schlüssel & Test über den Worker
   window.mkPushKey = async () => { const r = await fetch(CFG.workerUrl + "/push/key"); const b = await r.json().catch(() => ({})); if (!b.key) throw Object.assign(new Error("no key"), { code: b.code || "no_vapid" }); return b.key; };
+  const wPost = async route => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); return r.json().catch(() => null); };
+  window.mkAdminMe = () => wPost("/admin/me").catch(() => null);
+  window.mkAdminStats = () => wPost("/admin/stats");
   window.mkPushTest = async () => { const s = await freshSession(); const r = await fetch(CFG.workerUrl + "/push/test", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: "{}" }); return r.json().catch(() => ({ ok: false })); };
   // Link auslesen (über den Worker, wegen CORS)
   window.mkReadLink = async url => {
@@ -149,7 +152,7 @@ window.MK_APP = true;
     for (const b of (opts.images || []).slice(0, 5)) images.push({ type: b.type || "image/jpeg", data: await toB64(b) });
     const r = await fetch(CFG.workerUrl + "/ai", { method: "POST", signal: opts.signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
-      body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || "" }) });
+      body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || window.MK_TASK || "" }) }); window.MK_TASK = "";
     const body = await r.json().catch(() => ({}));
     if (!r.ok) { window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
     if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");
@@ -428,6 +431,10 @@ button { font: inherit; color: inherit; }
 .catrow { border-bottom: 1px solid var(--line); } .catn { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; padding: 12px 2px; font: inherit; font-weight: 600; color: var(--fg); cursor: pointer; text-align: left; } .catn span { flex: 1; } .catn em { font-style: normal; font-weight: 400; color: var(--muted); font-size: 14px; } .catn b { color: var(--muted); } .catsw { width: 22px; height: 22px; border-radius: 50%; flex: none; }
 .fcols.sm { margin: 0 0 12px; gap: 8px; } .fcols.sm .fcol { width: 32px; height: 32px; font-size: 12px; }
 .f-until { margin: -4px 0 8px; }
+.adm-k { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 4px 0 14px; } .adm-k div { background: var(--soft); border-radius: 12px; padding: 10px 12px; } .adm-k b { display: block; font-size: 22px; } .adm-k span { color: var(--muted); font-size: 13px; }
+.adm h3 { margin: 18px 0 6px; font-size: 15px; } .adm table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; } .adm th, .adm td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); } .adm td.n, .adm th.n { text-align: right; }
+.adm-bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; padding: 4px 0; border-bottom: 1px solid var(--line); } .adm-bars i { flex: 1; background: var(--both); border-radius: 2px 2px 0 0; min-height: 1px; }
+.adm .note { color: var(--muted); font-size: 13px; } .adm-sim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .adm-sim input { width: 80px; }
 .rep-c { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; } #f .rep-c input { width: 84px; flex: 0 0 84px; } #f .rep-c select { flex: 1 1 auto; width: auto; min-width: 0; }
 .seg.emode { display: flex; margin: 0 0 12px; } .seg.emode button { flex: 1; padding: 9px 10px; font-size: 15px; }
 .toolbar .sp { flex: 1; }
@@ -1129,6 +1136,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
       <button type="button" class="mi" data-mi id="mi-google"><i class="dotc" style="--c:var(--gcal)"></i>Google Kalender</button>
       <button type="button" class="mi" data-mi id="mi-fam"><i class="dotc" style="--c:var(--event)"></i>Familie &amp; Liebste<i class="rdot inl" id="mi-fam-dot" hidden></i></button>
       <button type="button" class="mi" data-mi id="mi-docs" hidden><i class="dotc" style="--c:var(--trip)"></i>Dokumente<em id="mi-docs-n"></em></button>
+      <button type="button" class="mi" data-mi id="mi-admin" hidden><i class="dotc" style="--c:var(--c-deadline, #d50000)"></i>Betreiber-Dashboard</button>
       <button type="button" class="mi" data-mi id="mi-share"><i class="dotc" style="--c:var(--both)"></i>Teilen mit …</button>
       <button type="button" class="mi" data-mi id="mi-notify" hidden><i class="dotc" style="--c:var(--deadline, var(--both))"></i>Benachrichtigungen<em class="mi-v" id="mi-notify-v"></em></button>
       <button type="button" class="mi" id="theme-btn" aria-label="Darstellung wechseln"><i class="dotc" style="--c:var(--muted)"></i>Darstellung<em><span id="theme-ico" aria-hidden="true">◐</span> <span id="theme-lbl">Auto</span></em></button>
@@ -1820,7 +1828,7 @@ async function ctShots(files) {
     if (err) { err.style.color = "var(--muted)"; err.textContent = `Lese Bild ${i + 1} von ${files.length} …`; }
     try {
       const img = await ctShrink(files[i]);
-      const r = await sample.json(`Auf dem Bild ist eine Liste mit Geburtstagen (z. B. ein Screenshot aus einer Kontakte-, Kalender- oder Geburtstags-App, eine Tabelle oder ein Foto einer handschriftlichen Liste).
+      const r = await (window.MK_TASK = "geburtstage-bild", sample.json)(`Auf dem Bild ist eine Liste mit Geburtstagen (z. B. ein Screenshot aus einer Kontakte-, Kalender- oder Geburtstags-App, eine Tabelle oder ein Foto einer handschriftlichen Liste).
 Lies alle Personen mit ihrem Geburtstag aus. Antworte NUR mit JSON: {"items":[{"name":"Vorname Nachname","day":1-31,"month":1-12,"year":Geburtsjahr oder 0}]}.
 Regeln: nur Einträge mit erkennbarem Tag und Monat. Ein Alter („wird 40“) darf in ein Geburtsjahr umgerechnet werden, bezogen auf das nächste Vorkommen des Datums ab ${iso(TODAY)}. Keine Ankündigungstexte wie „Heute“ oder „in 3 Tagen“ als Namen. Nichts erfinden; wenn nichts erkennbar ist: {"items":[]}.`, { images: [img], modelTier: "default" });
       (Array.isArray(r?.items) ? r.items : []).forEach(x => { const name = String(x?.name || "").trim(), d = +x?.day, m = +x?.month; let y = +x?.year || 0;
@@ -2095,7 +2103,7 @@ function renderTasks() {
 function tkReset() { const i = $("tk-in"), d = $("tk-due"); if (i) i.value = ""; if (d) { d.value = ""; delete d.dataset.man; } tkUi(); }
 function tkUi() { const v = ($("tk-in")?.value || "").trim(), d = $("tk-due"); $("tk-go").disabled = !v; $("tk-go").textContent = v ? "Hinzufügen" : "+"; $("tk-due-row").hidden = !v;
   const q = { 0: iso(TODAY), 1: iso(addDays(TODAY, 1)), w: iso(addDays(monday(TODAY), 6)) }; document.querySelectorAll("[data-tkn]").forEach(b => b.setAttribute("aria-pressed", String(!!d.value && q[b.dataset.tkn] === d.value))); }
-async function addTask(t) { try { await COLL("tasks").add({ title: t.title, due: t.due || "", done: false, key: t.key || "", state: t.state || "", created: new Date().toISOString(), fixed: true }); } catch (err) { toast(writeErr(err)); } }
+async function addTask(t) { use("aufgabe"); try { await COLL("tasks").add({ title: t.title, due: t.due || "", done: false, key: t.key || "", state: t.state || "", created: new Date().toISOString(), fixed: true }); } catch (err) { toast(writeErr(err)); } }
 function showTaskEdit(id) {
   const t = TASKS.find(x => x.id === id); if (!t) return;
   const d = parseIso(t.due);
@@ -2264,6 +2272,51 @@ async function takeInvite() { const c = pendingInvite(); if (!c || !canWrite) re
   if (shrAcc?.from) { showInvite(); renderHints(); } else { invDone(); showShareMgr(); }
   return true; }
 let shrNew = null, shrAcc = null, shrGrp = null;
+// ---- Betreiber-Dashboard (nur für ADMIN_EMAIL im Worker): Nutzung, KI-Tokens, Kosten, Abo-Simulation ----
+const AI_PRICE = { "claude-sonnet-5-5": [2, 10], "claude-haiku-4-5-20251001": [1, 5], "claude-haiku-4-5": [1, 5], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-5-5": [5, 25] };   // $ pro 1 Mio. Tokens (Eingabe, Ausgabe)
+let ADM = null, ADM_FREE = 30;
+async function adminCheck() { if (!APP || !window.mkAdminMe) return; const r = await window.mkAdminMe(); const mi = $("mi-admin"); if (mi) mi.hidden = !r?.admin; }
+async function showAdmin(reload) {
+  if (!ADM || reload) { openSheet("Betreiber-Dashboard", "lädt …", `<p class="note">Zahlen werden geholt …</p>`, "adm"); ADM = await window.mkAdminStats?.().catch(() => null); }
+  const D = ADM; if (!D || D.code) { openSheet("Betreiber-Dashboard", "", `<p>Keine Daten (${esc(D?.code || "Fehler")}).</p>`, "adm"); return; }
+  const now = Date.now(), d30 = iso(addDays(TODAY, -29)), d7 = iso(addDays(TODAY, -6)), short = id => id ? id.slice(0, 6) : "–";
+  const cost = r => { const [task, model0] = String(r.task).split("|"), model = model0 || D.models.default, P = AI_PRICE[model] || [3, 15]; return { task, model, c: (r.tok_in * P[0] + r.tok_out * P[1]) / 1e6 }; };
+  const ai = D.ai.map(r => ({ ...r, ...cost(r) })), ai30 = ai.filter(r => r.day >= d30), use30 = D.use.filter(r => r.d >= d30);
+  const sum = (a, f) => a.reduce((x, r) => x + f(r), 0), usd = v => v < 0.01 && v > 0 ? "<0,01 $" : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
+  const act = (from) => new Set([...D.use.filter(r => r.d >= from).map(r => r.u), ...ai.filter(r => r.day >= from).map(r => r.user_id)]).size;
+  const neu30 = D.users.filter(u => u.created && u.created.slice(0, 10) >= d30).length;
+  // KI-Kosten pro Tag
+  const days = Array.from({ length: 30 }, (_, i) => iso(addDays(TODAY, i - 29))), perDay = days.map(d => sum(ai.filter(r => r.day === d), r => r.c)), mx = Math.max(...perDay, 1e-9);
+  // pro Funktion
+  const byT = new Map(); ai30.forEach(r => { const k = r.task, x = byT.get(k) || { n: 0, ti: 0, to: 0, c: 0, u: new Set() }; x.n += r.calls; x.ti += r.tok_in; x.to += r.tok_out; x.c += r.c; x.u.add(r.user_id); byT.set(k, x); });
+  // pro Nutzer
+  const byU = new Map(); ai30.forEach(r => { const x = byU.get(r.user_id) || { n: 0, c: 0 }; x.n += r.calls; x.c += r.c; byU.set(r.user_id, x); });
+  const uLast = id => D.users.find(u => u.id === id)?.last?.slice(0, 10) || "";
+  // Funktionsnutzung (App)
+  const byF = new Map(); use30.forEach(r => Object.entries(r.f).forEach(([k, n]) => { const x = byF.get(k) || { n: 0, u: new Set() }; x.n += n; x.u.add(r.u); byF.set(k, x); }));
+  // Abo-Simulation: KI-Aktionen der letzten 30 Tage je aktivem Nutzer
+  const calls = [...byU.values()].map(x => x.n).sort((a, b) => a - b), over = calls.filter(n => n > ADM_FREE).length, actU = act(d30) || 1;
+  const pc = q => calls.length ? calls[Math.min(calls.length - 1, Math.floor(q * calls.length))] : 0, costU = [...byU.values()].map(x => x.c).sort((a, b) => a - b);
+  const capCost = sum(ai30, r => r.c) / Math.max(1, sum(ai30, r => r.calls)) * ADM_FREE;
+  const html = `<div class="adm">
+    <div class="adm-k"><div><b>${D.users.length}</b><span>Nutzer gesamt</span></div><div><b>${act(d7)}</b><span>aktiv (7 Tage)</span></div><div><b>${act(d30)}</b><span>aktiv (30 Tage)</span></div>
+      <div><b>${neu30}</b><span>neu (30 Tage)</span></div><div><b>${D.push}</b><span>mit Benachrichtigungen</span></div><div><b>${usd(sum(ai30, r => r.c))}</b><span>KI-Kosten 30 Tage</span></div>
+      <div><b>${sum(ai30, r => r.calls)}</b><span>KI-Aufrufe 30 Tage</span></div><div><b>${((sum(ai30, r => r.tok_in) + sum(ai30, r => r.tok_out)) / 1e3).toLocaleString("de-DE", { maximumFractionDigits: 0 })} k</b><span>Tokens 30 Tage</span></div></div>
+    <h3>KI-Kosten pro Tag (30 Tage)</h3><div class="adm-bars" role="img" aria-label="KI-Kosten pro Tag">${perDay.map((v, i) => `<i style="height:${Math.round(v / mx * 100)}%" title="${fmt(parseIso(days[i]))}: ${usd(v)}"></i>`).join("")}</div>
+    <p class="note">höchster Tag: ${usd(mx > 1e-9 ? mx : 0)}</p>
+    <h3>KI nach Funktion (30 Tage)</h3><table><tr><th>Funktion</th><th class="n">Aufrufe</th><th class="n">Nutzer</th><th class="n">Tokens</th><th class="n">Kosten</th><th class="n">Ø/Aufruf</th></tr>
+      ${[...byT].sort((a, b) => b[1].c - a[1].c).map(([k, x]) => `<tr><td>${esc(k)}</td><td class="n">${x.n}</td><td class="n">${x.u.size}</td><td class="n">${Math.round((x.ti + x.to) / 1e3)} k</td><td class="n">${usd(x.c)}</td><td class="n">${(x.c / Math.max(1, x.n) * 100).toLocaleString("de-DE", { maximumFractionDigits: 2 })} ct</td></tr>`).join("") || `<tr><td colspan="6" class="note">Noch keine KI-Aufrufe erfasst.</td></tr>`}</table>
+    <h3>Nutzer mit den höchsten KI-Kosten (30 Tage)</h3><table><tr><th>Nutzer</th><th class="n">Aufrufe</th><th class="n">Kosten</th><th class="n">zuletzt</th></tr>
+      ${[...byU].sort((a, b) => b[1].c - a[1].c).slice(0, 20).map(([id, x]) => `<tr><td>${short(id)}${D.users.find(u => u.id === id)?.me ? " (du)" : ""}</td><td class="n">${x.n}</td><td class="n">${usd(x.c)}</td><td class="n">${uLast(id) ? fmt(parseIso(uLast(id))) : ""}</td></tr>`).join("") || `<tr><td colspan="4" class="note">–</td></tr>`}</table>
+    <h3>Genutzte Funktionen (30 Tage)</h3><table><tr><th>Funktion</th><th class="n">Anzahl</th><th class="n">Nutzer</th><th class="n">Anteil Nutzer</th></tr>
+      ${[...byF].sort((a, b) => b[1].u.size - a[1].u.size || b[1].n - a[1].n).map(([k, x]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td class="n">${x.n}</td><td class="n">${x.u.size}</td><td class="n">${Math.round(x.u.size / actU * 100)} %</td></tr>`).join("") || `<tr><td colspan="4" class="note">Noch keine Nutzung erfasst – die Zählung läuft ab jetzt.</td></tr>`}</table>
+    <h3>Abo-Simulation</h3><div class="adm-sim"><label for="adm-free">Freie KI-Aktionen pro Monat</label><input id="adm-free" type="number" min="1" max="500" value="${ADM_FREE}"></div>
+    <p>${over} von ${actU} aktiven Nutzern (${Math.round(over / actU * 100)} %) hätten in den letzten 30 Tagen mehr gebraucht. Median ${pc(.5)}, 90 % der Nutzer ≤ ${pc(.9)} KI-Aktionen.<br>
+      Ein Nutzer, der das Freikontingent voll ausschöpft, kostet ca. <b>${usd(capCost || 0)}</b> im Monat. Kosten je aktivem KI-Nutzer: Median ${usd(costU[Math.floor(costU.length / 2)] || 0)}, höchster ${usd(costU.at(-1) || 0)}.</p>
+    <p class="note">Stand ${new Date(D.at).toLocaleString("de-DE")} · Preise: ${Object.entries(AI_PRICE).filter(([m]) => m === D.models.quick || m === D.models.default).map(([m, p]) => `${m} ${p[0]}/${p[1]} $ je 1 Mio.`).join(" · ")}. Ältere Einträge ohne Modell werden mit ${esc(D.models.default)} gerechnet.</p>
+    <p><button type="button" class="btn ghost small" id="adm-reload">Aktualisieren</button></p></div>`;
+  openSheet("Betreiber-Dashboard", `${D.users.length} Nutzer · ${act(d30)} aktiv`, html, "adm");
+}
 function showShareMgr() {
   const C = SHR.contacts, me = myName();
   const inv = c => `Hallo ${c.name.split(/\s+/)[0]},\n\nich möchte Termine mit dir in „Mein Kalender“ teilen – dann sehen wir beide, was ansteht.\n\nTipp einfach auf diesen Link, dort kannst du den Code mit einem Tipp kopieren:\n${INVITE_URL}/einladung.html#c=${normCode(c.code)}&von=${encodeURIComponent(me)}\n\nDein Code: ${fmtCode(c.code)}\n\nLiebe Grüße\n${me}`;
@@ -2346,6 +2399,7 @@ async function shrDeleteAll(e) {   // Löschung an die Person schicken, die den 
 // ---- Einen Termin teilen ----
 let shrFor = null;
 function showShareEv(e, dateIso) {
+  use("teilen");
   shrFor = { id: e.id, date: dateIso };
   openSheet(`„${shortName0(e)}“ teilen`, SHR.contacts.length ? "Mit wem? Ändert einer etwas, sieht es der andere." : "", SHR.contacts.length ? `<div class="setv">
     ${shrChips("data-shto", effTo(e))}
@@ -2907,7 +2961,7 @@ async function giftIdeas(k, i) {
   const G = giftOccasions().find(x => x.k === k), p = GIFTS[k]?.people[i], box = $("gai-" + i); if (!G || !p || !box) return;
   const e = bdOf(p.n), age = e?.birthYear ? G.d.getFullYear() - e.birthYear : 0;
   box.innerHTML = `<span class="note">Ideen kommen …</span>`;
-  try { const r = await sample.json(`Schlage 5 kurze, konkrete Geschenkideen zu ${G.t} für ${p.n}${age ? ` (${age} Jahre)` : ""} vor. ${e?.note ? "Info: " + e.note + "." : ""} ${GIFTS[k.replace(/\d{4}$/, y => String(+y - 1))]?.people.find(x => x.n === p.n)?.idea ? "Letztes Jahr gab es: " + GIFTS[k.replace(/\d{4}$/, y => String(+y - 1))].people.find(x => x.n === p.n).idea + " – nicht wiederholen." : ""} Antworte NUR mit JSON {"ideen": ["…"]}, je höchstens 6 Wörter, Deutsch.`, { modelTier: "quick", cache: false });
+  try { const r = await (window.MK_TASK = "geschenkideen", sample.json)(`Schlage 5 kurze, konkrete Geschenkideen zu ${G.t} für ${p.n}${age ? ` (${age} Jahre)` : ""} vor. ${e?.note ? "Info: " + e.note + "." : ""} ${GIFTS[k.replace(/\d{4}$/, y => String(+y - 1))]?.people.find(x => x.n === p.n)?.idea ? "Letztes Jahr gab es: " + GIFTS[k.replace(/\d{4}$/, y => String(+y - 1))].people.find(x => x.n === p.n).idea + " – nicht wiederholen." : ""} Antworte NUR mit JSON {"ideen": ["…"]}, je höchstens 6 Wörter, Deutsch.`, { modelTier: "quick", cache: false });
     const ideas = (r?.ideen || []).map(String).slice(0, 5);
     box.innerHTML = ideas.length ? `<div class="ex">${ideas.map(x => `<button type="button" data-gpick="${i}|${esc(x)}">${esc(x)}</button>`).join("")}</div>` : "";
   } catch { box.innerHTML = `<span class="err">Gerade keine Ideen möglich.</span>`; }
@@ -2926,6 +2980,7 @@ const merkOf = o => MERK.find(m => m.gEventId === o.ev.gid && m.from === iso(o.a
 const merkable = o => canWrite && !!db && o.ev.type === "google" && !isTrip(o) && !isUmg(o) && !/geburtstag|birthday/i.test(o.ev.title) && !NOPLACE_RE.test(o.ev.title);
 const merkBtn = o => { const m = merkOf(o), l = m?.packlist || [], lab = dayDiff(o.a, o.b) < 1 ? "📝 Merkliste" : "🎒 Packliste"; return l.length ? `${lab} ${l.filter(x => x.d).length}/${l.length}` : lab; };
 async function openMerk(o) {
+  use("merkliste");
   const g = o.ev; let m = merkOf(o);
   if (!m) { if (!canWrite || !db) { toast("Nur für dich als Besitzer möglich."); return; }
     const doc = { type: "termin", title: g.title, from: iso(o.a), to: iso(o.b), time: g.time || "", endTime: g.endTime || "", repeat: "none", until: "", birthYear: 0, note: "", gcal: g.calId, gEventId: g.gid,
@@ -3046,6 +3101,7 @@ function docsBox(e) {
     <div class="note" id="doc-msg"></div></div>`;
 }
 async function docUpload(e, fs) {
+  use("dokument");
   const msg = $("doc-msg"), say = t => { const m = $("doc-msg"); if (m) m.textContent = t; };
   let ok = 0;
   for (const file of fs) {
@@ -3198,7 +3254,7 @@ async function docAnalyze(e) {
     }
     if (!texts.length && !imgs.length) throw 0;
     say("Ich prüfe, was sich daraus für Packliste und Orga ergibt …");
-    const r = await sample.json(`Hier sind Dokumente (Tickets, Buchungen, Bestätigungen o. Ä.) zu einem Kalendereintrag. ${imgs.length ? `Die ${imgs.length} Bilder sind Fotos/Seiten dieser Dokumente.` : ""}
+    const r = await (window.MK_TASK = "dokumente", sample.json)(`Hier sind Dokumente (Tickets, Buchungen, Bestätigungen o. Ä.) zu einem Kalendereintrag. ${imgs.length ? `Die ${imgs.length} Bilder sind Fotos/Seiten dieser Dokumente.` : ""}
 Eintrag: "${e.title}" (${TYPES[e.type].label}), ${rngTxt(e.a, e.b, true)}${timeTxt(e) ? ", " + timeTxt(e) + " Uhr" : ""}. ${placeOf(e) ? "Ort: " + placeOf(e) + "." : ""} Heute ist ${fmtY(TODAY)}.
 ${texts.join("\n\n").slice(0, 14000)}
 Lies die Dokumente genau. Antworte NUR mit JSON:
@@ -3256,6 +3312,7 @@ const packShort = e => e.type !== "trip" && dayDiff(e.a, e.b) < 1;
 const packLabel = e => e.mOnly ? (packShort(e) ? "Merkliste" : "Packliste") : packShort(e) ? "Mitnehmen" : "Packliste";
 const pkRow = (x, i) => `<label class="tog setrow pk"><input type="checkbox" data-pk="${i}"${x.d ? " checked" : ""}${canWrite ? "" : " disabled"}><span>${esc(x.t)}</span>${canWrite ? `<button type="button" class="link del" data-pkdel="${i}" aria-label="Entfernen">✕</button>` : ""}</label>`;
 function showPack(e, busy) {
+  if (!busy) use("packliste");
   packEv = EV.find(x => x.id === e.id) || (e.mOnly ? e : null) || MERK.find(x => x.id === e.id) || e;
   const list = packEv.packlist || [], cats = [...new Set(list.map(x => x.k || "Sonstiges"))];
   const done = list.filter(x => x.d).length, auto = !list.some(x => x.k !== "Aus Dokumenten") && sample && canWrite && !busy && !PACK_TRIED.has(packEv.id);
@@ -3282,7 +3339,7 @@ async function genPack(replace) {
     const nights = dayDiff(e.a, e.b), month = MON[e.a.getMonth()], md = modeOf(e);
     if (e.type !== "trip") {
       const short = packShort(e);
-      const r = await sample.json(`${short ? "Was sollte man zu diesem Termin mitnehmen?" : "Was sollte man zu diesem mehrtägigen Termin einpacken?"}
+      const r = await (window.MK_TASK = "merk-packliste", sample.json)(`${short ? "Was sollte man zu diesem Termin mitnehmen?" : "Was sollte man zu diesem mehrtägigen Termin einpacken?"}
 Termin: "${e.title}", ${short ? fmtY(e.a) : `${fmtY(e.a)} bis ${fmtY(e.b)} (${nights} Nächte)`}${timeTxt(e) ? ", " + timeTxt(e) + " Uhr" : ""}, im ${month}. ${placeOf(e) ? "Ort: " + placeOf(e) + "." : ""} ${e.note ? "Notiz: " + e.note : ""}
 ${short ? `Nenne NUR die 0–4 allerwichtigsten Dinge, die genau für diesen Termin nötig sind und die man leicht vergisst. Beispiele: Arzttermin → Versichertenkarte, Überweisung; Sport → Sportsachen, Wasserflasche; Behörde → Ausweis, Unterlagen; Konzert, Theater, Festival oder Spiel → Ticket, ggf. Ausweis, Powerbank (und falls typisch: "kleine Tasche – oft nur bis A4 erlaubt"); Restaurant oder Treffen mit Freunden → meist nichts (höchstens "Reservierung" oder "Geschenk", wenn es ein Anlass ist). KEINE Selbstverständlichkeiten wie Handy, Schlüssel, Geldbeutel, Jacke. Wenn nichts Besonderes nötig ist: leere Liste.
 Antworte NUR mit JSON: {"punkte": ["…"]}` : `Halte die Liste kompakt: 2–4 Kategorien mit je 2–5 Punkten, allgemein formuliert, passend zum Anlass (z. B. Seminar: Unterlagen, Laptop; Hochzeit: Festkleidung, Geschenk). Keine Selbstverständlichkeiten.
@@ -3297,7 +3354,7 @@ Antworte NUR mit JSON: {"kategorien": [{"name": "…", "punkte": ["…"]}]}`} De
       if (sheetMode === "pack" && !$("sheet").hidden && sheetCtx?.id === e.id) showPack(e, true);
       return;
     }
-    const r = await sample.json(`Erstelle eine kurze, allgemeine Packliste für eine Reise. Der Nutzer soll nicht viel nachdenken müssen: nur das Wichtigste, allgemein formuliert (z. B. "warme Jacke", "Badesachen"), keine Marken, keine Kleinigkeiten wie einzelne Socken.
+    const r = await (window.MK_TASK = "packliste", sample.json)(`Erstelle eine kurze, allgemeine Packliste für eine Reise. Der Nutzer soll nicht viel nachdenken müssen: nur das Wichtigste, allgemein formuliert (z. B. "warme Jacke", "Badesachen"), keine Marken, keine Kleinigkeiten wie einzelne Socken.
 Reise: "${e.title}", ${fmtY(e.a)} bis ${fmtY(e.b)} (${nights} Nächte), im ${month}. Abfahrt aus ${PROFILE.city || nameA()}.
 ${placeOf(e) ? `Ziel/Unterkunft: ${placeOf(e)}.` : ""} ${partsTxt(e) ? `Etappen/Unterkünfte: ${partsTxt(e)}.` : ""} ${{ flug: "Anreise mit dem Flugzeug (Handgepäck-Regeln beachten).", zug: "Anreise mit dem Zug: Gepäck muss man selbst tragen, also eher knapp packen; Verpflegung für die Fahrt.", bus: "Anreise mit dem Fernbus: ein Koffer plus kleines Handgepäck; Verpflegung, Nackenkissen.", rad: "Anreise mit dem Fahrrad: alles muss in Packtaschen passen, so leicht wie möglich; Regenkleidung, Radkleidung, Werkzeug.", auto: "Anreise mit dem Auto: Platz ist da; an Unterhaltung und Snacks für die Fahrt denken." }[md] || "Anreise vermutlich mit Auto oder Bahn."} ${withKids(e) ? "Kinder reisen mit." : ""} ${e.note ? "Notiz: " + e.note : ""}
 Leite selbst ab, wie das Wetter dort in diesem Monat typischerweise ist und welche Aktivitäten am Ziel wahrscheinlich sind (z. B. Alpen im Winter: Skifahren/Rodeln, Winterwandern; Meer im Sommer: Baden; Berge im Sommer: Wandern; Stadt: Bummeln, Museen; Wellnesshotel: Sauna). Nimm dafür passende Punkte auf und kennzeichne unsichere mit "falls …", z. B. "Ski oder Snowboard (falls Skifahren)".
@@ -3328,7 +3385,7 @@ async function runIdeas(id, a) {
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
   try {
     const occ = o.ev.type === "anniversary" ? `den Jahrestag "${o.ev.title}"${o.ev.startYear ? ` (${o.a.getFullYear() - o.ev.startYear} Jahre)` : ""} am ${fmtY(o.a)}` : `den Geburtstag von "${o.ev.title}" am ${fmtY(o.a)}${age ? ` (wird ${age})` : ""}`;
-    const r = await sample.json(`${ME()} (${nameA()}) braucht Hilfe für ${occ}.
+    const r = await (window.MK_TASK = "hilfe", sample.json)(`${ME()} (${nameA()}) braucht Hilfe für ${occ}.
 Infos zur Person: ${info || "keine"}.
 Antworte NUR mit JSON: {"ideen": [{"titel": "kurz", "warum": "1 Satz", "preis": "ca. Preis in €"} (5 Stück, konkret und machbar)], "karte": ["kurzer herzlicher Kartentext", "lockerer Kartentext"], "nachricht": "kurze WhatsApp-Glückwunschnachricht"}. Alles auf Deutsch, du-Form.`, { modelTier: "default", cache: false });
     const ideen = Array.isArray(r?.ideen) ? r.ideen : [], karte = Array.isArray(r?.karte) ? r.karte : [];
@@ -3565,6 +3622,7 @@ function showStat(k) {
 }
 let REVIEW = "";
 async function runReview() {
+  use("jahresrueckblick");
   const S = computeStats(selYear), FF = funFacts(selYear), btn = $("st-ai"), out = $("st-out"), y = selYear, cy = TODAY.getFullYear();
   btn.disabled = true; btn.textContent = "Schreibt …";
   const when = d => y < cy || d < TODAY ? "vorbei" : sameDay(d, TODAY) ? "heute" : "kommt noch";
@@ -3575,7 +3633,7 @@ async function runReview() {
   const facts = [...FF.facts, ...FF.rep].map(f => `${f.l}: ${f.n}${f.sub ? " (" + f.sub + ")" : ""}`);
   const stand = y < cy ? `Das Jahr ${y} ist vorbei – alles ist Rückblick.` : y > cy ? `Das Jahr ${y} liegt komplett in der Zukunft – alles ist Vorschau.` : `Heute ist ${WDL[TODAY.getDay()]}, der ${fmtY(TODAY).slice(3)}. Was davor liegt, ist passiert (Vergangenheit). Was danach kommt, steht noch an (Zukunft/Vorfreude).`;
   try {
-    const r = await sample(`Schreib ${ME()} einen unterhaltsamen, kurzweiligen Jahresrückblick für ${y} auf Deutsch, du-Form, locker und mit Augenzwinkern – wie ein guter Freund, der die Statistik vorliest. Keine Floskeln, nichts Rührseliges, keine Ratschläge.
+    const r = await (window.MK_TASK = "jahresrueckblick", sample)(`Schreib ${ME()} einen unterhaltsamen, kurzweiligen Jahresrückblick für ${y} auf Deutsch, du-Form, locker und mit Augenzwinkern – wie ein guter Freund, der die Statistik vorliest. Keine Floskeln, nichts Rührseliges, keine Ratschläge.
 Form: Überschrift in einer Zeile (witzig, max. 6 Wörter, ohne Anführungszeichen), dann 3–4 kurze Absätze mit je 2–3 Sätzen, getrennt durch eine Leerzeile. Höchstens 3 passende Emojis im ganzen Text. Keine Aufzählungszeichen, kein Markdown, keine Anrede wie „Lieber …“.
 Zeit beachten: ${stand} Schreibe Vergangenes in der Vergangenheit, Kommendes als Ausblick („steht noch an“, „wartet noch“). Nie etwas Kommendes als erledigt darstellen.
 Baue 3–5 der Fun Facts überraschend ein (Vergleiche, kleine Pointen). Nutze NUR diese Daten, erfinde nichts dazu, keine Gefühle oder Gründe unterstellen:
@@ -3625,6 +3683,7 @@ function renderAll() {
   }
 }
 function setView(v) {
+  use("ansicht_" + v);
   view = v; store.set("ft-view", v);
   if (v === "two" && !(twoStart <= addDays(new Date(MONTHS[curMi].y, MONTHS[curMi].m + 1, 0), 0) && addDays(twoStart, 13) >= new Date(MONTHS[curMi].y, MONTHS[curMi].m, 1))) twoStart = curMi === todayMi ? monday(TODAY) : monday(new Date(MONTHS[curMi].y, MONTHS[curMi].m, 1));
   const cal = v === "month" || v === "two";
@@ -3688,6 +3747,7 @@ async function showNotify(msg) {
     <p class="note">Abfahrtszeit mit echter Fahrzeit („jetzt losfahren“) kann die App noch nicht berechnen – stell die Erinnerung dafür z. B. auf 1 Std. vorher und tippe auf „Route“.</p></div>`, "notify");
 }
 async function notifyOn(quiet) {
+  use("benachrichtigung_an");
   const show = m => { if (quiet) { if (m) toast(m); } else showNotify(m); };
   try {
     if ((await Notification.requestPermission()) !== "granted") return show("Ohne Erlaubnis kann ich keine Benachrichtigungen schicken.");
@@ -3913,7 +3973,7 @@ async function formFromDocs(files, link) {
     const lk = link ? await linksForAI(link, say) : { texts: [], fails: [] };
     if (!att.texts.length && !att.imgs.length && !lk.texts.length) { await say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
     await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""}${lk.texts.length ? " vom Link" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Anreise …`); await say("✍️ Ich fülle die Felder aus …");
-    const r = await sample.json(`${ATTACH_HINT}
+    const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}
 Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin", "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": ""}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
@@ -4045,6 +4105,7 @@ function validate(v) {
 }
 async function saveForm() {
   const v = formVals(), msg = validate(v); if (msg) { $("f-err").textContent = msg; return; }
+  use(editing ? "bearbeiten" : "formular_neu"); if (v.color) use("farbe_eintrag"); if (v.repeat && v.repeat !== "none") use("wiederholung_" + v.repeat);
   if (editing && editing.shared) { try { await recvSave(editing, v); closeSheet(); toast(`Gespeichert – ${editing.shared.from} sieht die Änderung`); } catch (err) { toast("Speichern hat nicht geklappt"); } return; }
   const btn = $("f-save"); btn.disabled = true; btn.textContent = "Speichert …";
   try {
@@ -4177,6 +4238,7 @@ function delChoice(btn, id, a, google) {
     ${b("one", `Nur diesen (${fmt(d)})`)}${google ? "" : b("from", "Diesen und alle folgenden")}${b("all", "Ganze Serie", "danger")}<button type="button" class="link" data-delx="no|${id}|${a}">Abbrechen</button></div>`);
 }
 async function delSeries(btn, m, id, a) {
+  use("serie_" + m);
   btn.closest(".delch")?.querySelectorAll("button").forEach(x => x.disabled = true);
   if (id.startsWith("g:")) { const o = findOcc(id, a); if (o) await gDeleteOcc(null, o, m === "all"); return; }
   const e = EV.find(x => x.id === id); if (!e) return;
@@ -4204,7 +4266,14 @@ let ASST_FILES = [];
 // Eintragen: Freitext oder Formular – jederzeit umschaltbar, die letzte Wahl wird gemerkt
 const entryMode = () => store.get("ft-entry") === "form" || !sample || !canWrite ? "form" : "text";
 const entrySw = cur => sample && canWrite ? `<div class="seg emode" role="tablist" aria-label="Eingabe"><button type="button" role="tab" data-emode="text" aria-selected="${cur === "text"}">✍️ Freitext</button><button type="button" role="tab" data-emode="form" aria-selected="${cur === "form"}">📋 Formular</button></div>` : "";
-let ASST_DAY = null, ASST_TO = null;   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
+let ASST_DAY = null, ASST_TO = null;
+// ---- Nutzungsstatistik (pseudonym, ohne Inhalte): Zähler pro Tag und Funktion in docs/usage/<Tag> ----
+let USE_Q = {}, USE_T = 0;
+function use(f) { if (!APP || !db || !canWrite) return; USE_Q[f] = (USE_Q[f] || 0) + 1; clearTimeout(USE_T); USE_T = setTimeout(useFlush, 4000); }
+async function useFlush() { const q = USE_Q; USE_Q = {}; if (!Object.keys(q).length) return; const day = iso(TODAY);
+  try { const ref = COLL("usage").doc(day), cur = (await ref.get().catch(() => null))?.data?.() || {}, f = { ...(cur.f || {}) };
+    for (const [k, n] of Object.entries(q)) f[k] = (f[k] || 0) + n; await ref.set({ day, f, v: 1 }); } catch {} }
+window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
 function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
 function switchEntry(m) {
   store.set("ft-entry", m);
@@ -4261,6 +4330,7 @@ async function lookupEvents(fromS, toS, query, signal) {
   return out.slice(0, 150);
 }
 async function runAssistant() {
+  use("freitext");
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
   if (!txt && !ASST_FILES.length) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll – oder hänge ein Ticket an.</p>`; return; }
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
@@ -4333,7 +4403,7 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
     inputSchema: { type: "object", properties: { from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" }, query: { type: "string", description: "optionale Suchwörter, z. B. Zahnarzt oder Urlaub" } }, required: ["from", "to"] },
     execute: async (i, ctx) => ({ termine: await lookupEvents(String(i.from || ""), String(i.to || i.from || ""), String(i.query || ""), ctx?.signal) }) }] : undefined;
   try {
-    const r = await sample.json(prompt, { modelTier: "default", cache: false, tools, images: att.imgs.length ? att.imgs : undefined });
+    const r = await (window.MK_TASK = "assistent", sample.json)(prompt, { modelTier: "default", cache: false, tools, images: att.imgs.length ? att.imgs : undefined });
     asstActions = (Array.isArray(r?.actions) ? r.actions : []).map(a => {
       const gid = typeof a.id === "string" && a.id.startsWith("g:");
       if (gid) {
@@ -5333,6 +5403,8 @@ document.addEventListener("click", ev => {
     case "app-logout": window.mkSignOut?.(); break;
     case "app-delacc": showDeleteAccount(); break;
     case "mi-account": showAccount(); break;
+    case "mi-admin": showAdmin(true); break;
+    case "adm-reload": showAdmin(true); break;
     case "mi-notify": showNotify(); break;
     case "nt-on": notifyOn(); break;
     case "nt-off": notifyOff(); break;
@@ -5422,6 +5494,7 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.gcal) { const s = new Set(selectedCals()); ev.target.checked ? s.add(ev.target.dataset.gcal) : s.delete(ev.target.dataset.gcal); gSel = s; saveGSel(s); resetGoogleWatches(); return; }
   if (["f-type", "f-rep", "f-repu"].includes(ev.target.id)) syncFormFields(); if (ev.target.id === "l-past" || ev.target.id === "l-hol") { if (ensureGoogle()) renderAll(); else renderList(); } });
 document.addEventListener("input", ev => {
+  if (ev.target.id === "adm-free") { ADM_FREE = Math.max(1, +ev.target.value || 30); clearTimeout(window.__admT); window.__admT = setTimeout(() => { showAdmin(); $("adm-free")?.focus(); }, 600); return; }
   if (ev.target.id === "tk-in") { const d = $("tk-due"); if (!d.dataset.man) { const p = parseTask(ev.target.value); d.value = p.due || ""; } tkUi(); }
   if (ev.target.id === "tk-due") { ev.target.dataset.man = "1"; tkUi(); }
   if (ev.target.id === "f-who") { const w = ev.target.value.trim(), l = $("f-col-l"); if (l) l.textContent = w ? `Farbe für ${w}` : "Farbe nur für diesen Eintrag";
@@ -5601,6 +5674,7 @@ renderAll();
     docSync(); if (sheetMode === "docs" && !$("sheet").hidden) showDocs(); }, () => {});
   COLL("events").onSnapshot(snap => {
     clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); } shrQueue();
+    if (!window.__us) { window.__us = 1; use("app_start"); adminCheck().catch(() => {}); }
     const all = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); MERK = all.filter(e => e.mOnly); EV = all.filter(e => !e.mOnly); docSync();
     if (sheetMode === "event" && !$("sheet").hidden && sheetCtx?.id?.startsWith?.("g:")) { const b = document.querySelector("[data-gmerk]"); if (b) { const o = findOcc(sheetCtx.id, sheetCtx.a); if (o) b.textContent = merkBtn(o); } }
     if (moving && !moving.gocc && !EV.some(e => e.id === moving.id)) stopMove();

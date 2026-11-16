@@ -34,6 +34,9 @@ window.MK_APP = true;
   window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
   // Benachrichtigungen: öffentlicher Schlüssel & Test über den Worker
   window.mkPushKey = async () => { const r = await fetch(CFG.workerUrl + "/push/key"); const b = await r.json().catch(() => ({})); if (!b.key) throw Object.assign(new Error("no key"), { code: b.code || "no_vapid" }); return b.key; };
+  const wPost = async route => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); return r.json().catch(() => null); };
+  window.mkAdminMe = () => wPost("/admin/me").catch(() => null);
+  window.mkAdminStats = () => wPost("/admin/stats");
   window.mkPushTest = async () => { const s = await freshSession(); const r = await fetch(CFG.workerUrl + "/push/test", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: "{}" }); return r.json().catch(() => ({ ok: false })); };
   // Link auslesen (über den Worker, wegen CORS)
   window.mkReadLink = async url => {
@@ -134,7 +137,7 @@ window.MK_APP = true;
     for (const b of (opts.images || []).slice(0, 5)) images.push({ type: b.type || "image/jpeg", data: await toB64(b) });
     const r = await fetch(CFG.workerUrl + "/ai", { method: "POST", signal: opts.signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token },
-      body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || "" }) });
+      body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || window.MK_TASK || "" }) }); window.MK_TASK = "";
     const body = await r.json().catch(() => ({}));
     if (!r.ok) { window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
     if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");

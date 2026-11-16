@@ -28,8 +28,8 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-15h", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
-    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16a", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -41,6 +41,23 @@ export default {
 
     // Konto löschen: Google-Freigabe zurückziehen, dann den Supabase-Nutzer löschen –
     // alle Zeilen in docs, outbox und ai_usage hängen per „on delete cascade“ daran und verschwinden mit.
+    // Betreiber-Dashboard: nur für Konten aus dem Secret ADMIN_EMAIL (kommagetrennt)
+    const isAdmin = !!user.email && String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean).includes(String(user.email).toLowerCase());
+    if (route === "/admin/me") return out(200, { admin: isAdmin, configured: !!env.ADMIN_EMAIL });
+    if (route === "/admin/stats") {
+      if (!isAdmin) return out(403, { code: "not_admin" });
+      const sv = { apikey: env.SUPABASE_SERVICE_KEY, ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
+      const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
+      const j = async u => { const r = await fetch(u, { headers: sv }); return r.ok ? r.json() : []; };
+      const [ai, use, subs, ur] = await Promise.all([
+        j(`${env.SUPABASE_URL}/rest/v1/ai_usage?day=gte.${since}&select=user_id,day,task,calls,tok_in,tok_out&limit=20000`),
+        j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.usage&id=gte.${since}&select=user_id,id,data&limit=20000`),
+        j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.pushsub&select=user_id&limit=20000`),
+        fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: sv }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+      ]);
+      const users = (ur.users || []).map(u => ({ id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id }));
+      return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length });
+    }
     if (route === "/push/test") return out(200, await testPush(env, user.id).catch(e => ({ ok: false, code: "error", detail: String(e).slice(0, 120) })));
 
     // Link auslesen (Buchungsbestätigung, Ticket-Seite …): Seite holen und als Text zurückgeben – nur öffentliche https-Seiten
@@ -99,18 +116,21 @@ export default {
     const today = new Date().toISOString().slice(0, 10);
     const u = await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=eq.${user.id}&day=eq.${today}&select=task,calls`, { headers: svc });
     const rows = u.ok ? await u.json() : [];
-    const used = rows.reduce((s, r) => s + r.calls, 0), usedImg = rows.filter(r => r.task === "bilder").reduce((s, r) => s + r.calls, 0);
+    const used = rows.reduce((s, r) => s + r.calls, 0), usedImg = rows.filter(r => String(r.task).startsWith("bilder")).reduce((s, r) => s + r.calls, 0);
     if (used >= +(env.DAILY_LIMIT || 40)) return out(429, { code: "rate_limited", message: "Tageslimit erreicht" });
     if (images.length && usedImg >= +(env.IMAGE_DAILY_LIMIT || 10)) return out(429, { code: "rate_limited", message: "Tageslimit für Bilder erreicht" });
 
     // 4) Modell fragen
-    const model = tier === "quick" ? env.MODEL_QUICK : env.MODEL_DEFAULT;
+    let model = tier === "quick" ? env.MODEL_QUICK : env.MODEL_DEFAULT;
     const content = [...images.map(i => ({ type: "image", source: { type: "base64", media_type: i.type, data: i.data } })), { type: "text", text: prompt }];
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const call = m => fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": env.ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: tier === "quick" ? 2000 : 8000, messages: [{ role: "user", content }] }),
+      body: JSON.stringify({ model: m, max_tokens: tier === "quick" ? 4000 : 8000, messages: [{ role: "user", content }] }),   // Haiku 5.5 denkt adaptiv mit – etwas mehr Platz
     }).catch(e => ({ ok: false, status: 0, json: async () => ({ error: { message: String(e) } }) }));
+    let r = await call(model);
+    // Ersatzmodell, falls das eingestellte schnelle Modell (noch) nicht verfügbar ist
+    if (!r.ok && tier === "quick" && [400, 404].includes(r.status) && env.MODEL_QUICK_FALLBACK && env.MODEL_QUICK_FALLBACK !== model) { model = env.MODEL_QUICK_FALLBACK; r = await call(model); }
     if (!r.ok) { const eb = await r.json().catch(() => ({})); return out(502, { code: r.status === 429 ? "rate_limited" : "ai_error", detail: `Anthropic ${r.status}${env.ANTHROPIC_KEY ? "" : " (ANTHROPIC_KEY fehlt)"}: ${eb?.error?.message || ""}`.slice(0, 200) }); }
     const res = await r.json();
     const text = (res.content || []).filter(c => c.type === "text").map(c => c.text).join("");
@@ -118,7 +138,7 @@ export default {
     // 5) Nutzung zählen (für Limits und echte Kostenzahlen)
     const tin = res.usage?.input_tokens || 0, tout = res.usage?.output_tokens || 0;
     await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/ai_count`, { method: "POST", headers: svc,
-      body: JSON.stringify({ p_user: user.id, p_task: images.length ? "bilder" : task, p_in: tin, p_out: tout }) }).catch(() => {});
+      body: JSON.stringify({ p_user: user.id, p_task: `${images.length ? "bilder" : task || "allgemein"}|${model}`, p_in: tin, p_out: tout }) }).catch(() => {});
 
     // 6) Antwort, bei Bedarf als JSON
     let value;
