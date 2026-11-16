@@ -201,7 +201,7 @@ function normalize(id, v) {
     remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks,
-    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
+    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
@@ -226,7 +226,7 @@ function expand() {
     if (!e.a || e.shadow) return;
     if (e.type === "contact") return;
     if (e.type === "birthday" ? !SHOW.bday : !SHOW.own) return;
-    const dur = dayDiff(e.a, e.b), push = a => { const b = addDays(a, dur); if (b >= START && a <= END) OCC.push({ ev: e, a, b }); };
+    const dur = dayDiff(e.a, e.b), skip = e.skip?.length ? new Set(e.skip) : null, untilAll = e.repeat !== "none" ? parseIso(e.until) : null, push = a => { if (skip?.has(iso(a)) || (untilAll && a > untilAll)) return; const b = addDays(a, dur); if (b >= START && a <= END) OCC.push({ ev: e, a, b }); };
     if (e.repeat === "yearly") for (let y = START.getFullYear(); y <= END.getFullYear(); y++) { if (y >= e.a.getFullYear() || e.type === "birthday") push(new Date(y, e.a.getMonth(), e.a.getDate())); }
     else if (e.repeat === "weekly") { const until = parseIso(e.until) || END; for (let a = e.a; a <= until && a <= END; a = addDays(a, 7)) push(a); }
     else if (e.repeat === "monthly") { const until = parseIso(e.until) || END; for (let i = 0; ; i++) { const a = new Date(e.a.getFullYear(), e.a.getMonth() + i, Math.min(e.a.getDate(), new Date(e.a.getFullYear(), e.a.getMonth() + i + 1, 0).getDate())); if (a > until || a > END) break; push(a); } }
@@ -2631,7 +2631,7 @@ function showEvent(o) {
     (["trip", "termin"].includes(e.type) ? `<button type="button" class="btn ghost small" data-pack="${id}">${packLabel(e)}${e.packlist.length ? ` ${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : ""}</button>` : "") +
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
-    (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}">Löschen</button>` : "");
+    (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
   openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
@@ -2802,7 +2802,7 @@ const writeErr = e => ["permission_denied", "not_granted", "forbidden"].includes
 const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", birthYear: e.birthYear || 0, note: e.note || "", gcal: e.gcal || "", gEventId: e.gEventId || "",
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
-  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
+  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
   shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
 let gWarn = 0;
 let LAST_ADDED = [];
@@ -2855,8 +2855,9 @@ function gInput(v) {
 }
 function gRecur(v) {
   const sp = repSpec(v.repeat); if (!sp) return null;
-  const F = { d: "DAILY", w: "WEEKLY", m: "MONTHLY", y: "YEARLY" }[sp.u], u = sp.u !== "y" && v.until ? `;UNTIL=${v.until.replace(/-/g, "")}T235959Z` : "";
-  return [`RRULE:FREQ=${F}${sp.n > 1 ? `;INTERVAL=${sp.n}` : ""}${u}`];
+  const F = { d: "DAILY", w: "WEEKLY", m: "MONTHLY", y: "YEARLY" }[sp.u], u = v.until ? `;UNTIL=${v.until.replace(/-/g, "")}T235959Z` : "";
+  const ex = (v.skip || []).map(d => v.time ? `EXDATE;TZID=${Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Berlin"}:${d.replace(/-/g, "")}T${v.time.replace(":", "")}00` : `EXDATE;VALUE=DATE:${d.replace(/-/g, "")}`);
+  return [`RRULE:FREQ=${F}${sp.n > 1 ? `;INTERVAL=${sp.n}` : ""}${u}`, ...ex];
 }
 const gIdOf = p => typeof p === "object" && p ? String(p.id || p.event?.id || p.eventId || "") : "";
 async function gCreate(v) {
@@ -2907,7 +2908,28 @@ async function finishMove(target) {
   try { const undo = await applyChanges([{ op: "update", id: e.id, event: v }]); toast(`Verschoben auf ${rngTxt(target, addDays(e.b, delta))}`, undo); }
   catch (err) { toast(writeErr(err)); }
 }
-async function delEvent(btn, id) {
+// Serie: nur diesen Termin, diesen und alle folgenden, oder die ganze Serie
+function delChoice(btn, id, a, google) {
+  btn.hidden = true; btn.parentElement.querySelector(".delch")?.remove();
+  const d = parseIso(a), b = (m, t, cls = "ghost") => `<button type="button" class="btn ${cls} small" data-delx="${m}|${id}|${a}">${t}</button>`;
+  btn.insertAdjacentHTML("afterend", `<div class="delch" role="group" aria-label="Serie löschen"><p>Das ist ein Serientermin. Was soll gelöscht werden?</p>
+    ${b("one", `Nur diesen (${fmt(d)})`)}${google ? "" : b("from", "Diesen und alle folgenden")}${b("all", "Ganze Serie", "danger")}<button type="button" class="link" data-delx="no|${id}|${a}">Abbrechen</button></div>`);
+}
+async function delSeries(btn, m, id, a) {
+  btn.closest(".delch")?.querySelectorAll("button").forEach(x => x.disabled = true);
+  if (id.startsWith("g:")) { const o = findOcc(id, a); if (o) await gDeleteOcc(null, o, m === "all"); return; }
+  const e = EV.find(x => x.id === id); if (!e) return;
+  try {
+    let undo, msg;
+    if (m === "all" || (m === "from" && sameDay(parseIso(a), e.a))) { undo = await applyChanges([{ op: "delete", id }]); msg = "Serie gelöscht"; }
+    else if (m === "from") { undo = await applyChanges([{ op: "update", id, event: { ...e, until: iso(addDays(parseIso(a), -1)) } }]); msg = `Serie endet jetzt am ${fmt(addDays(parseIso(a), -1))}`; }
+    else { undo = await applyChanges([{ op: "update", id, event: { ...e, skip: [...new Set([...(e.skip || []), a])] } }]); msg = `Termin am ${fmt(parseIso(a))} gelöscht – die Serie bleibt`; }
+    closeSheet(); toast(msg, undo);
+  } catch (err) { toast(writeErr(err)); btn.closest(".delch")?.querySelectorAll("button").forEach(x => x.disabled = false); }
+}
+async function delEvent(btn, id, a) {
+  const e0 = EV.find(x => x.id === id);
+  if (e0 && e0.repeat && e0.repeat !== "none" && a) { delChoice(btn, id, a, false); return; }
   if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Auch in Google löschen?" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 4000); return; }
   btn.disabled = true;
   const hadDocs = (EV.find(x => x.id === id)?.files || []).length;
@@ -3265,7 +3287,7 @@ function mapG(e, calId) {
   } else return null;
   if (!a) return null; if (!b || b < a) b = a;
   let [color, ink] = gColor(calId); const ecol = !!(e.colorId && ECOLM[e.colorId]); if (ecol) { color = ECOLM[e.colorId]; ink = lumInk(color); }
-  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, type: "google", color, ink, ecol, title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
+  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, rid: String(e.recurringEventId || ""), type: "google", color, ink, ecol, title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
     repeat: "none", a, b, cal: calLabel(calId), creator: isMe(e.creator) ? "" : String(e.creator?.displayName || (e.creator?.email || "").split("@")[0] || ""),
     created: String(e.created || ""), updated: String(e.updated || ""), link: /^https:\/\/(www\.)?google\.com\/calendar\//.test(e.htmlLink || "") ? e.htmlLink : "" };
   return { ev, a, b };
@@ -3471,7 +3493,12 @@ function gDropLocal(gid, calId) {
   renderAll();
 }
 let gResyncT = null; const gResync = (ms = 1500) => { clearTimeout(gResyncT); gResyncT = setTimeout(() => gSync(true), ms); };
-async function gDeleteOcc(btn, o) {
+async function gDeleteOcc(btn, o, series) {
+  if (btn && o.ev.recurring && o.ev.rid) { delChoice(btn, o.ev.id, iso(o.a), true); return; }
+  if (series) { const inp = { eventId: o.ev.rid, notificationLevel: "NONE" }; if (o.ev.calId !== "primary") inp.calendarId = o.ev.calId;
+    try { await mcp.callTool(GSERVER, "delete_event", inp); mcp.invalidate(GSERVER, "list_events").catch(() => {}); closeSheet(); gDropLocal(o.ev.rid, o.ev.calId); gResync(); toast("Ganze Serie in Google gelöscht"); }
+    catch (e) { toast(gErr(e)); gSync(true); } return; }
+  if (!btn) btn = { dataset: { confirm: "1" }, isConnected: false };
   if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = o.ev.recurring ? "Nur diesen Termin löschen?" : "In Google löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 4000); return; }
   btn.disabled = true;
   const snap = gSnap(o), cal = o.ev.calId;
@@ -3892,7 +3919,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-grpedit]"))) { const g = SHR.groups.find(x => x.id === el.dataset.grpedit); if (g) { shrGrp = { ...g }; showShareMgr(); } return; }
   if ((el = q("[data-grprm]"))) { SHR.groups = SHR.groups.filter(x => x.id !== el.dataset.grprm); saveShr(); showShareMgr(); return; }
   if ((el = q("[data-move]"))) { const e = EV.find(x => x.id === el.dataset.move); if (e) startMove(e); return; }
-  if ((el = q("[data-del]"))) { delEvent(el, el.dataset.del); return; }
+  if ((el = q("[data-del]"))) { const [id, a] = el.dataset.del.split("|"); delEvent(el, id, a); return; }
+  if ((el = q("[data-delx]"))) { const [m, id, a] = el.dataset.delx.split("|"); if (m === "no") { el.closest(".delch")?.remove(); document.querySelectorAll("[data-del],[data-gdel]").forEach(b => b.hidden = false); } else delSeries(el, m, id, a); return; }
   if ((el = q("[data-share]"))) { const [id, a] = el.dataset.share.split("|"); shareOcc(id, a); return; }
   if ((el = q("[data-up]"))) { upTab = el.dataset.up; store.set("ft-up", upTab); if (upCollapsed) { upCollapsed = false; store.set("ft-up-col", "0"); } renderUp(); return; }
   if ((el = q("[data-remact]"))) { const [i, ...rest] = el.dataset.remact.split("|"); const a = rest.join("|"); if (el.dataset.close && sheetMode === "rem" && !/^(ideas|pack|giftopen:|edit)/.test(a)) closeSheet(); remAction(+i, a); return; }
