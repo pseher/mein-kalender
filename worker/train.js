@@ -67,7 +67,7 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
   if (d >= 5 && (!prev.seen || pd < 5 || Math.abs(d - pd) >= 5)) m(`🚆 ${w.train}: +${d} Min.`, `${what} jetzt ca. ${hm(real)} statt ${hm(plan)}${pl ? ` · Gleis ${pl}` : ""}`, true);
   else if (d < 3 && prev.seen && pd >= 5) m(`🚆 ${w.train} wieder fast pünktlich`, `${what} ca. ${hm(real)}${pl ? ` · Gleis ${pl}` : ""}`);
   if (pl && ((prev.pl && pl !== prev.pl) || (!prev.plWarn && s.pp && pl !== s.pp))) { m(`🔀 Gleiswechsel: ${w.train}`, `${what} jetzt Gleis ${pl}${s.pp && s.pp !== pl ? ` (statt ${s.pp})` : ""}`, true); ns.plWarn = true; }
-  if (!prev.ok && now >= plan.getTime() - 25 * 60e3 && d < 5 && !msgs.length) { m(`✅ ${w.train} pünktlich`, `${what} ${hm(real)}${pl ? ` · Gleis ${pl}` : ""}`); ns.ok = true; }
+  if (!prev.ok && now >= plan.getTime() - 25 * 60e3 && d < 5 && !msgs.length) { m(d >= 2 ? `✅ ${w.train} fast pünktlich (+${d} Min.)` : `✅ ${w.train} pünktlich`, `${what} ${d >= 2 ? `ca. ${hm(real)} statt ${hm(plan)}` : hm(real)}${pl ? ` · Gleis ${pl}` : ""}`); ns.ok = true; }
   if (msgs.length) ns.ok = true;
   return { state: ns, msgs };
 }
