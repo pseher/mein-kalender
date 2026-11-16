@@ -1,12 +1,14 @@
 // Mein Kalender – Zug-Wächter: Verspätung, Gleiswechsel, Ausfall
 // Datenquelle: offizielle DB Timetables API (DB API Marketplace, kostenlos) – Secrets DB_CLIENT_ID und DB_API_KEY
 const TT = "https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1";
+let LASTERR = "";
 const norm = s => String(s || "").toUpperCase().replace(/[\s\-]/g, "");
-const attrs = tag => Object.fromEntries([...String(tag).matchAll(/([\w-]+)="([^"]*)"/g)].map(m => [m[1], m[2].replace(/&amp;/g, "&").replace(/&quot;/g, '"')]));
+const attrs = tag => Object.fromEntries([...String(tag).matchAll(/([\w-]+)=(?:"([^"]*)"|'([^']*)')/g)].map(m => [m[1], (m[2] ?? m[3] ?? "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&apos;/g, "'")]));
 const el = (xml, name) => { const m = String(xml).match(new RegExp(`<${name}\\b([^>]*?)/?>`)); return m ? attrs(m[1]) : null; };
-const stops = xml => [...String(xml).matchAll(/<s\b([^>]*)>([\s\S]*?)<\/s>/g)].map(m => ({ id: attrs(m[1]).id, tl: el(m[2], "tl") || {}, ar: el(m[2], "ar"), dp: el(m[2], "dp") }));
+const stops = xml => [...String(xml).matchAll(/<s\s([^>]*)>([\s\S]*?)<\/s>/g)].map(m => ({ id: attrs(m[1]).id, tl: el(m[2], "tl") || {}, ar: el(m[2], "ar"), dp: el(m[2], "dp") }));
 async function tt(env, path) {
   const r = await fetch(TT + path, { headers: { "DB-Client-Id": env.DB_CLIENT_ID, "DB-Api-Key": env.DB_API_KEY, Accept: "application/xml" } }).catch(() => null);
+  if (r && !r.ok) LASTERR = `HTTP ${r.status}`; else if (!r) LASTERR = "Netzwerk";
   return r && r.ok ? r.text() : null;
 }
 // Ortszeit (Europe/Berlin) ↔ Date
@@ -29,8 +31,9 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
     if (!sts.length) return { state: { ...s, err: "station" }, msgs: [] };
     let best = null;
     for (const st of sts) for (const dh of [0, -1, 1]) { const L = local(new Date(t0.getTime() + dh * 3600e3), tz), x = await tt(env, `/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}`);
-      if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort`); continue; }
-      const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr: ${all.length} Fahrten, ${hit.length}× ${w.train}`);
+      if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort (${LASTERR})`); continue; }
+      const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr: ${all.length} Fahrten, ${hit.length}× ${w.train}${all.length ? "" : ` – Antwort: ${x.replace(/\s+/g, " ").slice(0, 160)}`}`);
+      if (all.length && !hit.length && dh === 0) dbg?.push(`Beispiele: ${all.slice(0, 6).map(p => `${p.tl.c || "?"} ${p.tl.n || ""}${(p.ar || p.dp || {}).l ? " (Linie " + (p.ar || p.dp).l + ")" : ""}`).join(", ")}`);
       for (const p of hit) for (const [k, e] of [["arr", p.ar], ["dep", p.dp]]) { if (!e?.pt) continue; const pt = fromTT(e.pt, tz), diff = Math.abs(pt - t0) + (k === "dep" ? 60e3 : 0);
         if (!best || diff < best.diff) best = { diff, sid: p.id, kind: k, pt: pt.toISOString(), pp: e.pp || "", eva: st.eva, sn: st.name }; }
       if (best && best.diff < 20 * 60e3) break; }

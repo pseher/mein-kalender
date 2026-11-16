@@ -2562,6 +2562,7 @@ function trainWatch() {
     const train = trainOf(o.ev); if (!train) return; const st = stationOf(o.ev); if (!st) return;
     const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
     const id = `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`; if (seen.has(id)) return; seen.add(id);
+    if (at.getTime() < Date.now() - 30 * 60e3) return;   // abgefahrene Züge nicht mehr beobachten
     W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev) }); });
   return W.slice(0, 6);
 }
