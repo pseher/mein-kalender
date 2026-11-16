@@ -2791,7 +2791,7 @@ function showForm(e, preset) {
   openSheet(editing ? "Bearbeiten" : "Neu eintragen", editing ? TYPES[v.type]?.label || "" : "Felder ausfüllen und speichern", `
     <form id="f" class="form" novalidate>${editing ? "" : entrySw("form")}
       <label>Was möchtest du eintragen?</label>
-      <div class="tchips" role="radiogroup" aria-label="Art">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<button type="button" role="radio" class="tchip" data-ftype="${k}" aria-checked="${v.type === k}" style="--c:${catColor(k)}"><i></i>${TYPE_ICON[k] || ""} ${t.label}</button>`).join("")}</div>
+      <div class="tchips" role="radiogroup" aria-label="Art">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<button type="button" role="radio" class="tchip" data-ftype="${k}" aria-checked="${v.type === k}" title="${esc(t.label)}" style="--c:${catColor(k)}"><span class="ti">${TYPE_ICON[k] || ""}</span><span class="tl">${TYPE_SHORT[k] || t.label}</span></button>`).join("")}</div>
       <div class="two"><div hidden><label for="f-type">Art</label>
       <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
@@ -2854,6 +2854,7 @@ function showForm(e, preset) {
   syncFormFields(); setVis(formVis);
 }
 const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom") return r; const n = Math.max(1, Math.min(99, +$("f-repn").value || 1)), u = $("f-repu").value; return n === 1 ? { d: "d1", w: "weekly", m: "monthly", y: "yearly" }[u] : u + n; };
+const TYPE_SHORT = { termin: "Termin", trip: "Reise", urlaub: "Urlaub", dienst: "Dienst", abholen: "Abholen", info: "Hinweis", birthday: "Geburtstag", mina: "Umgang", anniversary: "Jahrestag", deadline: "Frist", contact: "Kontakt" };
 const TYPE_ICON = { termin: "📅", trip: "🧳", urlaub: "🏖️", dienst: "🕘", abholen: "🚉", info: "💡", birthday: "🎂", mina: "👨‍👧", anniversary: "💞", deadline: "⏰", contact: "📞" };
 // Pflicht = sofort sichtbar; alles andere unter „Mehr Optionen“
 const F_MAIN = { termin: ["title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["title", "dates"], dienst: ["title", "dates", "time", "rep"],
@@ -2873,7 +2874,6 @@ function formLayout(ty) {
   const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
   if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : "Mehr Optionen (Wiederholung, Farbe, Notiz, Google …) ▾"; }
   document.querySelectorAll("[data-ftype]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.ftype === ty)));
-  document.querySelector(`[data-ftype="${ty}"]`)?.scrollIntoView?.({ block: "nearest", inline: "center" });
 }
 function syncFormFields() {
   const t = $("f-type"), r = $("f-rep"); if (!t) return;
