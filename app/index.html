@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116214156";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116214813";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -5869,7 +5869,9 @@ document.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "a-in" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); runAssistant(); }
   if (ev.key === "Escape") { if (moving) stopMove(); else if (!sheet.hidden) closeSheet(); }
 });
-$("add-btn").addEventListener("click", () => newEntry());
+// in „Heute“ ausgewählter Tag (Wochenleiste) wird beim Eintragen übernommen, solange diese Seite zu sehen ist
+const onP0 = () => { const r = $("p0")?.getBoundingClientRect(); return !!r && r.width > 0 && r.right > innerWidth * 0.4 && r.left < innerWidth * 0.6; };
+$("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSel) : undefined));
 $("sheet-close").addEventListener("click", closeSheet);
 $("move-cancel").addEventListener("click", stopMove);
 $("m-prev").addEventListener("click", () => stepCal(-1));

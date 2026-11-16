@@ -4582,7 +4582,9 @@ document.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "a-in" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); runAssistant(); }
   if (ev.key === "Escape") { if (moving) stopMove(); else if (!sheet.hidden) closeSheet(); }
 });
-$("add-btn").addEventListener("click", () => newEntry());
+// in „Heute“ ausgewählter Tag (Wochenleiste) wird beim Eintragen übernommen, solange diese Seite zu sehen ist
+const onP0 = () => { const r = $("p0")?.getBoundingClientRect(); return !!r && r.width > 0 && r.right > innerWidth * 0.4 && r.left < innerWidth * 0.6; };
+$("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSel) : undefined));
 $("sheet-close").addEventListener("click", closeSheet);
 $("move-cancel").addEventListener("click", stopMove);
 $("m-prev").addEventListener("click", () => stepCal(-1));
