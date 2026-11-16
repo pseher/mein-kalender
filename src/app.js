@@ -157,11 +157,13 @@ rebuildStates();
 
 // =================== Eigene Termine ===================
 const TYPES = {
-  mina:     { label: "Umgang",           color: "--opt-solid" },
-  birthday: { label: "Geburtstag",       color: "--event" },
+  termin:   { label: "Termin",           color: "--c-termin" },
   trip:     { label: "Reise",            color: "--trip" },
-  termin:   { label: "Termin",           color: "--fg" },
-  info:     { label: "Hinweis",          color: "--muted" },
+  urlaub:   { label: "Urlaub & Ferien",  color: "--c-urlaub" },
+  dienst:   { label: "Dienst & Schicht", color: "--c-dienst" },
+  info:     { label: "Hinweis",          color: "--c-info" },
+  birthday: { label: "Geburtstag",       color: "--event" },
+  mina:     { label: "Umgang",           color: "--c-mina" },
   anniversary: { label: "Jahrestag",       color: "--c-anniv" },
   deadline: { label: "Frist",            color: "--c-deadline" },
   contact:  { label: "Kontakt halten",   color: "--c-contact" },
@@ -307,8 +309,7 @@ const whoCols = () => { try { return JSON.parse(store.get("ft-whoc") || "{}"); }
 const whoId = w => { if (!w) return ""; const c = whoCols()[whoKey(w)]; if (c && ECOLM[c]) return c; let h = 0; for (const ch of whoKey(w)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return ECOL[h % 10][0]; };
 const ownHex = ev => ev.color && ECOLM[ev.color] ? ECOLM[ev.color] : ev.who ? ECOLM[whoId(ev.who)] : "";
 // Farben nach Art (Label) – voreingestellt, unter ☰ → Anzeigen → Farben änderbar; gilt auch für erkannte Google-Termine
-const CATS = [["termin", "Termine", "var(--c-termin)"], ["trip", "Reisen", "var(--trip)"], ["urlaub", "Urlaub & Ferien", "#33b679"], ["info", "Hinweise", "var(--c-info)"], ["birthday", "Geburtstage", "var(--event)"],
-  ["anniversary", "Jahrestage", "var(--c-anniv)"], ["deadline", "Fristen", "var(--c-deadline)"], ["mina", "Umgang", "var(--c-mina)"], ["dienst", "Dienste & Schichten", "#8d6e63"]];
+const CATS = Object.entries(TYPES).filter(([k]) => k !== "google").map(([k, t]) => [k, t.label, `var(${t.color})`]);   // exakt die Arten aus dem Formular
 const CATD = Object.fromEntries(CATS.map(([k, , c]) => [k, c]));
 let CATC = null; const catCols = () => (CATC ??= (() => { try { return JSON.parse(store.get("ft-catc") || "{}"); } catch { return {}; } })());
 const catColor = k => ECOLM[catCols()[k]] || CATD[k] || "var(--c-termin)";
@@ -318,7 +319,7 @@ function catOf(ev) {
   const t = String(ev.title || "");
   if (ev.type === "google") { if (isUmg({ ev })) return "mina"; if (/geburtstag|birthday/i.test(t)) return "birthday"; if (URLAUB_RE.test(t)) return "urlaub";
     if (TRIP_RE.test(t) && !/eintragen|beantragen|buchen/i.test(t)) return "trip"; if (NOPLACE_RE.test(t)) return "dienst"; return ""; }
-  if ((ev.type === "trip" || ev.type === "termin") && URLAUB_RE.test(t)) return "urlaub";
+  if (ev.type === "termin" && URLAUB_RE.test(t)) return "urlaub";
   if (ev.type === "termin" && NOPLACE_RE.test(t)) return "dienst";
   return ev.type;
 }
@@ -1742,7 +1743,7 @@ const titleNoPlace = t => { const w = String(t).trim().split(/\s+/);
   return OCC.filter(o => osmKey(o.ev.title) === k).length >= 4 && w.length <= 2; };   // kurzer Titel, der ständig wiederkommt → Dienst/Schicht
 // Abkürzungen ausschreiben, damit „Magdeburg Hbf“ den „Magdeburg Hauptbahnhof“ findet
 const osmExpand = t => String(t).replace(/\bhbf\.?(?=\s|$)/gi, "Hauptbahnhof").replace(/\b(bhf|bf)\.?(?=\s|$)/gi, "Bahnhof").replace(/\bflugh\.?(?=\s|$)/gi, "Flughafen").replace(/\bstr\.(?=\s|$)/gi, "Straße").replace(/\bpl\.(?=\s|$)/gi, "Platz").replace(/\bkh\b/gi, "Krankenhaus");
-const osmOk = () => ["termin", "trip"].includes($("f-type")?.value);
+const osmOk = () => ["termin", "trip", "urlaub"].includes($("f-type")?.value);
 async function osmSearch(q, fromTitle) {
   const box = $("f-place-sug"); if (!box) return;
   if (!osmOk()) { box.hidden = true; return; }
@@ -1779,7 +1780,7 @@ async function osmFind(title) {
   C[k] = { t: Date.now(), h }; const ks = Object.keys(C); if (ks.length > 400) ks.slice(0, ks.length - 400).forEach(x => delete C[x]);
   store.set("ft-osmc2", JSON.stringify(C)); return h;
 }
-const placeCand = o => { const e = o.ev; if (e.shared || !["google", "termin", "trip"].includes(e.type) || placeOf(e)) return false;
+const placeCand = o => { const e = o.ev; if (e.shared || !["google", "termin", "trip", "urlaub"].includes(e.type) || placeOf(e)) return false;
   return !/geburtstag|birthday|urlaub|ferien/i.test(e.title) && osmWords(e.title).length > 0 && !titleNoPlace(e.title); };
 const placeHint = o => { if (!placeCand(o)) return ""; const c = osmCache()[osmKey(o.ev.title)]; return c && c.h.length ? ` <span class="pin" title="Ortsvorschlag – antippen zum Übernehmen">📍</span>` : ""; };
 async function fillPlaceSug(o) {
@@ -2362,7 +2363,7 @@ async function runReview() {
   btn.disabled = true; btn.textContent = "Schreibt …";
   const when = d => y < cy || d < TODAY ? "vorbei" : sameDay(d, TODAY) ? "heute" : "kommt noch";
   const runs = S.lists.runs.map(r => `${r.names.join("/")} (${fmt(r.a)}–${fmt(r.b)}, ${r.days} Tage, ${when(r.a)})`);
-  const evs = OCC.filter(o => o.a.getFullYear() === y && !o.part && ["trip", "termin", "google"].includes(o.ev.type) && !/sp(ä|ae)t/i.test(o.ev.title) && !/geburtstag/i.test(o.ev.title));
+  const evs = OCC.filter(o => o.a.getFullYear() === y && !o.part && ["trip", "termin", "urlaub", "google"].includes(o.ev.type) && !/sp(ä|ae)t/i.test(o.ev.title) && !/geburtstag/i.test(o.ev.title));
   const pick = list => list.slice(0, 40).map(o => `${fmt(o.a)} ${shortName(o.ev)}`);
   const past = evs.filter(o => o.a < TODAY), fut = evs.filter(o => o.a >= TODAY);
   const facts = [...FF.facts, ...FF.rep].map(f => `${f.l}: ${f.n}${f.sub ? " (" + f.sub + ")" : ""}`);
@@ -2664,7 +2665,7 @@ function showEvent(o) {
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
-  const item = (title, sub) => items.push(`<li><i style="background:var(${TYPES[e.type].color})"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
+  const item = (title, sub) => items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
   item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o));
   if (e.who) item(`👤 für ${e.who}`, "");
   if (e.note) item("Notiz", e.note);
@@ -2684,7 +2685,7 @@ function showEvent(o) {
   const acts = (canWrite ? `<button type="button" class="btn small" data-edit="${id}">Bearbeiten</button><button type="button" class="btn ghost small" data-move="${id}">Verschieben</button>` : "") +
     (canWrite ? `<button type="button" class="btn ghost small" data-shev="${id}|${iso(o.a)}">👥 ${effTo(e).length ? "Geteilt: " + esc(shareNames(effTo(e)).join(", ")) : "Mit … teilen"}</button>` : "") +
     `<button type="button" class="btn ghost small" data-share="${id}|${iso(o.a)}">Als Bild/Text</button>` + gResend +
-    (["trip", "termin"].includes(e.type) ? `<button type="button" class="btn ghost small" data-pack="${id}">${packLabel(e)}${e.packlist.length ? ` ${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : ""}</button>` : "") +
+    (["trip", "termin", "urlaub"].includes(e.type) ? `<button type="button" class="btn ghost small" data-pack="${id}">${packLabel(e)}${e.packlist.length ? ` ${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : ""}</button>` : "") +
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
@@ -3097,7 +3098,7 @@ Es gibt zwei Arten von Terminen:
 ${canTools ? `WICHTIG: Du siehst unten nur die eigenen Termine. Für jede Frage, ob/was an einem Datum oder in einem Zeitraum ansteht, und bevor du etwas änderst oder neu einträgst, rufe das Werkzeug find_events auf. Es liefert eigene UND Google-Termine. Behaupte nie, ein Tag sei frei, ohne find_events für diesen Tag aufgerufen zu haben.` : `Unten stehen alle Termine des relevanten Zeitraums, eigene und Google.`}
 
 Felder für neue/geänderte eigene Termine:
-- type: "mina" | "birthday" | "trip" (Reise/Urlaub) | "termin" (alles andere) | "info" (reiner Hinweis)
+- type: "termin" (alles andere) | "trip" (Reise mit Ziel/Unterkunft/Anreise) | "urlaub" (Urlaub, Ferien, freie Tage ohne Reise) | "dienst" (Dienst, Schicht, Bereitschaft) | "info" (reiner Hinweis) | "birthday" | "mina" (Umgang) | "anniversary" | "deadline"
 - title: kurz. Bei "birthday" nur der Name der Person.
 - from, to: "YYYY-MM-DD" (to = from bei einem Tag)
 - time, endTime: "HH:MM" oder ""
