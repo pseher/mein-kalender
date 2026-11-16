@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116191221";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116192114";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -2336,7 +2336,7 @@ async function showAdmin(reload) {
     <p>${over} von ${actU} aktiven Nutzern (${Math.round(over / actU * 100)} %) hätten in den letzten 30 Tagen mehr gebraucht. Median ${pc(.5)}, 90 % der Nutzer ≤ ${pc(.9)} KI-Aktionen.<br>
       Ein Nutzer, der das Freikontingent voll ausschöpft, kostet ca. <b>${usd(capCost || 0)}</b> im Monat. Kosten je aktivem KI-Nutzer: Median ${usd(costU[Math.floor(costU.length / 2)] || 0)}, höchster ${usd(costU.at(-1) || 0)}.</p>
     <p class="note">Stand ${new Date(D.at).toLocaleString("de-DE")} · Preise: ${Object.entries(AI_PRICE).filter(([m]) => m === D.models.quick || m === D.models.default).map(([m, p]) => `${m} ${p[0]}/${p[1]} $ je 1 Mio.`).join(" · ")}. Ältere Einträge ohne Modell werden mit ${esc(D.models.default)} gerechnet.</p>
-    <h3>Zug-Wächter (deine Züge)</h3><p class="note">Prüft deine beobachteten Züge jetzt direkt bei der Bahn und zeigt jeden Schritt – ohne Benachrichtigung.</p>
+    <h3>Zug- &amp; Flug-Wächter (deine Fahrten)</h3><p class="note">Prüft deine beobachteten Züge (Bahn) und Flüge (AirLabs) jetzt direkt und zeigt jeden Schritt – ohne Benachrichtigung. Beobachtet wird ab ca. 2½ Std. (Zug) bzw. 3 Std. (Flug) vor der Abfahrt.</p>
     <p><button type="button" class="btn ghost small" id="adm-train">Jetzt prüfen</button></p><div id="adm-train-out"></div>
     <p><button type="button" class="btn ghost small" id="adm-reload">Aktualisieren</button></p></div>`;
   openSheet("Betreiber-Dashboard", `${D.users.length} Nutzer · ${act(d30)} aktiv`, html, "adm");
