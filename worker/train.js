@@ -42,7 +42,7 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
       if (!x) { dbg?.push(`Plan ${st.name} ${L.hour} Uhr: keine Antwort (${LASTERR})`); continue; }
       const all = stops(x), hit = all.filter(p => matches(p, want)); dbg?.push(`Plan ${st.name} ${L.hour} Uhr (/plan/${st.eva}/${L.year}${L.month}${L.day}/${L.hour}): ${all.length} Fahrten, ${hit.length}× ${w.train}${all.length ? "" : ` – Antwort: ${x.replace(/\s+/g, " ").slice(0, 160)}`}`);
       if (all.length && !hit.length && dh === 0) dbg?.push(`Beispiele: ${all.slice(0, 6).map(p => `${p.tl.c || "?"} ${p.tl.n || ""}${(p.ar || p.dp || {}).l ? " (Linie " + (p.ar || p.dp).l + ")" : ""}`).join(", ")}`);
-      for (const p of hit) for (const [k, e] of [["arr", p.ar], ["dep", p.dp]]) { if (!e?.pt) continue; const pt = fromTT(e.pt, tz), diff = Math.abs(pt - t0) + (k === "dep" ? 60e3 : 0);
+      for (const p of hit) for (const [k, e] of [["arr", p.ar], ["dep", p.dp]]) { if (!e?.pt) continue; const pt = fromTT(e.pt, tz), diff = Math.abs(pt - t0) + (w.prefer && w.prefer !== k ? 30 * 60e3 : k === "dep" ? 60e3 : 0);   // „abholen“ → Ankunft, „losfahren“ → Abfahrt
         if (!best || diff < best.diff) best = { diff, sid: p.id, kind: k, pt: pt.toISOString(), pp: e.pp || "", eva: st.eva, sn: st.name }; }
       if (best && best.diff < 20 * 60e3) break; }
     if (!best && dbg) {   // Gegenprobe: Frankfurt Hbf jetzt, und Echtzeit-Liste des ersten Bahnhofs

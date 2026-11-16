@@ -2563,7 +2563,8 @@ function trainWatch() {
     const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
     const id = `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`; if (seen.has(id)) return; seen.add(id);
     if (at.getTime() < Date.now() - 30 * 60e3) return;   // abgefahrene Züge nicht mehr beobachten
-    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev) }); });
+    const tx = [o.ev.title, o.ev.note].join(" "), prefer = /abhol|ankunft|ankommen|kommt an|empfang/i.test(tx) ? "arr" : /abfahrt|losfahren|fahre |hinfahrt|abreise|zug nach/i.test(tx) ? "dep" : "";
+    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer }); });
   return W.slice(0, 6);
 }
 async function pushPlan() {
