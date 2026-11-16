@@ -51,12 +51,12 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
     }
     if (!best || best.diff > 3 * 3600e3) { dbg?.push("kein passender Zug im Fahrplan"); return { state: { ...s, miss: (s.miss || 0) + 1 }, msgs: [] }; }
     Object.assign(s, { sid: best.sid, kind: best.kind, pt: best.pt, pp: best.pp, eva: best.eva, sn: best.sn });
-    dbg?.push(`gefunden: ${best.kind === "arr" ? "Ankunft" : "Abfahrt"} ${best.sn} geplant ${best.pt} Gleis ${best.pp || "?"}`);
+    dbg?.push(`gefunden: ${best.kind === "arr" ? "Ankunft" : "Abfahrt"} ${best.sn} planmäßig ${new Date(best.pt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz })} · Gleis ${best.pp || "?"}`);
   }
   // Echtzeit-Änderungen am Bahnhof
   const x = await tt(env, `/fchg/${s.eva}`); if (!x) { dbg?.push("Echtzeit: keine Antwort"); return { state: s, msgs: [] }; }
   const ch = stops(x).find(p => p.id === s.sid), e = ch ? (s.kind === "arr" ? ch.ar : ch.dp) : null;
-  dbg?.push(`Echtzeit: ${e ? `neu ${e.ct || "–"} Gleis ${e.cp || "–"}${e.cs === "c" ? " AUSFALL" : ""}` : "keine Änderung gemeldet (= planmäßig)"}`);
+  dbg?.push(`Echtzeit: ${e ? `${e.ct ? "jetzt " + fromTT(e.ct, tz).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz }) : "Zeit unverändert"}${e.cp ? " · Gleis " + e.cp : ""}${e.cs === "c" ? " · FÄLLT AUS" : ""}` : "keine Änderung gemeldet (planmäßig)"}`);
   const plan = new Date(s.pt), real = e?.ct ? fromTT(e.ct, tz) : plan, d = Math.max(0, Math.round((real - plan) / 60e3));
   const pl = e?.cp || s.pp || "", cancelled = e?.cs === "c";
   const hm = t => t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz });

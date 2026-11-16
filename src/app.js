@@ -1974,7 +1974,13 @@ async function linksForAI(text, say) {
       else fails.push(u); } catch { fails.push(u); } }
   return { texts, fails };
 }
-const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45 · Buchung ABC123"). Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.`;
+const TRAIN_RULE = `ZÜGE (wichtig, damit die App den Zug live beobachten kann): Zugnummer immer mit Gattung in den Titel schreiben ("RE 4", "ICE 1101", "IC 1934"), place = der Bahnhof, um den es geht, als "Stadt Hbf" bzw. Bahnhofsname (z. B. "Berlin Hbf", "Magdeburg Hbf"), time = die Zeit an genau diesem Bahnhof.
+- Jemanden ABHOLEN (abholen, kommt an, holen): type "termin", title "<Name> abholen · <Zug>", from = Ankunftstag, time = ANKUNFTSzeit, place = ANKUNFTSbahnhof, note = "Ankunft <Bahnhof> <Zeit> aus <Herkunft>" (+ Gleis/Wagen falls bekannt).
+- Jemanden zum Zug BRINGEN (bringen, abliefern, verabschieden): title "<Name> zum Zug bringen · <Zug>", time = ABFAHRTSzeit, place = ABFAHRTSbahnhof, note = "Abfahrt <Bahnhof> <Zeit> nach <Ziel>".
+- Eigene Zugfahrt ohne Übernachtung: type "termin", title "<Zug> <Von> → <Nach>", time = Abfahrt, endTime = Ankunft, place = Abfahrtsbahnhof. Mit Übernachtung: Reise wie unten, note beginnt mit "<Zug> ab <Abfahrtsbahnhof> <Zeit>".
+- Mehrere Teilstrecken mit Umstieg: der ERSTE Zug in den Titel, alle Teilstrecken kurz in note.`;
+const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45 · Buchung ABC123"). Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.
+${TRAIN_RULE}`;
 async function docAnalyze(e) {
   const fs = e.files || []; if (!fs.length || !sample) return;
   openSheet("Dokumente auswerten", `„${e.title}“ · ${fs.length} Dokument${fs.length > 1 ? "e" : ""}`, `<p class="note" id="dai-msg">Ich lese die Dokumente …</p><div id="dai-body"></div>`, "dai", { id: e.id });
@@ -2549,7 +2555,8 @@ const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})
 const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
 const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|ina|der|die|das|den)$/i;
 function stationOf(e) {
-  const pl = String(e.place || e.note || "").split(",")[0].trim();
+  const nm = String(e.note || "").match(/\b(?:ab|an|ankunft|abfahrt)\s+([\p{L}.\- ]+?\s(?:hbf|hauptbahnhof|bahnhof|bf)\b(?:\s\(tief\))?)/iu);
+  const pl0 = String(e.place || "").split(",")[0].trim(), pl = /bahnhof|hbf|bhf|\bbf\b/i.test(pl0) ? pl0 : nm ? nm[1].trim() : pl0 || String(e.note || "").split(",")[0].trim();
   const src = /bahnhof|hbf|bhf|\bbf\b/i.test(pl) ? pl : String(e.title || "");
   const t = osmExpand(src.replace(TRAIN_RE, " ")), m = t.match(/((?:[\p{L}.\-]+\s+)?)(Hauptbahnhof|Bahnhof)((?:\s+[\p{L}.\-]+)?)/u);
   if (!m) return /bahnhof|hbf/i.test(pl) ? pl : "";
@@ -3027,7 +3034,7 @@ function switchEntry(m) {
 function showAssistant(keepFiles) {
   if (dbState === "off") return showSignin();
   if (!keepFiles) ASST_FILES = [];
-  const ex = ["Zahnarzt Donnerstag 16 Uhr", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
+  const ex = ["Zahnarzt Donnerstag 16 Uhr", "Ina vom Zug abholen: RE 4, Berlin Hbf, 13:55", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
   openSheet("Eintragen", "Schreib einfach, was ansteht oder sich ändert", `
     <div class="asst">${entrySw("text")}
       ${ASST_DAY ? `<div class="a-day" id="a-day">📅 für <b>${fmt(ASST_DAY)}${ASST_TO ? ` – ${fmt(ASST_TO)}` : ""}${(ASST_TO || ASST_DAY).getFullYear() !== TODAY.getFullYear() ? " " + (ASST_TO || ASST_DAY).getFullYear() : ""}</b><button type="button" class="link" data-act="a-day-x" aria-label="Datum entfernen">✕</button></div>` : ""}
@@ -3115,6 +3122,7 @@ Felder für neue/geänderte eigene Termine:
 - flight: true bei Reisen mit Flug (Flugnummer, Flughafen, Airline), sonst false
 - kids: true, wenn Kinder${kidsNames().length ? ` (${kidsNames().join(", ")})` : ""} mitreisen, sonst false
 - calendar: siehe unten
+${TRAIN_RULE}
 
 Datumsregeln: Wochentage, "nächste Woche", "übermorgen" usw. relativ zum Bezugsdatum auflösen. Bezugsdatum ist heute – AUSSER die Nachricht ist eine kopierte Mail oder WhatsApp mit Datum/Zeitstempel (z. B. "[12.11.26, 20:15] Anna: …", "12.11.26, 20:15 - Anna: …", "Am Mo., 2. Nov. schrieb …", "Gesendet: …"): dann ist das Datum dieser Nachricht das Bezugsdatum. "Nächste Woche Donnerstag" = Donnerstag der Kalenderwoche nach dem Bezugsdatum. Ohne Jahr: das nächste passende Datum ab Bezugsdatum. "Wochenende" = Freitag bis Sonntag, wenn nichts anderes gesagt ist.
 
@@ -4149,7 +4157,10 @@ document.addEventListener("click", ev => {
     case "adm-train": { const o = $("adm-train-out"); o.innerHTML = `<p class="note">frage bei der Bahn …</p>`; window.mkAdminTrain?.().then(r => {
       if (!r || r.code) { o.innerHTML = `<p>Fehler: ${esc(r?.code || "keine Antwort")}</p>`; return; }
       o.innerHTML = `<p class="note">Plan hochgeladen: ${r.planAt ? new Date(r.planAt).toLocaleString("de-DE") : "nie"} · letzter Server-Lauf: ${r.lastRun ? new Date(r.lastRun).toLocaleString("de-DE") : "–"} · Züge live: ${r.pref?.train === false ? "aus" : "an"}</p>` +
-        (r.watch.length ? r.watch.map(x => `<div class="sg" style="padding:10px 12px;margin:8px 0"><b>${esc(x.w.train)} · ${esc(x.w.st)} · ${new Date(x.w.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b><ul style="margin:6px 0 0;padding-left:18px">${x.dbg.map(d => `<li>${esc(d)}</li>`).join("")}</ul>${x.msgs?.length ? `<p class="note">würde melden: ${x.msgs.map(m => esc(m.title + " – " + m.body)).join(" | ")}</p>` : ""}</div>`).join("") : `<p>Keine Züge im hochgeladenen Plan. Steht im Termin Uhrzeit, Zugnummer und Bahnhof, und sind Benachrichtigungen auf diesem Gerät an?</p>`);
+        (r.watch.length ? r.watch.map(x => { const key = x.dbg.filter(d => /^(gefunden|Echtzeit:|kein passender|keine DB)/.test(d)), ok = x.dbg.some(d => d.startsWith("gefunden"));
+          return `<div class="sg" style="padding:10px 12px;margin:8px 0"><b>${ok ? "✅" : "⚠️"} ${esc(x.w.train)} · ${esc(x.w.st)} · ${new Date(x.w.at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b>
+          <ul style="margin:6px 0 0;padding-left:18px">${key.map(d => `<li>${esc(d)}</li>`).join("")}</ul>${x.msgs?.length ? `<p class="note">würde jetzt melden: ${x.msgs.map(m => esc(m.title + " – " + m.body)).join(" | ")}</p>` : ""}
+          <details><summary class="note">Alle Schritte (${x.dbg.length})</summary><ul style="margin:4px 0 0;padding-left:18px">${x.dbg.map(d => `<li class="note">${esc(d)}</li>`).join("")}</ul></details></div>`; }).join("") : `<p>Keine Züge im hochgeladenen Plan. Steht im Termin Uhrzeit, Zugnummer und Bahnhof, und sind Benachrichtigungen auf diesem Gerät an?</p>`);
     }).catch(e => { o.innerHTML = `<p>Fehler: ${esc(String(e))}</p>`; }); break; }
     case "mi-notify": showNotify(); break;
     case "nt-on": notifyOn(); break;
