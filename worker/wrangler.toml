@@ -10,11 +10,9 @@ ALLOWED_ORIGINS = "https://mein-kalender-czb.pages.dev"      # später + eigene 
 MODEL_QUICK = "claude-haiku-5-5"                        # günstig: Packlisten, Merklisten, Geschenkideen (0,10/0,50 $ je 1 Mio. Tokens)
 MODEL_QUICK_FALLBACK = "claude-haiku-4-5-20251001"      # falls Haiku 5.5 nicht verfügbar ist
 MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente auswerten
-DAILY_LIMIT = "40"                                      # KI-Anfragen pro Nutzer und Tag
-IMAGE_DAILY_LIMIT = "10"                                # davon mit Bildern/Dokumenten
-MONTHLY_LIMIT = "400"                                   # KI-Anfragen pro Nutzer und Monat
-MONTHLY_TOKENS = "3000000"                              # Token (Ein- + Ausgabe) pro Nutzer und Monat
-MONTHLY_USD = "3"                                       # KI-Kosten in $ pro Nutzer und Monat (0 = aus)
+# KI-Grenzen pro Nutzer stellst du im Cloudflare-Dashboard ein (Worker → Einstellungen → Variablen und Geheimnisse):
+#   DAILY_LIMIT (40), IMAGE_DAILY_LIMIT (10), MONTHLY_LIMIT (400), MONTHLY_TOKENS (3000000), MONTHLY_USD (3, 0 = aus)
+#   Fehlt ein Wert, gilt die Zahl in Klammern. Hier bewusst NICHT eintragen – sonst überschreibt jedes Bereitstellen die Werte aus dem Dashboard.
 GOOGLE_CLIENT_ID = "15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"
 
 [triggers]
