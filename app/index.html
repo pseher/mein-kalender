@@ -4058,6 +4058,7 @@ function syncFormFields() {
   $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact; { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; } $("f-shift").hidden = contact;
   $("f-repc-wrap").hidden = contact || r.value !== "custom";
   $("f-who-wrap").hidden = contact || ty === "birthday" || !!$("f-who-wrap").dataset.off;
+  { const a = document.querySelector('[data-fcol=""]'), c = catColor(ty), lbl = `Wie ${TYPES[ty]?.label || "die Art"} (☰ → Anzeigen → Farben)`; if (a) { a.style.background = c; a.style.color = c.startsWith("#") ? lumInk(c) : "#fff"; a.style.borderColor = "transparent"; a.title = lbl; a.setAttribute("aria-label", lbl); } }
   $("f-until-wrap").hidden = contact || !["d", "w", "m"].includes(repSpec(repVal())?.u);
   $("f-thx-wrap").hidden = !["termin", "trip"].includes(ty);
   $("f-trip-wrap").hidden = ty !== "trip";
