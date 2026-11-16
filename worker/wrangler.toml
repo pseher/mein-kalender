@@ -12,6 +12,8 @@ MODEL_QUICK_FALLBACK = "claude-haiku-4-5-20251001"      # falls Haiku 5.5 nicht 
 MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente auswerten
 DAILY_LIMIT = "40"                                      # KI-Anfragen pro Nutzer und Tag
 IMAGE_DAILY_LIMIT = "10"                                # davon mit Bildern/Dokumenten
+MONTHLY_LIMIT = "400"                                   # KI-Anfragen pro Nutzer und Monat
+MONTHLY_TOKENS = "3000000"                              # Token (Ein- + Ausgabe) pro Nutzer und Monat
 GOOGLE_CLIENT_ID = "15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"
 
 [triggers]

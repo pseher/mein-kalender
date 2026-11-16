@@ -1047,6 +1047,10 @@ async function showAdmin(reload) {
       ${[...byU].sort((a, b) => b[1].c - a[1].c).slice(0, 20).map(([id, x]) => `<tr><td>${short(id)}${D.users.find(u => u.id === id)?.me ? " (du)" : ""}</td><td class="n">${x.n}</td><td class="n">${usd(x.c)}</td><td class="n">${uLast(id) ? fmt(parseIso(uLast(id))) : ""}</td></tr>`).join("") || `<tr><td colspan="4" class="note">–</td></tr>`}</table>
     <h3>Genutzte Funktionen (30 Tage)</h3><table><tr><th>Funktion</th><th class="n">Anzahl</th><th class="n">Nutzer</th><th class="n">Anteil Nutzer</th></tr>
       ${[...byF].sort((a, b) => b[1].u.size - a[1].u.size || b[1].n - a[1].n).map(([k, x]) => `<tr><td>${esc(k.replace(/_/g, " "))}</td><td class="n">${x.n}</td><td class="n">${x.u.size}</td><td class="n">${Math.round(x.u.size / actU * 100)} %</td></tr>`).join("") || `<tr><td colspan="4" class="note">Noch keine Nutzung erfasst – die Zählung läuft ab jetzt.</td></tr>`}</table>
+    <h3>Grenzen pro Nutzer</h3>${D.limits ? `<p>KI: <b>${D.limits.day}</b> Anfragen/Tag, davon <b>${D.limits.img}</b> mit Tickets/Bildern · <b>${D.limits.month}</b> Anfragen bzw. <b>${(D.limits.tok / 1e6).toLocaleString("de-DE")} Mio.</b> Tokens/Monat · max. ${D.limits.maxImages} Bilder je Anfrage.<br>
+      Dateien: max. 5 MB, max. ${PDF_MAX_PAGES} PDF-Seiten, die KI liest davon die ersten ${PDF_AI_PAGES} · max. 6 Dateien je Auswertung.</p>
+      <p class="note">Ändern in Cloudflare → Worker → Einstellungen → Variablen (DAILY_LIMIT, IMAGE_DAILY_LIMIT, MONTHLY_LIMIT, MONTHLY_TOKENS).</p>` : `<p class="note">Worker noch nicht aktualisiert.</p>`}
+      ${(() => { const m0 = iso(TODAY).slice(0, 8) + "01", mu = new Map(); ai.filter(r => r.day >= m0).forEach(r => mu.set(r.user_id, (mu.get(r.user_id) || 0) + r.calls)); const top = Math.max(0, ...mu.values()); return D.limits ? `<p class="note">Dieser Monat: höchster Nutzer ${top} von ${D.limits.month} Anfragen.</p>` : ""; })()}
     <h3>Abo-Simulation</h3><div class="adm-sim"><label for="adm-free">Freie KI-Aktionen pro Monat</label><input id="adm-free" type="number" min="1" max="500" value="${ADM_FREE}"></div>
     <p>${over} von ${actU} aktiven Nutzern (${Math.round(over / actU * 100)} %) hätten in den letzten 30 Tagen mehr gebraucht. Median ${pc(.5)}, 90 % der Nutzer ≤ ${pc(.9)} KI-Aktionen.<br>
       Ein Nutzer, der das Freikontingent voll ausschöpft, kostet ca. <b>${usd(capCost || 0)}</b> im Monat. Kosten je aktivem KI-Nutzer: Median ${usd(costU[Math.floor(costU.length / 2)] || 0)}, höchster ${usd(costU.at(-1) || 0)}.</p>
@@ -1820,7 +1824,12 @@ function osmPrefetch() { clearTimeout(osmBgT); osmBgT = setTimeout(async () => {
 }, 4000); }
 
 // =================== Dokumente: Tickets, PDFs, Bilder (privat, in Stücken gespeichert) ===================
-const FILE_MAX = 5e6, CHUNK = 180000, FILECACHE = new Map();
+const FILE_MAX = 5e6, CHUNK = 180000, FILECACHE = new Map(), PDF_MAX_PAGES = 30, PDF_AI_PAGES = 3;
+const RL = e => e?.code === "rate_limited" && /limit/i.test(e?.message || "") ? e.message : "Gerade zu viele Anfragen. Versuch es gleich noch einmal.";
+async function pdfTooLong(f) {
+  if (!(f.type === "application/pdf" || /\.pdf$/i.test(f.name || ""))) return 0;
+  try { const lib = await loadPdfJs(), d = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise, n = d.numPages; d.destroy?.(); return n > PDF_MAX_PAGES ? n : 0; } catch { return 0; }
+}
 const isPdfF = f => f.type === "application/pdf";
 const fSize = n => n > 1e6 ? (n / 1e6).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB";
 function fb64(buf) { let s = ""; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
@@ -1850,6 +1859,7 @@ async function docUpload(e, fs) {
       say(`Speichere „${file.name}“ …`);
       const blob = pdf ? file : await shrinkImg(file).catch(() => file);
       if (blob.size > FILE_MAX) { toast(`„${file.name}“ ist zu groß (max. 5 MB)`); continue; }
+      if (pdf) { const n = await pdfTooLong(file); if (n) { toast(`„${file.name}“ hat ${n} Seiten – bitte nur die wichtigen Seiten hochladen (max. ${PDF_MAX_PAGES})`); continue; } }
       const s = fb64(await blob.arrayBuffer()), n = Math.ceil(s.length / CHUNK), id = "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       for (let i = 0; i < n; i++) { if (n > 2) say(`Speichere „${file.name}“ … ${Math.round(i / n * 100)} %`); await COLL("files").doc(`${id}_${i}`).set({ d: s.slice(i * CHUNK, (i + 1) * CHUNK), ev: e.id }); }
       let name = file.name || (pdf ? "Dokument.pdf" : "Bild.jpg"); if (!pdf && blob !== file) name = name.replace(/\.[^.]+$/, "") + ".jpg";
@@ -1955,15 +1965,15 @@ let DAI = null;
 // ---- Tickets/Buchungen/Links für die KI aufbereiten (vor dem Anlegen eines Eintrags) ----
 const URL_RE = /https?:\/\/[^\s<>"']+/g;
 async function filesForAI(files, maxImg) {
-  const imgs = [], texts = [];
+  const imgs = [], texts = [], long = [];
   for (const f of files.slice(0, 6)) {
     const pdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
-    if (pdf) { const { pages } = await pdfPages(f, 3, 1.4).catch(() => ({ pages: [] }));
+    if (pdf) { const { pages, total } = await pdfPages(f, PDF_AI_PAGES, 1.4).catch(() => ({ pages: [] })); if (total > PDF_AI_PAGES) long.push(`„${f.name}“: ${PDF_AI_PAGES} von ${total} Seiten gelesen`);
       for (const [i, p] of pages.entries()) { if (p.text.length > 120) texts.push(`--- ${f.name}, Seite ${i + 1} ---\n${p.text.slice(0, 5000)}`);
         if ((p.text.length <= 120 || i === 0) && imgs.length < maxImg) imgs.push(await new Promise(r => p.c.toBlob(r, "image/jpeg", 0.8))); } }
     else if (/^image\//.test(f.type) && imgs.length < maxImg) imgs.push(f.size > 3e6 ? await shrinkImg(f, 1600, 0.8) : f);
   }
-  return { imgs, texts };
+  return { imgs, texts, long };
 }
 async function linksForAI(text, say) {
   const urls = [...new Set(String(text).match(URL_RE) || [])].slice(0, 2), texts = [], fails = [];
@@ -2012,7 +2022,7 @@ Lies die Dokumente genau. Antworte NUR mit JSON:
 "aufgaben": [{"t": "konkrete Orga-Aufgabe, z. B. „Online-Check-in“, „Sitzplatz reservieren“, „Restbetrag zahlen“, „Stornofrist beachten“", "faellig": "YYYY-MM-DD, wenn sich ein Datum ergibt, sonst leer"}]}
 Höchstens 5 Aufgaben. Nichts erfinden, nichts Allgemeines. Deutsch.`, { modelTier: "default", images: imgs.length ? imgs : undefined });
     DAI = { id: e.id, r: r || {} }; renderDai();
-  } catch (err) { say(err?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Die Dokumente konnten gerade nicht ausgewertet werden."); }
+  } catch (err) { say(err?.code === "rate_limited" ? RL(err) : "Die Dokumente konnten gerade nicht ausgewertet werden."); }
 }
 function renderDai() {
   const e = EV.find(x => x.id === DAI?.id), r = DAI?.r, body = $("dai-body"); if (!e || !body) return;
@@ -2113,7 +2123,7 @@ Antworte NUR mit JSON: {"land": "ISO-Ländercode des Reiseziels in Großbuchstab
     const add = [...base, ...ai].filter(x => !seen.has(x.t.toLowerCase()) && seen.add(x.t.toLowerCase()));
     savePack([...add, ...old], true);
     if (sheetMode === "pack" && !$("sheet").hidden && sheetCtx?.id === e.id) showPack(e, true);
-  } catch (err) { const m = $("pk-msg") || $("pk-err"); if (m) m.textContent = err?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Die Packliste konnte gerade nicht erstellt werden. Öffne sie später noch einmal." + (APP && window.mkKiLast ? ` (${window.mkKiLast})` : "");
+  } catch (err) { const m = $("pk-msg") || $("pk-err"); if (m) m.textContent = err?.code === "rate_limited" ? RL(err) : "Die Packliste konnte gerade nicht erstellt werden. Öffne sie später noch einmal." + (APP && window.mkKiLast ? ` (${window.mkKiLast})` : "");
     if (btn) { btn.disabled = false; btn.textContent = "Neu zusammenstellen"; } }
 }
 
@@ -2138,7 +2148,7 @@ Antworte NUR mit JSON: {"ideen": [{"titel": "kurz", "warum": "1 Satz", "preis": 
     out.innerHTML = (ideen.length ? `<h3>Geschenkideen</h3><ul class="sheet-list">${ideen.map(i => `<li><i style="background:var(--event)"></i><div><b>${esc(i.titel)}</b>${i.preis ? ` <span class="note">· ${esc(i.preis)}</span>` : ""}<div class="note">${esc(i.warum || "")}</div></div></li>`).join("")}</ul>` : "") +
       [...karte.map((t, i) => [`Kartentext ${i + 1}`, t]), ...(r?.nachricht ? [["Nachricht", r.nachricht]] : [])].map(([l, t], i) =>
         `<h3>${esc(l)}</h3><textarea class="share-txt" id="id-t${i}" rows="3" readonly>${esc(t)}</textarea><button type="button" class="btn ghost small" data-copy="id-t${i}">Kopieren</button>`).join("");
-  } catch (e) { out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es gleich noch einmal." : "Das hat nicht geklappt. Versuch es noch einmal."}</p>`; }
+  } catch (e) { out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : "Das hat nicht geklappt. Versuch es noch einmal."}</p>`; }
   go.disabled = false; go.textContent = "Neue Ideen";
 }
 function copyField(id, btn) {
@@ -2760,27 +2770,51 @@ function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; docu
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
 let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
 let FORM_FILES = [];
+async function formPickFiles(fs) {
+  const ok = [], bad = [];
+  if (fs.length > 6) bad.push(`nur die ersten 6 von ${fs.length} Dateien`);
+  for (const f of fs.slice(0, 6)) {
+    const pdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
+    if (!pdf && !/^image\//.test(f.type)) { bad.push(`„${f.name}“ ist kein PDF/Bild`); continue; }
+    if (pdf && f.size > FILE_MAX) { bad.push(`„${f.name}“ ist größer als 5 MB`); continue; }
+    const n = await pdfTooLong(f); if (n) { bad.push(`„${f.name}“ hat ${n} Seiten (max. ${PDF_MAX_PAGES})`); continue; }
+    ok.push(f);
+  }
+  if (bad.length) toast(bad.join(" · "));
+  FORM_FILES = ok; if (ok.length) formFromDocs(ok, ""); else if ($("f-att-l")) $("f-att-l").textContent = "";
+}
 let sayT = 0; const sayWait = async () => { const w = 1200 - (Date.now() - sayT); if (w > 0) await new Promise(r => setTimeout(r, w)); sayT = Date.now(); };
 async function formFromDocs(files, link) {
   const l = $("f-att-l"), say = async t => { await sayWait(); if ($("f-att-l")) $("f-att-l").textContent = t; };
   try {
     await say(files.length ? `📄 Ich lese ${files.length === 1 ? "„" + files[0].name + "“" : files.length + " Dokumente"} …` : "🔗 Ich öffne den Link …");
-    const lim = await sample.limits().catch(() => null), att = files.length ? await filesForAI(files, lim?.images?.maxCount || 0) : { imgs: [], texts: [] };
+    const lim = await sample.limits().catch(() => null), att = files.length ? await filesForAI(files, lim?.images?.maxCount || 0) : { imgs: [], texts: [], long: [] };
     const lk = link ? await linksForAI(link, say) : { texts: [], fails: [] };
     if (!att.texts.length && !att.imgs.length && !lk.texts.length) { await say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
     await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""}${lk.texts.length ? " vom Link" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Anreise …`); await say("✍️ Ich fülle die Felder aus …");
-    const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}
-Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin", "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": ""}
+    const cur = $("f-type")?.value || "termin", ctx = cur === "abholen" ? `\nDer Nutzer füllt gerade das Formular „Abholen & Bringen“ aus: lege type "abholen" mit pick an (wen abholen/bringen, Zug-/Flugnummer, Bahnhof/Flughafen, Ankunfts- bzw. Abfahrtszeit dort). Ist kein Name erkennbar, lass pick.who leer.`
+      : cur === "urlaub" ? `\nDer Nutzer füllt gerade das Formular „Urlaub & Ferien“ aus: type "urlaub", title = Ziel bzw. Unterkunft, from/to = Urlaubszeitraum, time = erste Abfahrt/Abflug, Hin- und Rückreise (Zug/Flug, Zeiten) kurz in note.` : "";
+    const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}${ctx}
+Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen", "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": ""} oder null}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
     const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
-    if (["trip", "termin"].includes(r.type)) { $("f-type").value = r.type; syncFormFields(); }
+    const ty = cur === "abholen" || cur === "urlaub" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin"].includes(r.type) ? r.type : "";
+    if (ty && ty !== cur) { $("f-type").value = ty; syncFormFields(); }
+    if (ty === "abholen") {
+      const pk = r.pick || {}, tap = (a, v) => document.querySelector(`[${a}="${v}"]`)?.click();
+      if (["arr", "dep"].includes(pk.dir)) tap("data-pkdir", pk.dir);
+      const md = ["zug", "flug", "bus"].includes(pk.mode) ? pk.mode : r.flight || r.mode === "flug" ? "flug" : ""; if (md) tap("data-pkmode", md);
+      set("f-pk-who", pk.who); set("f-pk-no", pk.no); set("f-pk-st", r.place); set("f-from", r.from); set("f-time", r.time);
+      if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
+      pickPreview(); await say(`✓ Ausgefüllt aus ${FORM_FILES.map(f => f.name).join(", ") || "dem Link"}${att.long.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Das Ticket wird beim Speichern angehängt." : ""}`); return;
+    }
     set("f-title", r.title); set("f-from", r.from); set("f-to", parseIso(r.to) ? r.to : r.from); set("f-place", r.place);
     if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
     if (r.time) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; set("f-time", r.time); set("f-end", r.endTime); }
     if (MODES[r.mode]) { const m = document.querySelector(`[name=fmode][value="${r.mode}"]`); if (m) m.checked = true; }
-    await say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
-  } catch (err) { await say(err?.code === "rate_limited" ? "Gerade zu viele Anfragen – gleich noch einmal." : "Das Auslesen hat nicht geklappt."); }
+    await say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"}${att.long?.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
+  } catch (err) { await say(err?.code === "rate_limited" ? RL(err) : "Das Auslesen hat nicht geklappt."); }
 }
 function showForm(e, preset) {
   if (!arguments[0]) FORM_FILES = [];
@@ -2798,7 +2832,7 @@ function showForm(e, preset) {
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}<option value="custom"${!REPEAT[v.repeat] && repSpec(v.repeat) ? " selected" : ""}>anders …</option></select></div></div>
       <div class="rep-c" id="f-repc-wrap"${!REPEAT[v.repeat] && repSpec(v.repeat) ? "" : " hidden"}><span>alle</span><input id="f-repn" type="number" inputmode="numeric" min="1" max="99" value="${repSpec(v.repeat)?.n || 2}"><select id="f-repu">${Object.entries(REP_U).map(([u, [, pl]]) => `<option value="${u}"${(repSpec(v.repeat)?.u || "w") === u ? " selected" : ""}>${pl}</option>`).join("")}</select></div>
       <div id="f-until-wrap" class="f-until"><label for="f-until">Wiederholung endet am <small>(optional)</small></label><input id="f-until" type="date" value="${esc(v.until)}"></div>
-      ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small">📎 Ticket / Buchung anhängen<input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
+      ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small"><span id="f-att-t">📎 Ticket / Buchung anhängen</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
@@ -2857,20 +2891,36 @@ const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom"
 const TYPE_SHORT = { termin: "Termin", trip: "Reise", urlaub: "Urlaub", dienst: "Dienst", abholen: "Abholen", info: "Hinweis", birthday: "Geburtstag", mina: "Umgang", anniversary: "Jahrestag", deadline: "Frist", contact: "Kontakt" };
 const TYPE_ICON = { termin: "📅", trip: "🧳", urlaub: "🏖️", dienst: "🕘", abholen: "🚉", info: "💡", birthday: "🎂", mina: "👨‍👧", anniversary: "💞", deadline: "⏰", contact: "📞" };
 // Pflicht = sofort sichtbar; alles andere unter „Mehr Optionen“
-const F_MAIN = { termin: ["title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["title", "dates"], dienst: ["title", "dates", "time", "rep"],
-  abholen: ["pick", "dates", "time"], info: ["title", "dates", "time"], birthday: ["title", "bd"], mina: ["title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["title", "dates", "extra"], contact: ["title", "dates", "extra"] };
+const F_MAIN = { termin: ["title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["att", "title", "dates"], dienst: ["title", "dates", "time", "rep"],
+  abholen: ["att", "pick", "dates", "time"], info: ["title", "dates", "time"], birthday: ["title", "bd"], mina: ["title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["title", "dates", "extra"], contact: ["title", "dates", "extra"] };
 const F_GRP = { att: "f-att", title: "f-title-grp", rep: "f-rep-wrap", col: "f-col-wrap", share: "f-sh-wrap", vis: "f-vis", shift: "f-shift", thx: "f-thx-wrap", trip: "f-trip-wrap", place: "f-place-grp", note: "f-note-grp", gcal: "f-gcal-wrap", pick: "f-pick-wrap" };
 let fMore = false;
 const DIENST_SUG = ["Früh", "Spät", "Nacht", "Bereitschaft", "Homeoffice"];
+const TITLE_BASE = { termin: ["Arzt", "Zahnarzt", "Friseur", "Elternabend", "Werkstatt", "Besprechung"], trip: [], urlaub: ["Urlaub", "Ferien", "Freier Tag", "Brückentag"], dienst: DIENST_SUG,
+  info: ["Müll rausstellen", "Anrufen", "Überweisen", "Paket abholen"], mina: [], anniversary: ["Hochzeitstag", "Kennenlerntag", "Jahrestag"],
+  deadline: ["Steuererklärung", "TÜV", "Kündigung", "Versicherung", "Rechnung bezahlen"], birthday: [], contact: [] };
+const TITLE_PH = { termin: "z. B. Zahnarzt", trip: "z. B. Ostsee, Hotel am See", urlaub: "z. B. Urlaub, Ferien", dienst: "z. B. Spät", info: "z. B. Müll rausstellen", mina: "z. B. Wochenende bei Papa",
+  anniversary: "z. B. Hochzeitstag", deadline: "z. B. Steuererklärung", birthday: "Name, z. B. Oma Hilde", contact: "Name, z. B. Tante Ute" };
+function titleSug(ty) {
+  const cnt = new Map();
+  for (const x of EV) if (x.type === ty && x.title && x.title.length <= 30) cnt.set(x.title, (cnt.get(x.title) || 0) + 1);
+  const own = [...cnt].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  let L;
+  if (ty === "birthday") { const have = new Set(EV.filter(x => x.type === "birthday").map(x => (x.title || "").toLowerCase())); L = FAM().map(p => p.name).filter(n => n && !have.has(n.toLowerCase())); }
+  else if (ty === "contact") { const have = new Set(own.map(t => t.toLowerCase())); L = FAM().map(p => p.name).filter(n => n && !have.has(n.toLowerCase())); }
+  else if (ty === "trip" || ty === "mina") L = own;
+  else L = [...(TITLE_BASE[ty] || []), ...own];
+  return [...new Set(L)].slice(0, 8);
+}
 function formLayout(ty) {
   const main = new Set(F_MAIN[ty] || F_MAIN.termin);
   for (const [k, id] of Object.entries(F_GRP)) { const el = $(id) || (k === "share" ? $("f-sh-note") : null); if (!el) continue; el.classList.toggle("f-off", !main.has(k) && !fMore); }
   $("f-pick-wrap").hidden = ty !== "abholen"; $("f-title-grp").classList.toggle("f-off", ty === "abholen");
   if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
-  const sug = $("f-tsug"); if (sug) { const L = ty === "dienst" ? [...new Set([...DIENST_SUG, ...EV.filter(x => x.type === "dienst").map(x => x.title)])].slice(0, 8) : ty === "urlaub" ? ["Urlaub", "Ferien", "Freier Tag", "Brückentag"] : [];
+  const sug = $("f-tsug"); if (sug) { const L = titleSug(ty);
     sug.innerHTML = L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = !L.length; }
-  if (ty === "urlaub" && !$("f-title").value) $("f-title").placeholder = "z. B. Urlaub, Ferien";
-  if (ty === "dienst" && !$("f-title").value) $("f-title").placeholder = "z. B. Spät";
+  const tt = $("f-att-t"); if (tt) tt.textContent = ty === "abholen" ? "📎 Ticket / Screenshot hochladen" : ty === "urlaub" ? "📎 Buchung / Tickets anhängen" : "📎 Ticket / Buchung anhängen";
+  if (!$("f-title").value && TITLE_PH[ty]) $("f-title").placeholder = TITLE_PH[ty];
   const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
   if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : "Mehr Optionen (Wiederholung, Farbe, Notiz, Google …) ▾"; }
   document.querySelectorAll("[data-ftype]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.ftype === ty)));
@@ -3275,7 +3325,7 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
     out.innerHTML = `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
       ${canWrite ? `<button type="button" class="btn accent wide" id="a-apply">Übernehmen</button>` : `<p class="note">Speichern kann nur der Besitzer der Seite.</p>`}` : "");
   } catch (e) {
-    out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? "Gerade zu viele Anfragen. Versuch es in einer Minute noch einmal." : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
+    out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
   }
   go.disabled = false; go.textContent = "Umwandeln";
 }
@@ -4333,7 +4383,7 @@ document.addEventListener("change", ev => {
   if (ev.target.id === "st-vac") { REMP.vacation = Math.max(0, +ev.target.value || 0); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderStats(); return; }
   if (ev.target.dataset?.notify) { const set = new Set(notifyCals()); ev.target.checked ? set.add(ev.target.dataset.notify) : set.delete(ev.target.dataset.notify); saveNotify({ cals: [...set] }).then(scanOthers); return; }
   if (ev.target.id === "a-files") { ASST_FILES = [...ev.target.files].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", ") || "daraus wird der Eintrag erstellt"; if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
-  if (ev.target.id === "f-files") { FORM_FILES = [...ev.target.files].slice(0, 6); if (FORM_FILES.length) formFromDocs(FORM_FILES, ""); return; }
+  if (ev.target.id === "f-files") { formPickFiles([...ev.target.files]); return; }
   if (ev.target.id === "f-type" && ["birthday", "anniversary"].includes(ev.target.value) && $("f-rep")) $("f-rep").value = "yearly";
   if (ev.target.dataset?.stshow) { const c = ev.target.dataset.stshow, on = ev.target.checked;
     if (c === PA || c === PB) { SHOW[c === PA ? "be" : "st"] = on; store.set("ft-show", JSON.stringify(SHOW)); } else XHIDE = on ? XHIDE.filter(x => x !== c) : [...XHIDE.filter(x => x !== c), c];

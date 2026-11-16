@@ -30,7 +30,7 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16m", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16n", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
     if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
@@ -58,7 +58,7 @@ export default {
         fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: sv }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
       ]);
       const users = (ur.users || []).map(u => ({ id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id }));
-      return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length });
+      return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length });
     }
     // Zug-Wächter prüfen (nur Admin, eigene Züge): zeigt Schritt für Schritt, was die Bahn antwortet – ohne Benachrichtigung
     if (route === "/admin/train") {
@@ -125,12 +125,15 @@ export default {
     // 3) Tageslimit
     // Neue Supabase-Schlüssel (sb_secret_…) nur als apikey senden; alte JWT-Schlüssel zusätzlich als Bearer
     const svc = { apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json", ...(env.SUPABASE_SERVICE_KEY.startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
-    const today = new Date().toISOString().slice(0, 10);
-    const u = await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=eq.${user.id}&day=eq.${today}&select=task,calls`, { headers: svc });
-    const rows = u.ok ? await u.json() : [];
+    const today = new Date().toISOString().slice(0, 10), month = today.slice(0, 8) + "01";
+    const u = await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=eq.${user.id}&day=gte.${month}&select=day,task,calls,tok_in,tok_out`, { headers: svc });
+    const mrows = u.ok ? await u.json() : [], rows = mrows.filter(r => r.day === today);
     const used = rows.reduce((s, r) => s + r.calls, 0), usedImg = rows.filter(r => String(r.task).startsWith("bilder")).reduce((s, r) => s + r.calls, 0);
-    if (used >= +(env.DAILY_LIMIT || 40)) return out(429, { code: "rate_limited", message: "Tageslimit erreicht" });
-    if (images.length && usedImg >= +(env.IMAGE_DAILY_LIMIT || 10)) return out(429, { code: "rate_limited", message: "Tageslimit für Bilder erreicht" });
+    const mCalls = mrows.reduce((s, r) => s + r.calls, 0), mTok = mrows.reduce((s, r) => s + (r.tok_in || 0) + (r.tok_out || 0), 0);
+    const L = { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000) };
+    if (used >= L.day) return out(429, { code: "rate_limited", message: `Tageslimit erreicht (${L.day} KI-Anfragen) – morgen geht es weiter.` });
+    if (images.length && usedImg >= L.img) return out(429, { code: "rate_limited", message: `Tageslimit für Tickets/Bilder erreicht (${L.img}) – morgen geht es weiter. Ohne Anhang klappt es weiterhin.` });
+    if (mCalls >= L.month || mTok >= L.tok) return out(429, { code: "rate_limited", message: "Monatslimit für KI-Anfragen erreicht – ab dem 1. geht es weiter. Das Formular funktioniert weiterhin." });
 
     // 4) Modell fragen
     let model = tier === "quick" ? env.MODEL_QUICK : env.MODEL_DEFAULT;
