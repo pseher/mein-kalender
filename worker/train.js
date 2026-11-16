@@ -29,7 +29,10 @@ export async function trainCheck(env, w, prev, now, tz = "Europe/Berlin", dbg) {
     let x0 = null, found = [];
     for (const q of [w.st, `${w.st} (tief)`, `${w.st}*`]) { const x = await tt(env, `/station/${encodeURIComponent(q)}`); if (x) { x0 = x0 || x;
       for (const m of x.matchAll(/<station\b([^>]*?)\/?>/g)) { const a = attrs(m[1]); if (a.eva && !found.some(f => f.eva === a.eva)) found.push(a); } } }
-    found = found.slice(0, 4);
+    // bekannte Zusatznummern, die die Suche nicht liefert (Berlin Hbf tief / S-Bahn)
+    const EXTRA = { "8011160": ["8098160", "8089021"] };
+    for (const f of [...found]) for (const e of EXTRA[f.eva] || []) if (!found.some(x => x.eva === e)) found.push({ eva: e, name: `${f.name} (${e === "8098160" ? "tief" : "S"})` });
+    found = found.slice(0, 5);
     // Große Bahnhöfe haben weitere Nummern im Feld „meta“ (z. B. Berlin Hbf oben/tief/S-Bahn) – die Fahrten liegen oft dort
     const sts = []; for (const x of found) for (const e of [x.eva, ...String(x.meta || "").split("|").filter(Boolean)]) if (!sts.some(y => y.eva === e)) sts.push({ eva: e, name: e === x.eva ? x.name : `${x.name} [${e}]` });
     dbg?.push(`Bahnhof „${w.st}“: ${found.map(x => `${x.name} (${x.eva}${x.meta ? ", weitere: " + x.meta.replace(/\|/g, ", ") : ""})`).join("; ") || (x0 === null ? `Abfrage fehlgeschlagen (${LASTERR})` : "nichts gefunden")}`);
