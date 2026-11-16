@@ -2471,7 +2471,8 @@ const ntIOSNeedsInstall = () => /iphone|ipad|ipod/i.test(navigator.userAgent) &&
 const swReady = () => Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 3000))]);
 const unb64u = s => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 const subId = ep => { let h = 0; for (const c of ep) h = (h * 31 + c.charCodeAt(0)) | 0; return "s" + (h >>> 0).toString(36) + ep.length.toString(36); };
-async function ntRefresh() { if (!ntSupported()) return null; try { const reg = await swReady(); ntSub = reg ? await reg.pushManager.getSubscription() : null; } catch { ntSub = null; }
+let ntChecked = false;
+async function ntRefresh() { if (!ntSupported()) return null; try { const reg = await swReady(); ntSub = reg ? await reg.pushManager.getSubscription() : null; } catch { ntSub = null; } ntChecked = true; try { renderHints(); } catch {}
   const v = $("mi-notify-v"); if (v) v.textContent = ntSub && Notification.permission === "granted" ? "an" : ""; return ntSub; }
 function ntStart() {
   if (!APP || !canWrite) return; const mi = $("mi-notify"); if (mi) mi.hidden = false;
@@ -2796,7 +2797,9 @@ function showEvent(o) {
     (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  const qcol = canWrite && !e.gReadOnly ? `<div class="qcol"><div class="qcol-h"><b>🎨 Farbe</b><button type="button" class="link" id="set-farben">Farbe für alle „${esc(TYPES[e.type]?.label || "Einträge")}“ ändern</button></div>
+    <div class="fcols sm" role="radiogroup" aria-label="Farbe dieses Eintrags">${[["", "Wie die Art", ""], ...ECOL].map(([cid, n, hex]) => `<button type="button" role="radio" class="fcol" data-qcol="${id}|${cid}" title="${n}" aria-label="${n}" aria-checked="${(e.color || "") === cid}" style="background:${hex || catColor(catOf(e) || e.type)}">${hex ? "" : "A"}</button>`).join("")}</div></div>` : "";
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
@@ -2870,6 +2873,7 @@ function showForm(e, preset) {
       <div class="rep-c" id="f-repc-wrap"${!REPEAT[v.repeat] && repSpec(v.repeat) ? "" : " hidden"}><span>alle</span><input id="f-repn" type="number" inputmode="numeric" min="1" max="99" value="${repSpec(v.repeat)?.n || 2}"><select id="f-repu">${Object.entries(REP_U).map(([u, [, pl]]) => `<option value="${u}"${(repSpec(v.repeat)?.u || "w") === u ? " selected" : ""}>${pl}</option>`).join("")}</select></div>
       <div id="f-until-wrap" class="f-until"><label for="f-until">Wiederholung endet am <small>(optional)</small></label><input id="f-until" type="date" value="${esc(v.until)}"></div>
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small"><span id="f-att-t">📎 Ticket / Buchung anhängen</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
+        <button type="button" class="link" id="f-mail-btn">📧 Mail-Text einfügen</button>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
@@ -3121,6 +3125,13 @@ async function gCreate(v) {
   try { const inp = gInput(v), r = gRecur(v); if (r) inp.recurrenceData = r;
     const res = await mcp.callTool(GSERVER, "create_event", inp); const id = gIdOf(res?.payload); if (!id) gWarn++; return id; }
   catch { gWarn++; return ""; }
+}
+async function quickColor(eid, cid) {
+  const e = EV.find(x => x.id === eid); if (!e) return; use("farbe_schnell");
+  e.color = cid; try { await COLL("events").doc(eid).update({ color: cid }); } catch (err) { toast(writeErr(err)); return; }
+  if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e, color: cid }).then(() => gResync(400)).catch(() => {});
+  renderAll(); const o = sheetCtx?.id === eid ? findOcc(eid, sheetCtx.a) : null; if (o && sheetMode === "event") showEvent(o);
+  toast(cid ? "Farbe geändert" : "Wieder in der Farbe der Art");
 }
 // einmalig: mehrtägige Einträge mit Uhrzeit, die früher nur als 1 Stunde am ersten Tag in Google standen, über alle Tage ziehen
 async function gFixSpans() {
@@ -3625,7 +3636,8 @@ async function gSync(quiet) {
   resetGoogleWatches(); if (!quiet) toast("Mit Google abgeglichen");
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState !== "visible" || !mcp) return;
-  if (gState !== "ok" && !FATAL.includes(gState)) { gTry = 0; initGoogle(); } else if (Date.now() - gSyncAt > 10 * 60e3) gSync(true); });
+  if (gState !== "ok" && !FATAL.includes(gState)) { gTry = 0; initGoogle(); } else if (Date.now() - gSyncAt > 2 * 60e3) gSync(true); });
+setInterval(() => { if (document.visibilityState === "visible" && mcp && gState === "ok" && Date.now() - gSyncAt > 5 * 60e3 && $("sheet")?.hidden) gSync(true); }, 60e3);
 // Google robuster: zuletzt bekannte Kalender und Termine sofort zeigen, im Hintergrund neu laden, bei Hängern erneut versuchen
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: "timeout" }), ms))]);
 const FATAL = ["api_disabled", "needs_reauth", "server_not_connected", "not_in_manifest", "blocked_by_policy", "approval_required", "selection_required", "not_granted", "capability_disabled", "capability_removed"];
@@ -3834,7 +3846,18 @@ function showA2hs() {
 function renderFirst() { const f = $("first-card"); if (!f) return;
   const n0 = store.get("ft-first"); f.hidden = !n0 || dbState !== "ready" || !canWrite || EV.length > +n0; }
 function renderHints() { renderHints0(); let one = false; document.querySelectorAll(".hint-card").forEach(c => { if (!c.hidden) { if (one) c.hidden = true; one = true; } }); }
+let relInstalled = false;
+if (APP && !IS_STANDALONE && navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(a => { relInstalled = !!a?.length; try { renderHints(); } catch {} }).catch(() => {});
+const laterK = (k, days) => { const v = +(store.get(k) || 0); return v && Date.now() - v < days * 864e5; };
+function renderDevCards() {
+  const ok = APP && dbState === "ready" && canWrite && PROFILE.setupDone, set = (id, on) => { const c = $(id); if (c) c.hidden = !on; };
+  set("app-card", ok && IS_MOBILE && !IS_STANDALONE && (relInstalled || store.get("ft-a2hs") === "done") && !laterK("ft-appcard", 3));
+  const usedG = !!(PROFILE.gcalAsked || PROFILE.gcalSel?.length);
+  set("gdev-card", ok && !!mcp && usedG && ["needs_reauth", "server_not_connected"].includes(gState) && !laterK("ft-gdev", 3));
+  set("ntdev-card", ok && ntSupported() && !ntIOSNeedsInstall() && ntChecked && !(ntSub && Notification.permission === "granted") && !laterK("ft-ntdev", 5));
+}
 function renderHints0() {
+  renderDevCards();
   const ic = $("inv-card"); if (ic) { ic.hidden = !shrAcc?.from || dbState !== "ready"; if (!ic.hidden) $("inv-card-t").textContent = `${shrAcc.from} möchte Termine mit dir teilen`; }
   renderFirst();
   const si = $("signin-card"), a2 = $("a2hs-card"); if (!si || !a2) return;
@@ -3856,7 +3879,8 @@ function applyProfile(v) {
   renderAll();
 }
 function maybeSetup() { if (PROFILE.setupDone && !PROFILE.gcalAsked && (store.get("ft-gcal-asked") || store.get("ft-gcal-sel"))) gProfSave({ gcalAsked: true, ...(store.get("ft-gcal-sel") ? { gcalSel: [...selectedCals()] } : {}) }); if (!PROFILE.setupDone && !setupShown && canWrite && dbState !== "error") { setupShown = true; startSetup(); }
-  else if (APP && PROFILE.setupDone && canWrite && pendingInvite() && !setupShown) { setupShown = true; setTimeout(takeInvite, 600); } }
+  else if (APP && PROFILE.setupDone && canWrite && pendingInvite() && !setupShown) { setupShown = true; setTimeout(takeInvite, 600); }
+  else if (APP && PROFILE.setupDone && canWrite) { let sh = ""; try { sh = sessionStorage.getItem("mk-share") || ""; } catch {} if (sh) setTimeout(takeShare, 700); } }
 const stOpts = (cur, none) => (none ? `<option value=""${!cur ? " selected" : ""}>${none}</option>` : "") + STATES.map(([c, n]) => `<option value="${c}"${cur === c ? " selected" : ""}>${n}</option>`).join("");
 const ROLES = [["partner", "Partner/in"], ["kind", "Kind"], ["mutter", "Mutter"], ["vater", "Vater"], ["geschwister", "Geschwister"], ["andere", "Familie"], ["freund", "Freund/in"]];
 let WZ = null;
@@ -4237,6 +4261,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-ftype]"))) { const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
+  if ((el = q("[data-qcol]"))) { const [eid, cid] = el.dataset.qcol.split("|"); quickColor(eid, cid); return; }
   if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
   if ((el = q("#f-more"))) { fMore = !fMore; syncFormFields(); return; }
   if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
@@ -4286,6 +4311,14 @@ document.addEventListener("click", ev => {
     case "f-cancel": sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
     case "f-dup": { const v = formVals(); v.gEventId = ""; showForm(v); toast("Kopie: Daten anpassen und speichern"); break; }
     case "a-go": runAssistant(); break;
+    case "f-mail-btn": switchEntry("text"); setTimeout(() => { const i = $("a-in"); if (i) { i.placeholder = "Hier den Text der Buchungsbestätigung einfügen (lange tippen → Einfügen) – ich trage dann alles ein."; i.focus(); } }, 50); break;
+    case "mi-help": showHelp(); break;
+    case "help-go": helpAsk(); break;
+    case "card-app-x": store.set("ft-appcard", String(Date.now())); renderHints(); break;
+    case "card-gdev-go": window.mkConnectGoogle?.(); break;
+    case "card-gdev-x": store.set("ft-gdev", String(Date.now())); renderHints(); break;
+    case "card-nt-go": notifyOn().then(() => renderHints()).catch(() => showNotify()); break;
+    case "card-nt-x": store.set("ft-ntdev", String(Date.now())); renderHints(); break;
     case "a-form": showForm(null, iso(TODAY)); break;
     case "a-day-x": ASST_DAY = ASST_TO = null; $("a-day")?.remove(); break;
     case "a-apply": applyAssistant(); break;
@@ -4660,4 +4693,73 @@ renderAll();
   window.addEventListener("pageshow", check);
 })();
 
+// Neue Version: beim Zurückkehren in die App still neu laden (nie mitten in einer Eingabe), sonst ein Hinweis zum Antippen
+(function verWatch() {
+  if (!APP || !window.MK_BUILD) return;
+  let pending = false;
+  const busy = () => !$("sheet")?.hidden || ($("wz") && !$("wz").hidden) || !!moving || rgActive || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+  const reload = () => { try { sessionStorage.setItem("ft-updated", "1"); } catch {} location.reload(); };
+  const bar = () => { if ($("upd-bar")) return; const b = document.createElement("button"); b.type = "button"; b.id = "upd-bar"; b.className = "upd-bar"; b.textContent = "✨ Neue Version – tippen zum Aktualisieren"; b.onclick = reload; document.body.appendChild(b); };
+  const check = async auto => {
+    if (!pending) { try { const r = await fetch("/app/version.json?t=" + Date.now(), { cache: "no-store" }); const j = await r.json(); if (j?.b && j.b !== window.MK_BUILD) pending = true; } catch {} }
+    if (!pending) return; if (auto && !busy()) reload(); else bar();
+  };
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(true); });
+  setInterval(() => { if (document.visibilityState === "visible") check(false); }, 15 * 60e3);
+  setTimeout(() => check(false), 30e3);
+  try { if (sessionStorage.getItem("ft-updated")) { sessionStorage.removeItem("ft-updated"); setTimeout(() => toast("✨ Mein Kalender ist auf dem neuesten Stand"), 1200); } } catch {}
+})();
+// Geteilter Text (Android: „Teilen → Kalender“ aus Mail oder WhatsApp) – nach dem Start im Freitext auswerten
+(function shareIn() {
+  if (!APP) return; const q = new URLSearchParams(location.search), t = [q.get("title"), q.get("text"), q.get("url")].filter(Boolean).join("\n").trim();
+  if (!t) return; try { sessionStorage.setItem("mk-share", t.slice(0, 20000)); } catch {}
+  ["title", "text", "url"].forEach(k => q.delete(k)); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
+})();
+document.addEventListener("paste", ev => {
+  if (ev.target?.id !== "f-title" || !sample || !canWrite || editing) return;
+  const t = (ev.clipboardData?.getData("text") || "").trim(); if (t.length < 90 && !/\n.*\n/.test(t)) return;
+  ev.preventDefault(); use("formular_zu_freitext"); switchEntry("text");
+  setTimeout(() => { const i = $("a-in"); if (!i) return; i.value = t; toast("Sieht nach einer Mail oder Buchung aus – ich lese sie für dich aus …"); $("a-go")?.click(); }, 80);
+});
+const HELP = [
+  ["Wie trage ich eine Buchung oder Mail ein?", "Unten auf „+ Eintragen“ tippen, oben „✍️ Freitext“ wählen und den Text der Mail einfügen (lange ins Feld tippen → Einfügen). Dann „Umwandeln“. Ein PDF oder Foto vom Ticket lädst du mit „📎 Ticket, Foto oder PDF“ hoch. Auf Android geht es noch schneller: in der Mail auf „Teilen“ und „Kalender“ wählen."],
+  ["Wie ändere ich die Farbe?", "Einen Eintrag antippen – unter „🎨 Farbe“ eine Farbe wählen. Für alle Einträge einer Art (z. B. alle Reisen): Menü ☰ → Anzeigen → Farben nach Art."],
+  ["Wie gleiche ich mit Google ab?", "Das passiert von selbst: beim Öffnen der App und alle paar Minuten. Was du hier einträgst, landet auch in deinem Google Kalender – und damit in allen Kalender-Apps, die Google anzeigen (z. B. Business Kalender). Der Punkt am „G“ oben zeigt: grün = verbunden. Auf jedem Gerät musst du Google einmal verbinden."],
+  ["Warum bekomme ich keine Benachrichtigungen?", "Benachrichtigungen gelten pro Gerät. Menü ☰ → Benachrichtigungen → „Einschalten“ – auf jedem Handy, Tablet oder PC, auf dem du erinnert werden möchtest."],
+  ["Wie bekomme ich die neueste Version?", "Die App aktualisiert sich selbst, sobald du sie wieder öffnest. Erscheint unten „Neue Version“, einfach antippen."],
+  ["Wie lösche ich einen Eintrag?", "Eintrag antippen → unten rechts „Löschen“. Bei einer Serie fragt die App, ob nur dieser Termin, alle folgenden oder die ganze Serie gelöscht werden soll."],
+  ["Wie trage ich einen Termin alle 2 Wochen / alle 3 Jahre ein?", "Im Formular unter „Mehr Optionen“ bei „Wiederholung“ eine Auswahl treffen oder „anders …“ wählen – dann z. B. „alle 3 Jahre“. Darunter kannst du ein Ende festlegen."],
+  ["Geht das Tablet auch quer?", "Ja – einfach drehen. Im Querformat siehst du den ganzen Monat breiter."],
+];
+const HELP_GUIDE = `Du bist die Hilfe der App „Mein Kalender“ (deutschsprachige Kalender-App, als App auf Handy/Tablet/PC). Antworte kurz (2–5 Sätze), freundlich, in einfachen Worten für ältere Menschen, mit konkreten Tipp-Schritten. Erfinde keine Funktionen.
+Bedienung: Unten rechts „+ Eintragen“ öffnet die Eingabe mit zwei Reitern: „✍️ Freitext“ (einfach schreiben oder Mail/WhatsApp/Buchung einfügen, auch PDF/Foto anhängen; die KI trägt ein) und „📋 Formular“ (Art wählen: Termin, Reise, Urlaub, Dienst, Abholen, Hinweis, Geburtstag, Umgang, Jahrestag, Frist, Kontakt; Felder ausfüllen; „Mehr Optionen“ für Wiederholung, Farbe, Notiz, Google-Kalender, Teilen).
+Einen Eintrag antippen zeigt Details mit Knöpfen: Bearbeiten, Verschieben, Mit … teilen, Als Bild/Text, Packliste (Reisen), Route, Löschen; darüber „🎨 Farbe“ für diesen Eintrag.
+Menü ☰ oben rechts: Anzeigen (Ansichten, Farben nach Art), Google Kalender (Kalender auswählen, abgleichen), Familie & Liebste (Geburtstage, Geschenkideen), Dokumente, Teilen mit …, Benachrichtigungen (pro Gerät einschalten), Hilfe.
+Ansichten oben: Monat, 2 Wochen, Woche, Liste, Jahr. Tage antippen oder mehrere Tage wischen, um für diesen Zeitraum einzutragen.
+Google: Abgleich automatisch beim Öffnen und alle paar Minuten; Einträge erscheinen auch im Google Kalender und darüber in anderen Kalender-Apps (z. B. Business Kalender). Google muss pro Gerät einmal verbunden werden (Punkt am „G“ oben: grün = verbunden).
+Züge und Flüge: steht eine Zugnummer (z. B. IC 2238) mit Bahnhof und Uhrzeit oder eine Flugnummer im Eintrag, beobachtet die App sie live und meldet Verspätung, Gleis- oder Gate-Wechsel.
+Updates kommen automatisch beim Öffnen. Wiederholungen: täglich bis „alle 3 Jahre“, über „anders …“ frei wählbar. Serien löschen: nur dieser, alle folgenden oder ganze Serie.`;
+function showHelp(open) {
+  closeMenu?.(); use("hilfe");
+  openSheet("Hilfe", "Wie geht …?", `<div class="help">
+    ${sample ? `<div class="help-ask"><textarea class="in" id="help-in" rows="2" placeholder="Deine Frage, z. B. „Wie trage ich meine Bahnfahrt ein?“"></textarea><button type="button" class="btn accent" id="help-go">Fragen</button></div><div id="help-out" role="status"></div>` : ""}
+    <div class="sg-t">Häufige Fragen</div>
+    ${HELP.map(([q, a], i) => `<details class="help-q"${open === i ? " open" : ""}><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}
+  </div>`, "help");
+}
+async function helpAsk() {
+  const q = ($("help-in")?.value || "").trim(), out = $("help-out"); if (!q || !out || !sample) return;
+  const hit = HELP.find(([h]) => h.toLowerCase().replace(/[?„“]/g, "") === q.toLowerCase().replace(/[?„“]/g, ""));
+  if (hit) { out.innerHTML = `<p class="help-a">${esc(hit[1])}</p>`; return; }
+  out.innerHTML = `<p class="note">Einen Moment …</p>`; use("hilfe_ki");
+  try { window.MK_TASK = "hilfe"; const r = await sample(`${HELP_GUIDE}\n\nHäufige Fragen und Antworten:\n${HELP.map(([a, b]) => `- ${a} ${b}`).join("\n")}\n\nFrage des Nutzers: ${q.slice(0, 600)}\nAntworte nur mit der Antwort (Klartext, keine Überschriften).`, { modelTier: "quick" });
+    out.innerHTML = `<p class="help-a">${esc((r.text || "").trim()).replace(/\n/g, "<br>")}</p>`; }
+  catch (err) { out.innerHTML = `<p class="err">${err?.code === "rate_limited" ? esc(RL(err)) : "Das hat gerade nicht geklappt – schau bei den häufigen Fragen unten."}</p>`; }
+}
+function takeShare() {
+  let t = ""; try { t = sessionStorage.getItem("mk-share") || ""; sessionStorage.removeItem("mk-share"); } catch {}
+  if (!t || !sample || !canWrite) return false;
+  use("teilen_empfangen"); ASST_DAY = null; ASST_TO = null; showAssistant(); const i = $("a-in"); if (i) i.value = t;
+  setTimeout(() => $("a-go")?.click(), 300); return true;
+}
 applyPages();

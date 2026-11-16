@@ -2,3 +2,7 @@
   Cache-Control: no-cache
 /app/
   Cache-Control: no-cache
+/app/version.json
+  Cache-Control: no-store
+/app/manifest.webmanifest
+  Cache-Control: no-cache

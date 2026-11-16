@@ -4,7 +4,9 @@ set -e
 D="$(cd "$(dirname "$0")" && pwd)"; OUT="$1/app"
 mkdir -p "$OUT"
 cp "$D/manifest.webmanifest" "$OUT/manifest.webmanifest"
-sed "s/__BUILD__/$(date -u +%Y%m%d%H%M%S)/" "$D/sw.js" > "$OUT/sw.js"
+B="$(date -u +%Y%m%d%H%M%S)"
+sed "s/__BUILD__/$B/" "$D/sw.js" > "$OUT/sw.js"
+printf '{"b":"%s"}\n' "$B" > "$OUT/version.json"
 cp "$D/vendor/supabase.js" "$OUT/supabase.js"
 cp "$D/vendor/591.supabase.js" "$OUT/591.supabase.js"
 mkdir -p "$OUT/vendor/fonts" "$OUT/vendor/pdfjs"; cp "$D"/vendor/fonts/*.woff2 "$OUT/vendor/fonts/"; cp "$D"/vendor/pdfjs/*.js "$OUT/vendor/pdfjs/"
@@ -19,7 +21,7 @@ mkdir -p "$OUT/vendor/fonts" "$OUT/vendor/pdfjs"; cp "$D"/vendor/fonts/*.woff2 "
   printf '@font-face{font-family:"Fraunces";font-weight:600;font-display:swap;src:url(/app/vendor/fonts/fraunces-latin-600-normal.woff2) format("woff2")}\n'
   printf '@font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}\n'
   printf '</style>\n'
-  printf '<script src="/app/supabase.js"></script>\n<script>window.MK_CFG = %s;</script>\n' "$(cat "$D/app-config.json")"
+  printf '<script src="/app/supabase.js"></script>\n<script>window.MK_CFG = %s; window.MK_BUILD = "%s";</script>\n' "$(cat "$D/app-config.json")" "$B"
   printf '<script>\n'; cat "$D/shim-app.js"; printf '</script>\n'
   printf '</head><body>\n'
   grep -v "fonts.googleapis.com" "$D/page.html"
