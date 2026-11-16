@@ -1742,7 +1742,7 @@ const titleNoPlace = t => { const w = String(t).trim().split(/\s+/);
   const k = osmKey(t); if (noPlace().has(k) || umgSet().has(umgKey(t))) return true;
   return OCC.filter(o => osmKey(o.ev.title) === k).length >= 4 && w.length <= 2; };   // kurzer Titel, der ständig wiederkommt → Dienst/Schicht
 // Abkürzungen ausschreiben, damit „Magdeburg Hbf“ den „Magdeburg Hauptbahnhof“ findet
-const osmExpand = t => String(t).replace(/\bhbf\.?(?=\s|$)/gi, "Hauptbahnhof").replace(/\b(bhf|bf)\.?(?=\s|$)/gi, "Bahnhof").replace(/\bflugh\.?(?=\s|$)/gi, "Flughafen").replace(/\bstr\.(?=\s|$)/gi, "Straße").replace(/\bpl\.(?=\s|$)/gi, "Platz").replace(/\bkh\b/gi, "Krankenhaus");
+const osmExpand = t => String(t).replace(/\bhbf\.?(?=[\s,;:)]|$)/gi, "Hauptbahnhof").replace(/\b(bhf|bf)\.?(?=[\s,;:)]|$)/gi, "Bahnhof").replace(/\bflugh\.?(?=\s|$)/gi, "Flughafen").replace(/\bstr\.(?=\s|$)/gi, "Straße").replace(/\bpl\.(?=\s|$)/gi, "Platz").replace(/\bkh\b/gi, "Krankenhaus");
 const osmOk = () => ["termin", "trip", "urlaub"].includes($("f-type")?.value);
 async function osmSearch(q, fromTitle) {
   const box = $("f-place-sug"); if (!box) return;
