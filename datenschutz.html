@@ -27,6 +27,7 @@
 <tr><td>Google-Kalender-Termine</td><td>bleiben bei Google</td><td>anzeigen, eintragen, ändern – direkt aus deinem Browser</td></tr>
 <tr><td>KI-Funktionen</td><td>Cloudflare Worker → Anthropic (Claude)</td><td>Texte, Bilder und Dokumente auswerten, die du dafür abschickst</td></tr>
 <tr><td>Ortsvorschläge</td><td>Photon (komoot, Deutschland) mit OpenStreetMap-Daten</td><td>Adressen zu Orten finden</td></tr>
+<tr><td>Flug-Echtzeitdaten</td><td>AirLabs (AirLabs, Inc.)</td><td>Verspätung, Gate, Gepäckband und Landung von Flügen in deinen Terminen</td></tr>
 <tr><td>Zug-Echtzeitdaten</td><td>DB Timetables API (Deutsche Bahn, DB API Marketplace)</td><td>Verspätung, Gleis und Ausfall von Zügen in deinen Terminen</td></tr>
 <tr><td>Zwischenspeicher</td><td>nur auf deinem Gerät</td><td>schneller Start, Offline-Nutzung</td></tr>
 </table>
@@ -65,7 +66,7 @@
 <h2>8a. Nutzungsstatistik</h2>
 <p>Damit wir sehen, welche Funktionen gebraucht werden und was die KI-Funktionen kosten, zählen wir pseudonym: pro Tag und Konto, wie oft eine Funktion genutzt wurde (z. B. „Freitext“, „Aufgabe“, „Packliste“), und bei KI-Anfragen die Anzahl der verarbeiteten Tokens und das verwendete Modell. <b>Inhalte</b> wie Termintitel, Texte oder Dokumente werden dabei <b>nicht</b> gespeichert. Die Zahlen liegen in unserer Datenbank (Supabase, EU) und werden nicht an Dritte gegeben; es gibt kein Tracking durch fremde Dienste. Rechtsgrundlage ist unser berechtigtes Interesse an Betrieb, Verbesserung und Kostenplanung des Dienstes (Art. 6 Abs. 1 lit. f DSGVO). Beim Löschen des Kontos werden auch diese Zahlen gelöscht.</p>
 <h2>8b. Züge live</h2>
-<p>Steht in einem Termin mit Uhrzeit eine Zugnummer (z. B. „IC 1934“) und ein Bahnhof, prüft unser Server ab etwa 2,5 Stunden vorher alle paar Minuten die Echtzeitdaten dieses Zuges und meldet dir Verspätung, Gleiswechsel oder Ausfall als Benachrichtigung. Dafür fragt der Server bei der offiziellen Fahrplan-Schnittstelle der Deutschen Bahn (<b>DB Timetables API</b>) nur Bahnhof, Zugnummer und Uhrzeit ab – ohne deinen Namen, deine Termintitel oder andere Angaben über dich. Du kannst das unter ☰ → Benachrichtigungen („Züge live“) ausschalten.</p>
+<p>Steht in einem Termin mit Uhrzeit eine Zugnummer (z. B. „IC 1934“) und ein Bahnhof, prüft unser Server ab etwa 2,5 Stunden vorher alle paar Minuten die Echtzeitdaten dieses Zuges und meldet dir Verspätung, Gleiswechsel oder Ausfall als Benachrichtigung. Dafür fragt der Server bei der offiziellen Fahrplan-Schnittstelle der Deutschen Bahn (<b>DB Timetables API</b>) nur Bahnhof, Zugnummer und Uhrzeit ab – ohne deinen Namen, deine Termintitel oder andere Angaben über dich. Genauso fragt er bei Flügen (Flugnummer in einem Abhol-/Bring- oder Flug-Eintrag) beim Dienst <b>AirLabs</b> nur die Flugnummer ab. Du kannst das unter ☰ → Benachrichtigungen („Züge live“) ausschalten.</p>
 <h2>9. Speicher auf deinem Gerät</h2>
 <p>Damit die App schnell startet und auch ohne Netz funktioniert, speichert dein Browser App-Dateien (Service Worker), Einstellungen, Google-Termine und Ortsvorschläge lokal. Diese Daten sind für den Betrieb der App unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG). Beim Abmelden werden die Google-Zugangsdaten gelöscht; den übrigen Speicher kannst du über die Browser-Einstellungen leeren.</p>
 

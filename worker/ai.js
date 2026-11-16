@@ -10,6 +10,7 @@
 
 import { vapid, runSchedule, testPush } from "./push.js";
 import { trainCheck } from "./train.js";
+import { flightCheck } from "./flight.js";
 
 const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
@@ -29,7 +30,7 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const route = new URL(req.url).pathname;
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
-    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16k", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
+    if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: "2026-11-16l", model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
     if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
@@ -66,7 +67,7 @@ export default {
       const rows = await fetch(`${env.SUPABASE_URL}/rest/v1/docs?user_id=eq.${user.id}&coll=eq.push&id=in.(plan,sent)&select=id,data`, { headers: sv }).then(r => r.ok ? r.json() : []);
       const plan = rows.find(r => r.id === "plan")?.data || {}, sent = rows.find(r => r.id === "sent")?.data || {};
       const res = [];
-      for (const w of (plan.watch || []).filter(w => Date.parse(w.at) > Date.now() - 30 * 60e3).slice(0, 6)) { const dbg = []; try { const r = await trainCheck(env, w, {}, Date.now(), plan.tz, dbg); res.push({ w, dbg, msgs: r.msgs, state: sent.trains?.[w.id] || null }); } catch (e) { res.push({ w, dbg: [...dbg, "Fehler: " + String(e).slice(0, 120)] }); } }
+      for (const w of (plan.watch || []).filter(w => Date.parse(w.at) > Date.now() - 30 * 60e3).slice(0, 6)) { const dbg = []; try { const r = await (w.mode === "flug" ? flightCheck : trainCheck)(env, w, {}, Date.now(), plan.tz, dbg); res.push({ w, dbg, msgs: r.msgs, state: sent.trains?.[w.id] || null }); } catch (e) { res.push({ w, dbg: [...dbg, "Fehler: " + String(e).slice(0, 120)] }); } }
       return out(200, { planAt: plan.at || plan.updated || null, pref: plan.pref || {}, watch: res, lastRun: sent.at || null });
     }
     if (route === "/push/test") return out(200, await testPush(env, user.id).catch(e => ({ ok: false, code: "error", detail: String(e).slice(0, 120) })));

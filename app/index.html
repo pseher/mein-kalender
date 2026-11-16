@@ -3758,7 +3758,7 @@ async function showNotify(msg) {
       ${tg("bd", "Geburtstage, Fristen & Reisen", "am Tag selbst, mit Vorlauf („schon ein Geschenk?“) und vor Reisen („Packliste checken“)")}
       ${tg("fest", "Weihnachten, Mutter- & Vatertag", "rechtzeitig an Geschenke für deine Liebsten denken")}
       ${tg("shared", "Geteilte Termine", "wenn jemand etwas mit dir teilt, ändert oder löscht")}
-      ${tg("train", "🚆 Züge live", "Verspätung, Gleiswechsel oder Ausfall – wenn im Termin eine Zugnummer steht (z. B. „IC 1934“) und ein Bahnhof als Ort")}
+      ${tg("train", "🚆✈️ Züge &amp; Flüge live", "Verspätung, Gleis/Gate, Gepäckband oder Ausfall – wenn im Termin eine Zug- oder Flugnummer steht (z. B. „RE 4“, „LH 123“)")}
     </div>
     <p class="note">Abfahrtszeit mit echter Fahrzeit („jetzt losfahren“) kann die App noch nicht berechnen – stell die Erinnerung dafür z. B. auf 1 Std. vorher und tippe auf „Route“.</p></div>`, "notify");
 }
@@ -3845,27 +3845,37 @@ function trainStatusLoop() { clearInterval(TRST_T); TRST_T = setInterval(() => {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") trainStatusLoad(true); });
 // kurzes Zeichen für die Liste
 function trainBadge(o) { const s = TRST[trainKey(o)]; if (!s?.seen) return "";
-  const [c, t, cls] = s.c ? ["❌", "fällt aus", "bad"] : s.d >= 5 ? ["🔴", `+${s.d}`, "bad"] : s.d >= 2 ? ["🟡", `+${s.d}`, "warn"] : ["✅", "", "ok"];
-  return ` <span class="trb ${cls}" title="${esc(s.c ? "Zug fällt aus" : s.d ? `+${s.d} Min.` : "pünktlich")}">${c}${t ? " " + esc(t) : ""}${s.pl ? ` · Gl. ${esc(s.pl)}` : ""}</span>`; }
+  const F = s.flight, hi = F ? 15 : 5, lo = F ? 5 : 2;
+  const [c, t, cls] = s.c ? ["❌", F ? "gestrichen" : "fällt aus", "bad"] : F && s.status === "landed" ? ["🛬", "gelandet", "ok"] : s.d >= hi ? ["🔴", `+${s.d}`, "bad"] : s.d >= lo ? ["🟡", `+${s.d}`, "warn"] : ["✅", "", "ok"];
+  const extra = F ? (s.bag ? ` · Band ${esc(s.bag)}` : s.kind === "dep" && s.pl ? ` · Gate ${esc(s.pl)}` : s.term ? ` · T${esc(s.term)}` : "") : s.pl ? ` · Gl. ${esc(s.pl)}` : "";
+  return ` <span class="trb ${cls}" title="${esc(s.c ? "fällt aus" : s.d ? `+${s.d} Min.` : "pünktlich")}">${c}${t ? " " + esc(t) : ""}${extra}</span>`; }
 // ausführlich im Termin
 function trainDetail(o) {
-  const tr = trainOf(o.ev); if (!tr || !o.ev.time) return ""; const s = TRST[trainKey(o)], st = stationOf(o.ev);
+  const fl = flightOf(o.ev), tr = fl || trainOf(o.ev); if (!tr || !o.ev.time) return ""; const s = TRST[trainKey(o)], st = fl ? (o.ev.place || "").split(",")[0] : stationOf(o.ev), ic = fl ? "✈️" : "🚆";
   const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
   const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-  if (!s?.seen) return at > new Date() ? `<p class="trd">🚆 ${esc(tr)} wird ab ${hm(new Date(at - 150 * 60e3))} Uhr live beobachtet${st ? ` (${esc(st)})` : ""}.</p>` : "";
+  if (!s?.seen) return at > new Date() ? `<p class="trd">${ic} ${esc(tr)} wird ab ${hm(new Date(at - (fl ? 180 : 150) * 60e3))} Uhr live beobachtet${st ? ` (${esc(st)})` : ""}.</p>` : "";
+  if (s.flight) { const plan = new Date(s.pt || at), real = new Date(plan.getTime() + (s.d || 0) * 60e3), what = s.kind === "dep" ? "Abflug" : "Landung";
+    const head = s.c ? `❌ ${esc(tr)} gestrichen` : s.status === "landed" ? `🛬 ${esc(tr)} gelandet` : s.d >= 15 ? `🔴 ${esc(tr)}: +${s.d} Min.` : s.d >= 5 ? `🟡 ${esc(tr)}: +${s.d} Min.` : `✅ ${esc(tr)} planmäßig`;
+    return `<div class="trd"><b>${head}</b><br>${what} ${esc(s.sn || st)}: ${s.d ? `ca. <b>${hm(real)}</b> statt ${hm(plan)}` : hm(plan)}${s.term ? ` · Terminal <b>${esc(s.term)}</b>` : ""}${s.pl ? ` · Gate <b>${esc(s.pl)}</b>` : ""}${s.bag ? ` · Gepäckband <b>${esc(s.bag)}</b>` : ""}${s.chk ? `<br><span class="note">Stand ${hm(new Date(s.chk))} · wird alle 5–15 Min. aktualisiert</span>` : ""}</div>`; }
   const plan = new Date(s.pt || at), real = new Date(plan.getTime() + (s.d || 0) * 60e3), what = s.kind === "dep" ? "Abfahrt" : "Ankunft";
   const head = s.c ? `❌ ${esc(tr)} fällt aus` : s.d >= 5 ? `🔴 ${esc(tr)}: +${s.d} Min.` : s.d >= 2 ? `🟡 ${esc(tr)}: fast pünktlich (+${s.d} Min.)` : `✅ ${esc(tr)} pünktlich`;
   return `<div class="trd"><b>${head}</b><br>${what} ${esc(s.sn || st)}: ${s.c ? `geplant ${hm(plan)}` : s.d ? `jetzt ca. <b>${hm(real)}</b> statt ${hm(plan)}` : hm(plan)}${s.pl ? ` · Gleis <b>${esc(s.pl)}</b>${s.pp && s.pp !== s.pl ? ` (statt ${esc(s.pp)})` : ""}` : ""}${s.chk ? `<br><span class="note">Stand ${hm(new Date(s.chk))} · wird alle 5 Min. aktualisiert</span>` : ""}</div>`;
 }
+// Flugnummer (z. B. LH 123, EW 9452, U2 4567) – nur bei Flug-Einträgen, damit „RE 4“ nicht als Flug gilt
+const FLNO_RE = /\b([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?(\d{1,4})[A-Z]?\b/;
+function flightOf(e) {
+  const isF = e.pick?.mode === "flug" || (e.type === "trip" && (e.flight || e.mode === "flug")) || FLIGHT_RE.test([e.title, e.note].join(" ")) || /landung|flieg/i.test([e.title, e.note].join(" "));
+  if (!isF) return ""; for (const t of [e.pick?.no, e.note, e.title]) { const m = String(t || "").toUpperCase().match(FLNO_RE); if (m && !TRAIN_RE.test(m[0])) return `${m[1]} ${m[2]}`; } return ""; }
 function trainWatch() {
   const W = [], seen = new Set();
   OCC.filter(o => !o.part && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
-    const train = trainOf(o.ev); if (!train) return; const st = stationOf(o.ev); if (!st) return;
+    const fl = flightOf(o.ev), train = fl || trainOf(o.ev); if (!train) return; const st = fl ? (o.ev.place || "").split(",")[0].trim() : stationOf(o.ev); if (!st && !fl) return;
     const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
     const id = `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`; if (seen.has(id)) return; seen.add(id);
     if (at.getTime() < Date.now() - 30 * 60e3) return;   // abgefahrene Züge nicht mehr beobachten
     const tx = [o.ev.title, o.ev.note].join(" "), prefer = /abhol|ankunft|ankommen|kommt an|empfang/i.test(tx) ? "arr" : /abfahrt|losfahren|fahre |hinfahrt|abreise|zug nach/i.test(tx) ? "dep" : "";
-    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer }); });
+    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}) }); });
   return W.slice(0, 6);
 }
 async function pushPlan() {
