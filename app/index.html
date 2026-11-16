@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116214813";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261116215157";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -883,7 +883,13 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .upsec h3 { display: flex; align-items: center; gap: 8px; margin: 4px 6px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .up #sec-focus .nx { grid-template-columns: 44px 1fr; gap: 6px; } .up #sec-focus .nx .when:empty { visibility: hidden; } #sec-focus .ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 .fx-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 8px 2px; } .fx-day:first-child { margin-top: 2px; }
-#sec-focus .tk.fx { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 14px; } #sec-focus .tk.fx .tk-t { flex: 1; }
+#focus-list .fr { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; min-height: 34px; padding: 4px 6px; margin: 0; text-align: left; background: none; border: 0; border-radius: 8px; color: var(--fg); font: inherit; font-size: 15px; cursor: pointer; }
+#focus-list .fr:hover { background: var(--soft); } #focus-list div.fr { cursor: default; }
+.fr-t { font-size: 12.5px; font-weight: 600; color: var(--both); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fr-m { display: flex; justify-content: center; align-items: center; font-size: 14px; } .fr-dot { width: 10px; height: 10px; border-radius: 50%; }
+.fr-x { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; } .fr-x small { color: var(--muted); font-size: 12.5px; }
+.fr-btn { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; } .fr-ck { width: 18px; height: 18px; }
+#focus-list .fx-day { margin: 10px 6px 2px calc(6px + 44px + 8px); } #focus-list .fx-day:first-child { margin-top: 2px; }
 .focus-more { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 4px 2px; } .focus-more:empty { display: none; }
 .fchip { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg); background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px; cursor: pointer; }
 .fchip b { font-size: 11.5px; font-weight: 600; color: var(--muted); } .fchip .chev { font-size: 10px; color: var(--muted); }
@@ -2667,9 +2673,10 @@ function renderFocus() {
   let rems = []; try { rems = (REMS = buildReminders()).map((r, i) => ({ r, i })); } catch {}
   const rm = rems.filter(({ r }) => (r.n <= 1 || remImp(r)) && !(r.o && ev.some(x => x.o === r.o))).map(({ r, i }) => ({ k: "rem", d: r.n > 1 ? null : addDays(TODAY, Math.max(0, r.n)), imp: r.n > 1, r, i }));
   const all = [...ev, ...tk, ...rm], byTime = x => x.k === "ev" ? (x.o.ev.time || "00:00") : x.k === "tk" ? "99" : "98";
-  const row = x => x.k === "ev" ? `<button type="button" class="nx" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="when">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="what"><span class="ev-dot ${x.o.ev.type}" style="background:${colorOf(x.o.ev)}"></span>${esc(evName(x.o.ev))}${trainBadge(x.o)}${placeHint(x.o)}${ageTxt(x.o) ? ` · ${esc(ageTxt(x.o))}` : ""}</span></button>`
-    : x.k === "tk" ? `<div class="tk fx"><input type="checkbox" class="ckb" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(x.t.id)}"><span>${esc(x.t.title)}</span>${dueLbl(x.t.due)}</button></div>`
-    : `<button type="button" class="nx" data-rem="${x.i}"><span class="when">🔔</span><span class="what">${esc(x.r.t)}<small class="note"> · ${esc(x.r.sub || "")}</small></span></button>`;
+  // eine feste Zeile für alles: [Uhrzeit] [Markierung] [Titel] – Termine, Aufgaben und Erinnerungen stehen bündig untereinander
+  const row = x => x.k === "ev" ? `<button type="button" class="fr" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="fr-t">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="fr-m"><span class="fr-dot" style="background:${colorOf(x.o.ev)}"></span></span><span class="fr-x">${esc(evName(x.o.ev))}${trainBadge(x.o)}${placeHint(x.o)}${ageTxt(x.o) ? `<small> · ${esc(ageTxt(x.o))}</small>` : ""}</span></button>`
+    : x.k === "tk" ? `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(x.t.id)}">${esc(x.t.title)}<small> · Aufgabe</small></button></div>`
+    : `<button type="button" class="fr" data-rem="${x.i}"><span class="fr-t">${x.imp && x.r.n > 1 ? `in ${x.r.n} T.` : ""}</span><span class="fr-m" aria-hidden="true">🔔</span><span class="fr-x">${esc(x.r.t)}${x.r.sub ? `<small> · ${esc(x.r.sub)}</small>` : ""}</span></button>`;
   const day = (d, lbl) => { const L = all.filter(x => x.d && sameDay(x.d, d)).sort((a, b) => byTime(a).localeCompare(byTime(b))); return L.length ? `<div class="fx-day">${lbl}</div>${L.map(row).join("")}` : ""; };
   const impL = all.filter(x => x.imp).sort((a, b) => a.r.n - b.r.n);
   const html = day(TODAY, "Heute") + day(end, "Morgen") + (impL.length ? `<div class="fx-day">Wichtig – bald erledigen</div>${impL.map(row).join("")}` : "");

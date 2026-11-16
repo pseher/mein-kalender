@@ -607,7 +607,13 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .upsec h3 { display: flex; align-items: center; gap: 8px; margin: 4px 6px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .up #sec-focus .nx { grid-template-columns: 44px 1fr; gap: 6px; } .up #sec-focus .nx .when:empty { visibility: hidden; } #sec-focus .ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 .fx-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 8px 2px; } .fx-day:first-child { margin-top: 2px; }
-#sec-focus .tk.fx { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 14px; } #sec-focus .tk.fx .tk-t { flex: 1; }
+#focus-list .fr { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; min-height: 34px; padding: 4px 6px; margin: 0; text-align: left; background: none; border: 0; border-radius: 8px; color: var(--fg); font: inherit; font-size: 15px; cursor: pointer; }
+#focus-list .fr:hover { background: var(--soft); } #focus-list div.fr { cursor: default; }
+.fr-t { font-size: 12.5px; font-weight: 600; color: var(--both); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fr-m { display: flex; justify-content: center; align-items: center; font-size: 14px; } .fr-dot { width: 10px; height: 10px; border-radius: 50%; }
+.fr-x { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; } .fr-x small { color: var(--muted); font-size: 12.5px; }
+.fr-btn { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; } .fr-ck { width: 18px; height: 18px; }
+#focus-list .fx-day { margin: 10px 6px 2px calc(6px + 44px + 8px); } #focus-list .fx-day:first-child { margin-top: 2px; }
 .focus-more { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 4px 2px; } .focus-more:empty { display: none; }
 .fchip { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg); background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px; cursor: pointer; }
 .fchip b { font-size: 11.5px; font-weight: 600; color: var(--muted); } .fchip .chev { font-size: 10px; color: var(--muted); }
