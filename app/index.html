@@ -4309,7 +4309,10 @@ async function gUpdate(v) {
 async function gDelete(v) {
   if (!mcp || gState !== "ok") { gWarn++; return; }
   try { const inp = { eventId: v.gEventId, notificationLevel: "NONE" }; if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal; await mcp.callTool(GSERVER, "delete_event", inp); }
-  catch (e) { if (e?.code !== "tool_error") gWarn++; }
+  catch (e) { if (e?.code !== "tool_error") { gWarn++; return; } }
+  // die Google-Kopie sofort auch aus dem lokalen Zwischenspeicher nehmen – sonst taucht sie bis zum nächsten Abgleich als „Google“-Termin wieder auf
+  try { const cal = v.gcal || "primary"; gDropLocal(v.gEventId, cal); if (cal === "primary" && gPrimarySummary) gDropLocal(v.gEventId, gPrimarySummary); } catch {}
+  gResync(2500);
 }
 const gWritable = () => mcp && gState === "ok";
 function gCalOptions(cur) {
