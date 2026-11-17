@@ -762,7 +762,7 @@ button.tb-g { font: inherit; color: inherit; background: transparent; border: 0;
 .top h1 { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .wrap { padding-top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 10px) !important; }
 @media (max-width: 640px) { .wrap { padding-top: 0 !important; } .p0, .p1, .p2 { padding-top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 8px) !important; } .p2 .ov-head { margin-top: 0 !important; } html.snap { scroll-padding-top: 0; } }
-@media (orientation: landscape) and (max-height: 520px) { html.fill .p1 { padding-top: 4px !important; } }
+@media (orientation: landscape) and (max-height: 520px) { html.fill .p1 { padding-top: 4px !important; } html.fill .wrap { padding-top: 0 !important; } html.fill .mt .kwi { display: none; } }   /* Handy quer: Kopfzeile ist ausgeblendet – kein Platz dafür freihalten; KW weg, sonst kollidiert sie mit „+2“ */
 .tb { display: flex; align-items: center; gap: 6px; flex: none; }
 .tb-b { position: relative; height: 36px; min-width: 36px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--soft) 80%, transparent); color: var(--fg); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 10px; font: inherit; }
 .tb-b > * { pointer-events: none; }

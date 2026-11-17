@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117075616";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117080002";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -1038,7 +1038,7 @@ button.tb-g { font: inherit; color: inherit; background: transparent; border: 0;
 .top h1 { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .wrap { padding-top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 10px) !important; }
 @media (max-width: 640px) { .wrap { padding-top: 0 !important; } .p0, .p1, .p2 { padding-top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 8px) !important; } .p2 .ov-head { margin-top: 0 !important; } html.snap { scroll-padding-top: 0; } }
-@media (orientation: landscape) and (max-height: 520px) { html.fill .p1 { padding-top: 4px !important; } }
+@media (orientation: landscape) and (max-height: 520px) { html.fill .p1 { padding-top: 4px !important; } html.fill .wrap { padding-top: 0 !important; } html.fill .mt .kwi { display: none; } }   /* Handy quer: Kopfzeile ist ausgeblendet – kein Platz dafür freihalten; KW weg, sonst kollidiert sie mit „+2“ */
 .tb { display: flex; align-items: center; gap: 6px; flex: none; }
 .tb-b { position: relative; height: 36px; min-width: 36px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--soft) 80%, transparent); color: var(--fg); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 10px; font: inherit; }
 .tb-b > * { pointer-events: none; }
