@@ -61,7 +61,15 @@ window.MK_APP = true;
   const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
   const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
   const keepGoogle = s => { if (!s?.provider_token) return; lsSet(GK.at, s.provider_token); lsSet(GK.exp, String(Date.now() + 50 * 60e3)); if (s.provider_refresh_token) lsSet(GK.rt, s.provider_refresh_token); };
-  window.mkSignOut = async () => { try { await sb.auth.signOut(); } catch {} location.reload(); };
+  // Abmelden: auch wenn der Server nicht antwortet, die Sitzung auf diesem Gerät sicher entfernen
+  window.mkSignOut = async () => {
+    startedWith = undefined;   // kein zweites Neuladen durch das Abmelde-Ereignis
+    try { const r = await Promise.race([sb.auth.signOut(), new Promise(res => setTimeout(() => res({ error: "timeout" }), 4000))]); if (r?.error) await sb.auth.signOut({ scope: "local" }); } catch { try { await sb.auth.signOut({ scope: "local" }); } catch {} }
+    try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); } catch {}
+    Object.values(GK).forEach(k => lsSet(k, "")); session = null;
+    try { ["mk-wz-g", "mk-newpw", "mk-auth-err"].forEach(k => sessionStorage.removeItem(k)); } catch {}
+    location.replace(location.origin + "/app/");
+  };
   // Benachrichtigungen: öffentlicher Schlüssel & Test über den Worker
   window.mkPushKey = async () => { const r = await fetch(CFG.workerUrl + "/push/key"); const b = await r.json().catch(() => ({})); if (!b.key) throw Object.assign(new Error("no key"), { code: b.code || "no_vapid" }); return b.key; };
   const wPost = async route => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); return r.json().catch(() => null); };
