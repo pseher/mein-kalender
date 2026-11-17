@@ -826,12 +826,14 @@ function renderTasks() {
   const sec = $("sec-tasks"); if (!sec) return;
   sec.hidden = !canWrite;
   if (!canWrite) return;
-  const open = TASKS.filter(t => !t.done && t.state !== "no").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")), sug = taskSuggest();
+  const all = TASKS.filter(t => !t.done && t.state !== "no").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")), sug = taskSuggest();
+  const later = all.filter(tkLater), open = all.filter(t => !tkLater(t));
   const done = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < 7 * 864e5);
   $("n-tasks").textContent = open.length || "";
   const MAXT = 5, more = tkAll ? 0 : Math.max(0, open.length - MAXT);
   $("tasks-list").innerHTML = (tkAll ? open : open.slice(0, MAXT)).map(t => `<div class="tk"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") +
     (more ? `<button type="button" class="link tk-dl" id="tk-all">+${more} weitere</button>` : tkAll && open.length > MAXT ? `<button type="button" class="link tk-dl" id="tk-all">Weniger anzeigen</button>` : "") +
+    (later.length ? `<button type="button" class="link tk-dl" id="tk-later" aria-expanded="${tkLaterOpen}">${tkLaterOpen ? "Spätere ausblenden" : `Später: ${later.length} (ab ${fmt(parseIso(later[0].due))})`}</button>${tkLaterOpen ? later.map(t => `<div class="tk tk-lt"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") : ""}` : "") +
     (sug.length ? `<div class="tk-sug">${sug.map((s, i) => `<div class="tk sg2"><span><b>${esc(s.title)}</b><small>${esc(s.for)}</small></span><button type="button" class="ic ok" data-tksug="${i}" aria-label="Übernehmen">✓</button><button type="button" class="ic no" data-tkno="${i}" aria-label="Nicht nötig">✕</button></div>`).join("")}</div>` : "") +
     (done.length ? `<button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? done.map(t => `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") : ""}` : "");
   window.__tkSug = sug;
@@ -840,7 +842,12 @@ function renderTasks() {
 function tkReset() { const i = $("tk-in"), d = $("tk-due"); if (i) i.value = ""; if (d) { d.value = ""; delete d.dataset.man; } tkUi(); }
 function tkUi() { const v = ($("tk-in")?.value || "").trim(), d = $("tk-due"); $("tk-go").disabled = !v; $("tk-go").textContent = v ? "Hinzufügen" : "+"; $("tk-due-row").hidden = !v;
   const q = { 0: iso(TODAY), 1: iso(addDays(TODAY, 1)), w: iso(addDays(monday(TODAY), 6)) }; document.querySelectorAll("[data-tkn]").forEach(b => b.setAttribute("aria-pressed", String(!!d.value && q[b.dataset.tkn] === d.value))); }
-async function addTask(t) { use("aufgabe"); try { await COLL("tasks").add({ title: t.title, due: t.due || "", done: false, key: t.key || "", state: t.state || "", created: new Date().toISOString(), fixed: true }); } catch (err) { toast(writeErr(err)); } }
+// Aufgaben mit Frist in mehr als 14 Tagen warten unter „Später“ (und beim zugehörigen Termin), bis sie näher rücken
+const TK_SOON = 14;
+const tkLater = t => !!t.due && !!parseIso(t.due) && dayDiff(TODAY, parseIso(t.due)) > TK_SOON;
+const tkOfEv = e => TASKS.filter(t => t.state !== "no" && (t.ev === e.id || (!t.ev && e.title && t.title.endsWith(`(„${e.title}“)`))));
+let tkLaterOpen = false;
+async function addTask(t) { use("aufgabe"); try { await COLL("tasks").add({ title: t.title, due: t.due || "", done: false, key: t.key || "", state: t.state || "", ...(t.ev ? { ev: t.ev } : {}), created: new Date().toISOString(), fixed: true }); } catch (err) { toast(writeErr(err)); } }
 function showTaskEdit(id) {
   const t = TASKS.find(x => x.id === id); if (!t) return;
   const d = parseIso(t.due);
@@ -1391,7 +1398,7 @@ function renderFocus() {
   $("n-focus").textContent = all.length || "";
   const remShown = new Set(rm.map(x => x.i));
   // Rest auf Wunsch
-  const openTasks = TASKS.filter(t => !t.done && t.state !== "no").length, remN = rems.filter(({ i }) => !remShown.has(i)).length, weekN = UPN.next || 0;
+  const openTasks = TASKS.filter(t => !t.done && t.state !== "no" && !tkLater(t)).length, remN = rems.filter(({ i }) => !remShown.has(i)).length, weekN = UPN.next || 0;
   const link = (k, n, lbl) => `<button type="button" class="fchip${FOCUS_OPEN[k] ? " on" : ""}" data-focus="${k}" aria-expanded="${FOCUS_OPEN[k]}">${lbl}${n ? ` <b>${n}</b>` : ""}<span class="chev" aria-hidden="true">${FOCUS_OPEN[k] ? "▴" : "▾"}</span></button>`;
   $("focus-more").innerHTML = [weekN ? link("week", weekN, "14 Tage") : "", canWrite ? link("tasks", openTasks, openTasks ? "Aufgaben" : "+ Aufgabe") : "", remN ? link("rem", remN, "Erinnerungen") : ""].join("");
   sec.hidden = false;
@@ -2103,7 +2110,7 @@ async function docApply() {
   const tk = DAI.tk.filter((_, i) => on(`[data-daitk="${i}"]`));
   try {
     if (Object.keys(up).length) { await COLL("events").doc(e.id).update(up); Object.assign(e, up); }
-    for (const t of tk) await addTask({ title: `${t.t} („${e.title}“)`, due: t.due });
+    for (const t of tk) await addTask({ title: `${t.t} („${e.title}“)`, due: t.due, ev: e.id });
     const n = pk.length + tk.length + ["note", "mode", "place"].filter(k => k in up).length;
     toast(n ? `${n} Punkt${n > 1 ? "e" : ""} übernommen` : "Nichts übernommen");
     const o = findOcc(e.id, iso(e.a)); o ? showEvent(o) : closeSheet();
@@ -2832,6 +2839,7 @@ function showEvent(o) {
   if (o.part) item("Teil der Reise", `${evName(o.part.ev)} · ${fmt(o.part.a)}–${fmt(o.part.b)}`);
   if (cf.length && !tripParts(o).length) item("Überschneidung", cf.join(", "));
   { const ri = remindInfo(o); if (ri) item("Erinnerung", ri); }
+  { const T = canWrite ? tkOfEv(e).filter(t => !t.done || (t.doneAt && Date.now() - Date.parse(t.doneAt) < 30 * 864e5)) : []; if (T.length) items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>Aufgaben dazu (${T.filter(t => !t.done).length} offen)</b><div class="ev-tk">${T.map(t => `<div class="tk${t.done ? " dn" : ""}"><input type="checkbox" class="ckb" ${t.done ? `data-tkundo="${esc(t.id)}" checked` : `data-tkdone="${esc(t.id)}"`} aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title.replace(/\s*\(„[^“]*“\)$/, ""))}</span>${t.due ? dueLbl(t.due) : ""}</button></div>`).join("")}</div></div></li>`); }
   if (e.thanks) item("Danke-Erinnerung", "am Tag danach");
   let gResend = "";
   if (e.gcal) { if (e.gEventId) item("Auch in Google", calLabel(e.gcal)); else { item("Google", `noch nicht in „${calLabel(e.gcal)}“ eingetragen`); if (canWrite && gWritable()) gResend = `<button type="button" class="btn ghost small" data-gsend="${esc(e.id)}">An Google senden</button>`; } }
@@ -4415,6 +4423,7 @@ document.addEventListener("click", ev => {
     case "open-setup": case "open-family": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "fam-pick-go": (async () => { const ppl = bdPeople(); let n = 0; for (const [k, pk] of FPICK) { const c = ppl.find(x => x.key === k); if (c && pk.name.trim()) { await famAdd(c, pk.role, pk, true); n++; } }
       FPICK = new Map(); famQ = ""; famSave(); showFamily(); toast(`${n} ${n === 1 ? "Person" : "Personen"} übernommen`); })(); break;
+    case "tk-later": tkLaterOpen = !tkLaterOpen; renderTasks(); break;
     case "tk-go": { const i = $("tk-in"), v = i.value.trim(); if (v) { addTask({ title: v[0].toUpperCase() + v.slice(1), due: $("tk-due").value || "" }); tkReset(); i.focus(); toast("Aufgabe eingetragen"); } break; }
     case "tk-all": tkAll = !tkAll; renderTasks(); break;
     case "tk-showdone": tkShowDone = !tkShowDone; renderTasks(); break;
