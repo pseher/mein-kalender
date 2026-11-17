@@ -26,11 +26,12 @@ window.MK_APP = true;
   });
   // Eine Anmeldung für beides: Konto + Zugriff auf Google Kalender (Google fragt die Kalender-Rechte einzeln ab)
   const G_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
-  window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } });
+  // Zustimmungsseite nur, wenn auf diesem Gerät noch kein Erneuerungsschlüssel liegt (Google gibt ihn nur dabei heraus)
+  window.mkSignIn = (force) => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", include_granted_scopes: "true", prompt: force || !lsGet(GK.rt) ? "consent" : "select_account" } } });
   // Mit E-Mail angemeldet: Google-Kalender an DIESES Konto hängen (sonst entstünde ein zweites Konto)
   window.mkConnectGoogle = async () => { try { sessionStorage.setItem("mk-wz-g", "1"); } catch {}
     const u = session?.user, hasG = !u || u.app_metadata?.provider === "google" || (u.identities || []).some(i => i.provider === "google");
-    if (hasG) return window.mkSignIn();
+    if (hasG) return window.mkSignIn(true);
     const r = await sb.auth.linkIdentity({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } }).catch(e => ({ error: e }));
     if (r?.error) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} return { error: { code: r.error.code || "", message: r.error.message || String(r.error) } }; }
     return r; };
