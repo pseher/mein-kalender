@@ -425,7 +425,8 @@ function fitMonth() {
   const avail = innerHeight - Math.max(0, top) - dow - 24, h = Math.floor((avail - (wk - 1) * 3) / wk);
   if (h > 96) g.style.setProperty("--mt-h", h + "px"); else g.style.removeProperty("--mt-h");
 }
-addEventListener("orientationchange", () => setTimeout(() => { if (view === "month" || view === "two") renderBigMonth(); }, 250));
+addEventListener("orientationchange", () => setTimeout(() => { if (mqL.matches) scrollTo(0, 0); if (view === "month" || view === "two") renderBigMonth(); }, 250));
+mqL.addEventListener?.("change", e => { if (e.matches) scrollTo(0, 0); });
 // Nur so viele Balken zeigen, wie in die Wochenzeile passen; Rest je Tag als „+n“
 if (window.ResizeObserver) { let lastH = 0, rt = null; new ResizeObserver(es => { const h = Math.round(es[0].contentRect.height); if (Math.abs(h - lastH) < 4) return; lastH = h;
   clearTimeout(rt); rt = setTimeout(() => { if ((view === "month" || view === "two") && compact()) renderBigMonth(); }, 80); }).observe(bigEl); }
