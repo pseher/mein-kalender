@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="de">
+<head>
+<script>if(/(^|[#&])(access_token|error)=|[?&]code=/.test(location.hash+"&"+location.search)&&!/^\/app/.test(location.pathname))location.replace("/app/"+location.search+location.hash)</script>
+<script>if(/onrender\.com$/.test(location.hostname))location.replace("https://mein-kalender-czb.pages.dev"+location.pathname+location.search+location.hash)</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mein Kalender – dein Alltagsassistent für Familien und Paare</title>
+<script>
+  // Wer den Kalender schon einmal geöffnet hat (oder vom Startbildschirm kommt), landet direkt im Kalender.
+  var CAL = /onrender\.com$/.test(location.hostname) ? "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" : "/app/";   // neue Domain: eigene App
+  (function () { var q = new URLSearchParams(location.search), seen = false;
+    try { seen = localStorage.getItem("mk-consent") === "yes" && localStorage.getItem("mk-open") === "1"; } catch (e) {}
+    window.MK_INSTALL = q.has("install");
+    if (window.MK_INSTALL) { history.replaceState(null, "", "/?app=1"); return; } // so öffnet das Symbol auf dem Startbildschirm direkt den Kalender
+    if (!q.has("info") && (q.has("app") || seen) && !/^\/app/.test(location.pathname)) location.replace(CAL); })();
+  function go() { try { if (localStorage.getItem("mk-consent") === "yes") localStorage.setItem("mk-open", "1"); } catch (e) {} location.href = CAL; }
+  var GO_AFTER = false;
+  function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; if (GO_AFTER) go(); }
+  var BACK = new URLSearchParams(location.search).has("back"); // aus dem Kalender heraus geöffnet
+  function openCal() { if (BACK) { backToApp(); return false; }
+    var asked = true; try { asked = !!localStorage.getItem("mk-consent"); } catch (e) {}
+    if (!asked) { GO_AFTER = true; document.getElementById("consent").hidden = false; return false; } // erst beim Öffnen fragen – nichts verdeckt den Button
+    go(); return false; }
+  function backToApp() { try { window.close(); } catch (e) {}
+    setTimeout(function () { var h = document.getElementById("backhint"); if (h) h.hidden = false; }, 300); }
+</script>
+<meta name="description" content="Nicht noch ein Kalender, sondern dein Alltagsassistent: Du schreibst, was ansteht – Mein Kalender trägt ein, erinnert rechtzeitig und behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage im Blick.">
+<meta name="theme-color" content="#0f6e73">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Mein Kalender">
+<meta property="og:title" content="Mein Kalender – dein Alltagsassistent">
+<meta property="og:description" content="Du schreibst, was ansteht. Um den Rest kümmert sich Mein Kalender – Reisen, Zug- und Flug-Updates, Schichten, gemeinsame Ferien, Geburtstage.">
+<meta property="og:image" content="https://mein-kalender-czb.pages.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://mein-kalender-czb.pages.dev/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Kalender">
+<link rel="stylesheet" href="/site.css">
+<style>
+  :root { --ink: #10161a; --text: #1f2a30; --soft: #4d5a61; --line: #dfe7e6; --bg: #ffffff; --card: #fff; --acc: #0f6e73; --acc-2: #e4f2f0; --acc-3: #c9e6e2; --warm: #b4610f; --warm-2: #fcefdc; --sh: 0 18px 50px rgba(15,60,62,.10), 0 2px 8px rgba(15,60,62,.06); }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  h1, h2, h3 { font-weight: 700; margin: 0; letter-spacing: -0.028em; }
+  p { margin: 0; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff; text-decoration: none; font-weight: 600; padding: 15px 26px; border-radius: 999px; font-size: 16.5px; border: 0; cursor: pointer; transition: transform .2s, box-shadow .2s; box-shadow: 0 8px 22px rgba(18,20,23,.18); }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(18,20,23,.22); }
+  .btn.ghost { background: transparent; color: var(--ink); box-shadow: none; border: 1px solid var(--line); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  /* Navigation */
+  .nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid transparent; transition: border-color .3s; }
+  .nav.sc { border-color: var(--line); }
+  .nav .wrap { display: flex; align-items: center; gap: 10px; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: 12px; font-weight: 700; font-size: 17px; }
+  .nav img { width: 30px; height: 30px; border-radius: 9px; }
+  .nav a.nb { margin-left: auto; font-size: 14px; font-weight: 600; text-decoration: none; color: #fff; background: var(--ink); padding: 8px 16px; border-radius: 999px; }
+  /* Hero */
+  .hero { padding: 36px 0 24px; }
+  .hero .wrap { display: grid; gap: 36px; align-items: center; }
+  .kick { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--acc); background: var(--acc-2); padding: 6px 13px; border-radius: 999px; }
+  .hero h1 { font-size: clamp(40px, 7vw, 70px); line-height: 1.02; margin: 18px 0 18px; }
+  .hero h1 em { font-style: normal; color: var(--acc); }
+  .lead { font-size: clamp(17.5px, 2.2vw, 20px); line-height: 1.5; color: var(--text); max-width: 31em; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+  .free { margin-top: 14px; font-size: 14px; color: var(--soft); }
+  /* Telefon */
+  .phone { position: relative; width: min(78vw, 320px); aspect-ratio: 390/844; border-radius: 44px; border: 10px solid #15171b; background: #fff; overflow: hidden; box-shadow: 0 40px 80px rgba(18,20,23,.16), 0 8px 20px rgba(18,20,23,.08); justify-self: center; }
+  .phone img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  /* Hero-Demo: Nachricht → Eintrag → Assistent */
+  .demo { position: absolute; inset: 0; background: #f4f5f4; display: flex; flex-direction: column; padding: 22px 14px; gap: 10px; font-size: 13.5px; }
+  .demo .hd { font-weight: 700; font-size: 15px; display: flex; justify-content: space-between; align-items: center; color: var(--ink); }
+  .demo .hd span { font-weight: 600; font-size: 11.5px; color: var(--acc); background: var(--acc-2); padding: 3px 8px; border-radius: 999px; }
+  .d-in { background: #fff; border: 1.5px solid var(--acc); border-radius: 14px; padding: 10px 12px; min-height: 84px; color: var(--ink); line-height: 1.45; }
+  .d-in .cur { display: inline-block; width: 2px; height: 1.05em; background: var(--acc); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .d-st { opacity: 0; transform: translateY(8px); transition: opacity .8s ease, transform .8s ease; }
+  .d-st.on { opacity: 1; transform: none; }
+  .d-ev { background: #fff; border-radius: 14px; padding: 10px 12px; display: flex; gap: 10px; border: 1px solid var(--line); }
+  .d-ev i { width: 4px; border-radius: 3px; background: #6b56c9; flex: none; }
+  .d-ev b { display: block; font-size: 14.5px; } .d-ev small { color: var(--soft); font-size: 12.5px; }
+  .d-lbl { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); margin-top: 4px; }
+  .d-ai { background: #fff; border-radius: 12px; padding: 8px 11px; border: 1px solid var(--line); display: flex; gap: 9px; align-items: flex-start; font-size: 12.8px; line-height: 1.4; }
+  .d-ai .e { font-size: 15px; line-height: 1.2; }
+  .d-ai b { color: var(--ink); }
+  .d-push { position: absolute; left: 10px; right: 10px; top: 10px; background: rgba(255,255,255,.96); border-radius: 16px; padding: 10px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.16); font-size: 12.8px; line-height: 1.4; display: flex; gap: 10px; transform: translateY(-130%); transition: transform .9s cubic-bezier(.2,.8,.2,1); }
+  .d-push.on { transform: none; }
+  .d-push img { width: 26px; height: 26px; border-radius: 7px; position: static; }
+  .d-push b { display: block; font-size: 13px; }
+  /* Laufband */
+  .band { overflow: hidden; background: var(--acc-2); margin-top: 8px; }
+  .band .rail { display: flex; gap: 10px; width: max-content; padding: 14px 0; animation: rail 70s linear infinite; }
+  .band span { white-space: nowrap; font-size: 14.5px; font-weight: 600; color: #0b4f53; background: #fff; padding: 7px 14px; border-radius: 999px; box-shadow: 0 1px 3px rgba(15,60,62,.08); }
+  @keyframes rail { to { transform: translateX(-50%); } }
+  /* Abschnitte */
+  section { padding: 64px 0 8px; }
+  .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); margin-bottom: 12px; }
+  .h2 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.08; }
+  .sub { color: var(--text); font-size: 17.5px; line-height: 1.55; margin-top: 14px; max-width: 34em; }
+  .center { text-align: center; } .center .sub { margin-left: auto; margin-right: auto; }
+  /* Drei Schritte */
+  .three { display: grid; gap: 14px; margin-top: 36px; }
+  .s3 { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px 20px; text-align: left; position: relative; box-shadow: var(--sh); }
+  .s3 .n { position: absolute; top: 18px; right: 20px; font-size: 13px; font-weight: 700; color: var(--soft); }
+  .s3 h3 { font-size: 17px; margin: 12px 0 0; } .s3 p { display: none; }
+  .bub { background: #e9f7ea; border-radius: 16px 16px 16px 5px; padding: 10px 14px; font-size: 15px; display: inline-block; line-height: 1.45; } .bub b { display: block; font-size: 12px; color: #2c7a3c; }
+  .evc { display: flex; gap: 12px; } .evc i { width: 4px; border-radius: 4px; background: #6b56c9; } .evc b { display: block; } .evc span { color: var(--soft); font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; } .chips span { font-size: 13px; font-weight: 600; background: var(--acc-2); color: var(--acc); padding: 5px 10px; border-radius: 999px; }
+  /* Kapitel mit Handy */
+  .ch { display: grid; gap: 34px; align-items: center; }
+  .ch .txt { max-width: 34em; }
+  .list { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 12px; }
+  .list li { display: flex; gap: 12px; align-items: flex-start; font-size: 16px; color: var(--text); line-height: 1.5; }
+  .list li .ic { flex: none; width: 36px; height: 36px; border-radius: 11px; background: var(--card); border: 1px solid var(--line); display: grid; place-items: center; font-size: 18px; }
+  .list li b { color: var(--ink); display: block; font-size: 16px; }
+  .stage { position: relative; justify-self: center; isolation: isolate; }
+  .stage::before { content: ""; position: absolute; z-index: -1; inset: 10% -16% 6%; border-radius: 48px; background: var(--acc-2); transform: rotate(-3deg); }
+  .ch.rev .stage::before { background: var(--warm-2); transform: rotate(3deg); }
+  .note-card { position: absolute; background: #fff; border-radius: 16px; box-shadow: 0 16px 40px rgba(18,20,23,.14); padding: 11px 13px; font-size: 13.5px; line-height: 1.4; display: flex; gap: 10px; width: 260px; border: 1px solid var(--line); }
+  .note-card img { width: 28px; height: 28px; border-radius: 8px; flex: none; position: static; }
+  .note-card b { display: block; font-size: 13.5px; }
+  .note-card .t { color: var(--soft); font-size: 11.5px; margin-left: auto; padding-left: 8px; white-space: nowrap; }
+  .nc1 { left: -40px; top: 16%; } .nc2 { right: -46px; top: 46%; } .nc3 { left: -30px; bottom: 12%; }
+  /* Kapitel als Karten, die sich beim Scrollen übereinanderschieben */
+  .stack { position: relative; padding: 40px 0 10px; }
+  .sk { position: sticky; top: calc(72px + var(--i) * 12px); margin: 0 auto 28px; max-width: 1080px; border-radius: 32px; background: var(--acc-2); box-shadow: var(--sh); overflow: hidden;
+    display: grid; gap: 0; transform-origin: 50% 0; will-change: transform; }
+  .sk:nth-child(even) { background: var(--warm-2); }
+  .sk .tx { padding: 24px 22px 4px; }
+  @media (max-width: 899px) { .sk p { font-size: 15.5px; margin-top: 10px; } .sk .chips { margin-top: 12px; } .sk .pv .phone { width: 240px; } }
+  .sk h2 { font-size: clamp(28px, 4.4vw, 44px); line-height: 1.07; }
+  .sk p { color: var(--text); font-size: 16.5px; line-height: 1.5; margin-top: 12px; max-width: 30em; }
+  .sk .chips { margin-top: 16px; } .sk .chips span { background: #fff; color: #0b4f53; font-size: 13.5px; padding: 6px 11px; box-shadow: 0 1px 3px rgba(15,60,62,.08); }
+  .sk:nth-child(even) .chips span { color: #7a420a; }
+  .sk .eyebrow { margin-bottom: 8px; } .sk:nth-child(even) .eyebrow { color: var(--warm); }
+  .sk .pv { position: relative; height: min(300px, calc(100svh - 470px)); min-height: 220px; overflow: hidden; display: flex; justify-content: center; padding-top: 18px; }
+  .sk .pv .phone { width: 270px; height: auto; aspect-ratio: 390/844; border-bottom: 0; border-radius: 36px 36px 0 0; box-shadow: 0 20px 50px rgba(15,60,62,.18); align-self: flex-start; flex: none; }
+  .sk .note-card { z-index: 2; }
+  .sk .nc1 { left: 8px; top: 120px; } .sk .nc3 { left: auto; right: 8px; top: 150px; bottom: auto; }
+  @media (min-width: 900px) {
+    .sk { grid-template-columns: 1.05fr .95fr; align-items: center; min-height: 520px; }
+    .sk .tx { padding: 48px 20px 48px 56px; }
+    .sk .pv { height: 520px; padding-top: 48px; } .sk .pv .phone { width: 300px; }
+    .sk .nc1 { left: 0; top: 150px; } .sk .nc3 { right: 0; top: 230px; }
+  }
+  /* Band in Farbe */
+  .claim { background: var(--ink); color: #fff; border-radius: 32px; padding: 64px 26px; text-align: center; }
+  .claim h2 { font-size: clamp(32px, 5.6vw, 60px); line-height: 1.05; } .claim h2 span { color: #8fd3cf; }
+  .claim p { color: #c8ced4; max-width: 34em; margin: 18px auto 0; font-size: 17.5px; }
+  /* Kacheln */
+  .tiles { display: grid; gap: 10px; margin-top: 30px; grid-template-columns: repeat(2, minmax(0, 1fr)); text-align: left; }
+  .tile { background: var(--acc-2); border-radius: 20px; padding: 16px; } .tile:nth-child(even) { background: var(--warm-2); }
+  .tile .ic { font-size: 22px; } .tile b { display: block; font-size: 15.5px; margin: 6px 0 2px; line-height: 1.3; } .tile span { color: var(--text); font-size: 13.8px; line-height: 1.45; }
+  /* Start */
+  .steps { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 28px; text-align: left; }
+  .step { background: var(--card); border-radius: 20px; padding: 18px 20px; color: var(--text); font-size: 15px; box-shadow: var(--sh); display: grid; grid-template-columns: 32px 1fr; gap: 0 14px; } .step b { grid-row: span 2; margin: 0 !important; }
+  .step b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--acc); color: #fff; font-size: 14px; margin-bottom: 12px; }
+  .step strong { display: block; color: var(--ink); font-size: 16.5px; margin-bottom: 4px; }
+  .trust { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; margin-top: 22px; color: var(--text); font-size: 14.5px; } .trust span::before { content: "✓ "; color: var(--acc); font-weight: 700; }
+  .cta { text-align: center; padding: 70px 20px 24px; } .cta h2 { font-size: clamp(30px, 4.6vw, 44px); margin-bottom: 10px; } .cta p { color: var(--text); margin-bottom: 24px; }
+  footer { text-align: center; color: var(--soft); font-size: 13px; padding: 20px 20px max(36px, env(safe-area-inset-bottom)); line-height: 1.6; }
+  /* Einblenden beim Scrollen – ruhig und langsam */
+  .rv { opacity: 0; transform: translateY(26px); transition: opacity 1.1s ease, transform 1.1s cubic-bezier(.2,.7,.2,1); }
+  .rv.in { opacity: 1; transform: none; }
+  .rv.d1 { transition-delay: .25s; } .rv.d2 { transition-delay: .5s; } .rv.d3 { transition-delay: .75s; }
+  .note-card.rv { transform: translateY(20px) scale(.97); } .note-card.rv.in { transform: none; }
+  @media (prefers-reduced-motion: reduce) { .rv, .d-st, .d-push { opacity: 1 !important; transform: none !important; transition: none !important; } .band .rail { animation: none; } html { scroll-behavior: auto; } }
+  @media (min-width: 900px) {
+    .hero { padding: 64px 0 40px; } .hero .wrap { grid-template-columns: 1.2fr .8fr; }
+    .three { grid-template-columns: repeat(3, 1fr); }
+    .ch { grid-template-columns: 1fr 1fr; gap: 60px; } .ch.rev .stage { order: -1; }
+    .tiles { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 899px) {
+    .note-card { width: 230px; font-size: 12.8px; } .nc1 { left: -14px; } .nc2 { right: -14px; } .nc3 { left: -10px; }
+    .ch .stage { margin-top: 10px; }
+  }
+</style>
+<style id="kalenderblatt">
+  @font-face { font-family: Fraunces; font-weight: 500; font-display: swap; src: url(/fonts/fraunces-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: Fraunces; font-weight: 600; font-display: swap; src: url(/fonts/fraunces-latin-600-normal.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url(/fonts/ibm-plex-sans-latin-400-normal.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 500; font-display: swap; src: url(/fonts/ibm-plex-sans-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url(/fonts/ibm-plex-sans-latin-600-normal.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: swap; src: url(/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2"); }
+  :root { --ink: #1c1b18; --text: #2f2c27; --soft: #6a6459; --line: #d9d0bf; --bg: #f4efe4; --card: #fbf8f1; --paper2: #ece5d6;
+    --acc: #b3352b; --acc-2: #f1e3dc; --pet: #0f6e73; --sh: none; --serif: Fraunces, Georgia, serif; --mono: "IBM Plex Mono", ui-monospace, monospace; }
+  body { font-family: "IBM Plex Sans", system-ui, sans-serif; background: var(--bg); }
+  h1, h2, h3, .h2 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
+  h3, .s3 h3, .step strong, .tile b, .list li b { font-family: "IBM Plex Sans", sans-serif; letter-spacing: 0; }
+  .hero h1 { line-height: 1.04; } .hero h1 em { color: var(--acc); }
+  /* Knöpfe: rechteckig, flach */
+  .btn { border-radius: 6px; box-shadow: none; padding: 14px 22px; } .btn:hover { transform: none; box-shadow: none; background: #000; }
+  .btn.ghost { border-color: var(--ink); } .btn.ghost:hover { background: var(--ink); color: var(--bg); }
+  .nav { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } .nav.sc { border-color: var(--line); }
+  .nav .wrap { font-family: var(--serif); font-weight: 600; font-size: 19px; } .nav img { border-radius: 6px; }
+  .nav a.nb { border-radius: 6px; font-family: "IBM Plex Sans", sans-serif; }
+  /* Etiketten: Schreibmaschinen-Schrift statt Pillen */
+  .kick, .eyebrow { background: none; padding: 0; border-radius: 0; font-family: var(--mono); font-weight: 500; font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--acc); }
+  .kick::before { content: ""; width: 22px; height: 2px; background: var(--acc); display: inline-block; }
+  .free { font-family: var(--mono); font-size: 12.5px; letter-spacing: .02em; }
+  /* Laufband: Text mit Punkten */
+  .band { background: var(--ink); } .band .rail { gap: 0; padding: 13px 0; }
+  .band span { background: none; box-shadow: none; color: #efe8da; border-radius: 0; padding: 0 16px; font-weight: 500; position: relative; }
+  .band span::after { content: ""; position: absolute; right: -3px; top: 50%; width: 5px; height: 5px; margin-top: -2px; background: var(--acc); border-radius: 50%; }
+  /* Karten: Papier mit feiner Linie */
+  .s3, .step { background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: none; }
+  .s3 .n { font-family: var(--serif); font-size: 30px; line-height: 1; top: 14px; color: var(--acc); }
+  .bub { background: var(--paper2); } .bub b { color: var(--pet); }
+  .chips span { background: none; border: 1px solid var(--line); border-radius: 4px; color: var(--text); font-weight: 500; }
+  .stage::before { display: none; }
+  .phone { box-shadow: 0 1px 0 var(--line), 0 24px 40px -24px rgba(40,30,10,.35); border-color: #1c1b18; }
+  .note-card { border-radius: 8px; box-shadow: 0 10px 24px -12px rgba(40,30,10,.35); background: var(--card); }
+  /* Kapitel als Kalenderblätter: roter Kopf, große Ziffer */
+  .stack { counter-reset: blatt; }
+  .sk, .sk:nth-child(even) { background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--acc); border-radius: 8px; box-shadow: 0 -1px 0 var(--bg), 0 18px 30px -26px rgba(40,30,10,.45); counter-increment: blatt; }
+  .sk .tx { position: relative; }
+  .sk .tx::before { content: counter(blatt, decimal-leading-zero); display: block; font-family: var(--serif); font-weight: 500; font-size: 54px; line-height: 1; color: var(--acc); margin-bottom: 10px; }
+  .sk .eyebrow, .sk:nth-child(even) .eyebrow { color: var(--soft); }
+  .sk .chips span, .sk:nth-child(even) .chips span { background: none; box-shadow: none; color: var(--text); border: 1px solid var(--line); }
+  .sk .pv { background: repeating-linear-gradient(to bottom, transparent 0 31px, rgba(120,100,60,.10) 31px 32px); border-left: 1px solid var(--line); }
+  @media (max-width: 899px) { .sk .pv { border-left: 0; border-top: 1px solid var(--line); } .sk .tx::before { font-size: 42px; } }
+  .sk .pv .phone { box-shadow: none; }
+  /* Claim: dunkles Blatt */
+  .claim { border-radius: 8px; background: var(--ink); } .claim h2 span { color: #f0a99f; } .claim p { color: #cfc7b8; }
+  /* Kacheln: Raster mit Linien, nummeriert statt Emoji */
+  .tiles { gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); counter-reset: kachel; }
+  .tile, .tile:nth-child(even) { background: transparent; border-radius: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 18px; counter-increment: kachel; }
+  .tile .ic { display: none; } .tile > span:last-child { display: block; line-height: 1.45; }
+  .tile::before { content: counter(kachel, decimal-leading-zero); font-family: var(--mono); font-size: 12px; color: var(--acc); letter-spacing: .06em; }
+  .step b { background: none; color: var(--acc); font-family: var(--serif); font-size: 30px; width: auto; height: auto; border-radius: 0; place-items: start; }
+  .trust span::before { color: var(--pet); }
+  .list li .ic { border-radius: 6px; background: var(--card); }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; }
+</style>
+<script>
+  // Vorschau: Emoji außerhalb der Handy-Ansicht entfernen
+  document.addEventListener("DOMContentLoaded", function () {
+    var re = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]+\s*/gu;
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var n; while ((n = w.nextNode())) { if (n.parentElement.closest(".phone,script,style")) continue; if (re.test(n.nodeValue)) { re.lastIndex = 0; n.nodeValue = n.nodeValue.replace(re, ""); } re.lastIndex = 0; }
+  });
+</script>
+<meta name="robots" content="noindex">
+</head>
+<body>
+<script>if (/[?&]geloescht=1/.test(location.search)) document.addEventListener("DOMContentLoaded", function () { var d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "background:#0f6e73;color:#fff;padding:12px 16px;text-align:center;font-weight:600"; d.textContent = "Dein Konto und alle Daten wurden gelöscht. Danke, dass du Mein Kalender ausprobiert hast."; document.body.prepend(d); try { history.replaceState(null, "", "/?info"); } catch (e) {} });</script>
+<div id="backhint" hidden style="position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:60;max-width:520px;margin:0 auto;background:#111317;color:#fff;border-radius:16px;padding:14px 16px;font-size:15px;line-height:1.5;box-shadow:0 12px 30px rgba(0,0,0,.25)">Tippe oben links auf <b>✕</b> bzw. „Zurück“ – dann bist du wieder in deinem Kalender.</div>
+
+<nav class="nav" id="nav"><div class="wrap"><img src="icon-192.png" alt=""> Mein Kalender<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div></nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="kick">Für Familien &amp; Paare · kostenlos</span>
+      <h1>Du sagst, was ansteht.<br><em>Den Rest erledigt dein Kalender.</em></h1>
+      <p class="lead">Nicht noch ein Kalender, sondern dein Alltagsassistent: Termine landen von selbst im Kalender, Erinnerungen kommen rechtzeitig, und Mein Kalender behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage für euch im Blick.</p>
+      <div class="ctas"><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a><a class="btn ghost" href="#so">So funktioniert’s</a></div>
+      <p class="free">Läuft im Browser und als App auf dem Handy – mit oder ohne Google Kalender.</p>
+    </div>
+    <div class="phone" aria-label="Beispiel: Aus einer Nachricht wird eine Reise mit allem Drumherum">
+      <div class="demo" id="demo" aria-hidden="true">
+        <div class="hd">Eintragen <span>✍️ Freitext</span></div>
+        <div class="d-in" id="d-in"><span id="d-txt"></span><span class="cur"></span></div>
+        <div class="d-st" id="d1"><div class="d-lbl">Eingetragen</div><div class="d-ev"><i></i><div><b>New York</b><small>Do 17.12. – So 27.12. · ✈️ LH 400 ab Frankfurt 10:15</small></div></div></div>
+        <div class="d-st" id="d2"><div class="d-lbl">Daran wird für euch gedacht</div></div>
+        <div class="d-st" id="d3"><div class="d-ai"><span class="e">🛂</span><div><b>ESTA beantragen</b> – spätestens 72 Std. vor Abflug</div></div></div>
+        <div class="d-st" id="d4"><div class="d-ai"><span class="e">🎒</span><div><b>Packliste</b> für 10 Tage USA im Winter</div></div></div>
+        <div class="d-st" id="d5"><div class="d-ai"><span class="e">✈️</span><div><b>Flug wird live beobachtet</b> – Gate, Verspätung, Check-in</div></div></div>
+        <div class="d-push" id="d-push"><img src="icon-192.png" alt=""><div><b>✈️ LH 400 · Gate Z25</b>Boarding 09:35 · pünktlich</div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="band" aria-label="Woran Mein Kalender denkt"><div class="rail" id="rail">
+  <span>🛂 ESTA für die USA</span><span>🇬🇧 ETA für Großbritannien</span><span>📄 Visum</span><span>🚗 Vignette Österreich</span><span>🛣️ Maut</span><span>🚆 Gleiswechsel</span><span>⏱️ Verspätung</span><span>✈️ Gate &amp; Check-in</span><span>🎂 Geburtstage mit Vorlauf</span><span>🎁 Geschenkideen</span><span>🎒 Packliste</span><span>🏖️ Gemeinsam frei in den Ferien</span><span>🕐 Schichten</span><span>🚉 Abholen am Bahnhof</span><span>🗑️ Müll alle 2 Wochen</span><span>📌 Fristen</span>
+</div></div>
+
+<section id="so">
+  <div class="wrap center">
+    <span class="eyebrow rv">So einfach geht’s</span>
+    <h2 class="h2 rv">Ein Satz genügt.</h2>
+    <p class="sub rv d1">Schreib, was ansteht – in deinen Worten, aus einer WhatsApp oder als Foto vom Ticket. Mein Kalender versteht es, trägt es ein und denkt an das, was dazugehört.</p>
+    <div class="three">
+      <div class="s3 rv"><span class="n">1</span><div class="bub"><b>Anna</b>Samstag 19 Uhr Essen bei Antonio? 🍝</div><h3>Du schreibst oder fügst ein</h3><p>Nachricht, Mail, Buchungsbestätigung oder ein Foto vom Ticket – egal wie.</p></div>
+      <div class="s3 rv d1"><span class="n">2</span><div class="evc"><i></i><div><b>Essen bei Antonio</b><span>Sa 21.11. · 19:00 · mit Anna</span></div></div><h3>Wird eingetragen</h3><p>Datum, Uhrzeit, Ort und Personen landen an der richtigen Stelle – auch in Google Kalender.</p></div>
+      <div class="s3 rv d2"><span class="n">3</span><div class="chips"><span>⏰ Erinnerung Fr</span><span>🍷 Tisch reserviert?</span><span>🗺️ Route</span></div><h3>Mitgedacht</h3><p>Rechtzeitig erinnert, mit dem, was dazugehört – und bei Reisen mit Live-Updates.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="stack wrap" id="stack">
+  <article class="sk" style="--i:0">
+    <div class="tx"><span class="eyebrow">Reisen &amp; Urlaub</span><h2>Ihr plant die Reise.<br>An den Rest ist gedacht.</h2>
+      <p>Ticket oder Buchung hochladen – Abfahrt, Hotel und Rückreise stehen im Kalender. Die Hinweise kommen, wenn sie wichtig werden.</p>
+      <div class="chips"><span>🛂 Visum · ESTA · ETA</span><span>🚗 Maut &amp; Vignette</span><span>🎒 Packliste</span><span>📎 Tickets am Termin</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-usa.jpg" alt="Reise nach New York mit Flugüberwachung und ESTA-Hinweis" loading="lazy"></div></div>
+  </article>
+  <article class="sk" style="--i:1">
+    <div class="tx"><span class="eyebrow">Live unterwegs</span><h2>Verspätung? Gleiswechsel?<br>Du weißt es zuerst.</h2>
+      <p>Züge und Flüge werden ab ein paar Stunden vor der Abfahrt beobachtet – Hin- und Rückfahrt, mit Umstieg, auch beim Abholen am Bahnhof.</p>
+      <div class="chips"><span>🚆 Deutsche Bahn live</span><span>✈️ Gate &amp; Verspätung</span><span>🔔 Aufs Handy</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-reise.jpg" alt="Ostsee-Wochenende mit Live-Status von Hin- und Rückfahrt" loading="lazy"></div>
+      <div class="note-card nc1"><img src="icon-192.png" alt=""><div><b>🚆 ICE 1707 · +12 Min.</b>Abfahrt ca. 09:24 · Gleis 7 statt 5</div><span class="t">jetzt</span></div></div>
+  </article>
+  <article class="sk" style="--i:2">
+    <div class="tx"><span class="eyebrow">Familie im Takt</span><h2>Schichten, Schule, Abholen – in einem Blick.</h2>
+      <p>Früh- und Spätdienste, Elternabend, wer wen wann abholt: farbig nach Art und auf Wunsch mit Partner oder Familie geteilt.</p>
+      <div class="chips"><span>🕐 Schichten</span><span>🔁 Alle 2 Wochen · alle 3 Jahre</span><span>👨‍👩‍👧 Gemeinsam</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-monat.jpg" alt="Monatsansicht mit Schichten, Reise und Geburtstagen" loading="lazy"></div></div>
+  </article>
+  <article class="sk" style="--i:3">
+    <div class="tx"><span class="eyebrow">Gemeinsame Zeit</span><h2>Wann haben wir eigentlich alle frei?</h2>
+      <p>Schulferien, Feiertage und Brückentage – auch über zwei Bundesländer. So findet ihr sofort die Tage für den nächsten gemeinsamen Urlaub.</p>
+      <div class="chips"><span>🏖️ Gemeinsam frei</span><span>🌉 Brückentage</span><span>🗺️ Zwei Bundesländer</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-ueberblick.jpg" alt="Gemeinsam freie Zeiträume für Berlin und Brandenburg" loading="lazy"></div></div>
+  </article>
+  <article class="sk" style="--i:4">
+    <div class="tx"><span class="eyebrow">Jeden Morgen</span><h2>Ein Blick – und der Tag ist sortiert.</h2>
+      <p>Heute und morgen, Countdowns bis zur Reise – und Geburtstage so früh, dass noch Zeit fürs Geschenk bleibt.</p>
+      <div class="chips"><span>🎂 Geburtstage mit Vorlauf</span><span>🎁 Geschenkideen</span><span>✅ Aufgaben mit Frist</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-heute.jpg" alt="Heute-Seite mit Countdowns, Terminen, Aufgaben und Zug-Status" loading="lazy"></div>
+      <div class="note-card nc3"><img src="icon-192.png" alt=""><div><b>🎂 Oma Hilde wird 80</b>in 3 Tagen · Geschenk besorgt?</div><span class="t">08:00</span></div></div>
+  </article>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="claim rv"><h2>Nicht noch ein Kalender.<br><span>Ein Assistent, der mitdenkt.</span></h2>
+      <p>Die meisten Kalender merken sich, was du einträgst. Dieser kümmert sich auch um das, was du sonst im Kopf behalten müsstest – damit mehr Zeit füreinander bleibt.</p></div>
+  </div>
+</section>
+
+<section class="center">
+  <div class="wrap">
+    <span class="eyebrow rv">Und im Alltag</span>
+    <h2 class="h2 rv">Die kleinen Dinge auch.</h2>
+    <div class="tiles">
+      <div class="tile rv"><span class="ic">🚉</span><b>Abholen</b><span>Zug kommt – du weißt, wann und wo.</span></div>
+      <div class="tile rv d1"><span class="ic">🎁</span><b>Geschenke im Blick</b><span>Ideen merken, nichts vergessen.</span></div>
+      <div class="tile rv d2"><span class="ic">🔁</span><b>Wiederkehrendes</b><span>Müll, Vorsorge – einmal eintragen.</span></div>
+      <div class="tile rv"><span class="ic">📅</span><b>Mit Google Kalender</b><span>Läuft mit – auf Wunsch.</span></div>
+      <div class="tile rv d1"><span class="ic">🔒</span><b>Privat &amp; verschlüsselt</b><span>Deine Termine siehst nur du.</span></div>
+      <div class="tile rv d2"><span class="ic">❓</span><b>Hilfe, die antwortet</b><span>Einfach fragen – die App erklärt’s.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="center">
+  <div class="wrap">
+    <span class="eyebrow rv">Startklar</span>
+    <h2 class="h2 rv">In zwei Minuten eingerichtet.</h2>
+    <div class="steps">
+      <div class="step rv"><b>1</b><strong>Kostenloses Konto</strong>Mit E-Mail oder Google – deine Daten sind privat gespeichert.</div>
+      <div class="step rv d1"><b>2</b><strong>Google verbinden – wenn du magst</strong>Du entscheidest, welche Kalender erscheinen. Geht auch ohne.</div>
+      <div class="step rv d2"><b>3</b><strong>Bundesland &amp; Liebste</strong>Ferien und Feiertage stimmen sofort, Geburtstage werden vorgeschlagen.</div>
+    </div>
+    <div class="trust"><span>Kostenlos</span><span>Keine Werbung</span><span>Deine Termine siehst nur du</span><span>Als App aufs Handy</span></div>
+  </div>
+</section>
+
+<div class="cta"><h2>Probier’s aus.</h2><p>Schreib einfach deinen ersten Termin – den Rest erledigt dein Kalender.</p><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a></div>
+<footer>Hinweise zu Visum, Einreise, Maut und Vignette sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen. Live-Daten: Deutsche Bahn und AirLabs, ohne Gewähr.<br>
+  Mein Kalender ist ein privates Projekt und nutzt Claude von Anthropic für KI-Funktionen.
+  <div class="foot-links"><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="/ki-hinweise.html">KI-Hinweise</a><a href="#" onclick="document.getElementById('consent').hidden=false;return false">Speicher-Einstellungen</a></div></footer>
+<div class="consent" id="consent" hidden role="dialog" aria-label="Speicher-Einstellungen">
+  <b>Nächstes Mal direkt zum Kalender?</b> Dein Browser merkt sich nur, dass du ihn schon geöffnet hast – keine Cookies, kein Tracking. <a href="/datenschutz.html">Mehr dazu</a>
+  <div class="row"><button class="ok" onclick="consent('yes')">Ja, direkt öffnen</button><button onclick="consent('no')">Nein, nur jetzt</button></div></div>
+<script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
+<script>if (!/onrender\.com$/.test(location.hostname)) document.querySelectorAll('a[href^="https://claude.ai/artifact/"]').forEach(function (a) { a.href = "/app/"; });</script>
+<script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
+<script>if (!/onrender\.com$/.test(location.hostname)) document.querySelectorAll('a[href^="https://claude.ai/artifact/"]').forEach(function (a) { a.href = "/app/"; });</script>
+<script>
+(function () {
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Navigation bekommt beim Scrollen eine feine Linie
+  var nav = document.getElementById("nav"); addEventListener("scroll", function () { nav.classList.toggle("sc", scrollY > 8); }, { passive: true });
+  // Laufband doppeln, damit es nahtlos läuft
+  var rail = document.getElementById("rail"); rail.innerHTML += rail.innerHTML;
+  // Einblenden beim Scrollen
+  var els = document.querySelectorAll(".rv");
+  if (reduce || !("IntersectionObserver" in window)) els.forEach(function (e) { e.classList.add("in"); });
+  else { var io = new IntersectionObserver(function (es) { es.forEach(function (x) { if (x.isIntersecting) { x.target.classList.add("in"); io.unobserve(x.target); } }); }, { rootMargin: "0px 0px -12% 0px", threshold: .12 }); els.forEach(function (e) { io.observe(e); }); }
+  // Hero-Demo: ruhig getaktet, damit man jeden Schritt mitlesen kann
+  var T = "Wir fliegen vom 17. bis 27.12. nach New York 🗽 Flug LH 400 ab Frankfurt um 10:15", txt = document.getElementById("d-txt"), st = ["d1", "d2", "d3", "d4", "d5"].map(function (i) { return document.getElementById(i); }), push = document.getElementById("d-push");
+  if (reduce) { txt.textContent = T; st.forEach(function (e) { e.classList.add("on"); }); return; }
+  var timers = []; function at(ms, f) { timers.push(setTimeout(f, ms)); }
+  function run() {
+    timers.forEach(clearTimeout); timers = []; txt.textContent = ""; st.forEach(function (e) { e.classList.remove("on"); }); push.classList.remove("on");
+    var i = 0; (function type() { if (i <= T.length) { txt.textContent = T.slice(0, i++); timers.push(setTimeout(type, 55)); } })();
+    var t0 = T.length * 55 + 1200;
+    at(t0, function () { st[0].classList.add("on"); });
+    at(t0 + 2200, function () { st[1].classList.add("on"); });
+    at(t0 + 3200, function () { st[2].classList.add("on"); });
+    at(t0 + 5000, function () { st[3].classList.add("on"); });
+    at(t0 + 6800, function () { st[4].classList.add("on"); });
+    at(t0 + 9500, function () { push.classList.add("on"); });
+    at(t0 + 15500, run);
+  }
+  try { if (!localStorage.getItem("mk-consent") && !BACK) setTimeout(function () { document.getElementById("consent").hidden = false; }, 1800); } catch (e) {}
+  // gestapelte Karten: die untere Karte tritt leicht zurück, wenn die nächste darüber gleitet
+  var cards = [].slice.call(document.querySelectorAll(".sk"));
+  if (!reduce && cards.length) { var tick = false; function upd() { tick = false; cards.forEach(function (c, i) { var n = cards[i + 1]; if (!n) return; var r = n.getBoundingClientRect(), top = parseFloat(getComputedStyle(n).top) || 80, h = c.offsetHeight || 1; var p = Math.min(1, Math.max(0, 1 - (r.top - top) / h)); c.style.transform = p ? "scale(" + (1 - p * .06) + ")" : ""; c.style.filter = p ? "brightness(" + (1 - p * .08) + ")" : ""; }); }
+    addEventListener("scroll", function () { if (!tick) { tick = true; requestAnimationFrame(upd); } }, { passive: true }); upd(); }
+  var started = false, demo = document.getElementById("demo");
+  var io2 = new IntersectionObserver(function (es) { if (es[0].isIntersecting && !started) { started = true; run(); } }, { threshold: .3 }); io2.observe(demo);
+})();
+</script>
+</body>
+</html>
