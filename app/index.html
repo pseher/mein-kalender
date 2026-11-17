@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117134824";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117163900";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -6333,17 +6333,27 @@ renderAll();
 // Neue Version: beim Zurückkehren in die App still neu laden (nie mitten in einer Eingabe), sonst ein Hinweis zum Antippen
 (function verWatch() {
   if (!APP || !window.MK_BUILD) return;
-  let pending = false;
-  const busy = () => !$("sheet")?.hidden || ($("wz") && !$("wz").hidden) || !!moving || rgActive || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+  // Updates auch für alle, die die App nie schließen: beim Zurückkehren, nach 5 Min. ohne Berührung, und Pflicht-Updates (version.json "min")
+  let pending = false, must = false, last = Date.now();
+  ["pointerdown", "keydown", "touchstart", "wheel"].forEach(t => addEventListener(t, () => { last = Date.now(); }, { passive: true, capture: true }));
+  const edits = root => !!root && [...root.querySelectorAll("input,textarea,select")].some(e => e.type === "checkbox" || e.type === "radio" ? e.checked !== e.defaultChecked : e.tagName === "SELECT" ? [...e.options].some(o => o.selected !== o.defaultSelected) : e.type !== "hidden" && e.value !== e.defaultValue);
+  const safe = () => !moving && !rgActive && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) && !($("wz") && !$("wz").hidden) && ($("sheet")?.hidden || !edits($("sheet")));
   const reload = () => { try { sessionStorage.setItem("ft-updated", "1"); } catch {} location.reload(); };
-  const bar = () => { if ($("upd-bar")) return; const b = document.createElement("button"); b.type = "button"; b.id = "upd-bar"; b.className = "upd-bar"; b.textContent = "✨ Neue Version – tippen zum Aktualisieren"; b.onclick = reload; document.body.appendChild(b); };
-  const check = async auto => {
-    if (!pending) { try { const r = await fetch("/app/version.json?t=" + Date.now(), { cache: "no-store" }); const j = await r.json(); if (j?.b && j.b !== window.MK_BUILD) pending = true; } catch {} }
-    if (!pending) return; if (auto && !busy()) reload(); else bar();
+  const bar = () => { let b = $("upd-bar"); if (!b) { b = document.createElement("button"); b.type = "button"; b.id = "upd-bar"; b.className = "upd-bar"; b.onclick = reload; document.body.appendChild(b); }
+    b.textContent = must ? "⚠️ Wichtiges Update – bitte tippen" : "✨ Neue Version – tippen zum Aktualisieren"; };
+  const check = async why => {
+    try { const r = await fetch("/app/version.json?t=" + Date.now(), { cache: "no-store" }); const j = await r.json();
+      if (j?.b && j.b !== window.MK_BUILD) pending = true; if (j?.min && String(window.MK_BUILD) < String(j.min)) must = pending = true; } catch {}
+    if (!pending) return;
+    const idle = Date.now() - last > 5 * 60e3;
+    if (safe() && (why === "back" || must || idle)) return reload();
+    bar();
   };
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(true); });
-  setInterval(() => { if (document.visibilityState === "visible") check(false); }, 15 * 60e3);
-  setTimeout(() => check(false), 30e3);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check("back"); });
+  addEventListener("online", () => check("back"));
+  setInterval(() => { if (document.visibilityState === "visible") check("tick"); }, 5 * 60e3);
+  setInterval(() => { if (pending && document.visibilityState === "visible" && safe() && (must || Date.now() - last > 5 * 60e3)) reload(); }, 30e3);
+  setTimeout(() => check("start"), 30e3);
   try { if (sessionStorage.getItem("ft-updated")) { sessionStorage.removeItem("ft-updated"); setTimeout(() => toast("✨ Mein Kalender ist auf dem neuesten Stand"), 1200); } } catch {}
 })();
 // Installierte App auf Android: ältere Installationen sind noch auf Hochformat festgelegt – Drehen wieder freigeben
