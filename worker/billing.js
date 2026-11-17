@@ -15,7 +15,7 @@
 //          bekommen nie ein Kaufangebot – nur die abschließende Person wird informiert und kann ein Zusatzpaket buchen.
 // Zusatzpaket (Plus und Familie): ADDON_JSON z. B. {"ai":200,"img":20}, Preis PRICE_ADDON z. B. "0.99" – gilt bis Monatsende.
 //   Schutz vor Fehlkäufen: höchstens ADDON_MAX_MONTH (3) pro Monat, ADDON_MAX_DAY (1) pro Tag, und erst wenn
-//   weniger als ADDON_MIN_LEFT (25 %) des Kontingents übrig sind – sonst verfällt Bezahltes ungenutzt.
+//   weniger als ADDON_MIN_LEFT (20 %, also ab 80 % Verbrauch) des Kontingents übrig sind – sonst verfällt Bezahltes ungenutzt.
 //
 // Der Tarif liegt in den app_metadata des Supabase-Kontos – die kann nur der Server ändern, nicht die App.
 
@@ -35,7 +35,7 @@ export const mode = env => ["off", "simulate", "live"].includes(env.BILLING_MODE
 const adm = env => ({ apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json", ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) });
 const RANK = { free: 0, plus: 1, family: 2 };
 export const addonOf = env => { let a = {}; try { a = JSON.parse(env.ADDON_JSON || "{}"); } catch {} return { ai: 200, img: 20, ...a, price: (v => isFinite(v) ? v : null)(parseFloat(String(env.PRICE_ADDON || "").replace(",", "."))),
-  maxMonth: +(env.ADDON_MAX_MONTH || 3), maxDay: +(env.ADDON_MAX_DAY || 1), minLeft: +(env.ADDON_MIN_LEFT || 25) }; };
+  maxMonth: +(env.ADDON_MAX_MONTH || 3), maxDay: +(env.ADDON_MAX_DAY || 1), minLeft: +(env.ADDON_MIN_LEFT || 20) }; };
 // Darf jetzt ein Zusatzpaket gebucht werden? → { ok, why, month, day }
 export function addonCheck(env, meta, plan, use) {
   const A = addonOf(env), list = (meta?.addons || []).filter(a => a.m === curMonth()), today = new Date().toISOString().slice(0, 10);

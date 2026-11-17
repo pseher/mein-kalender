@@ -2568,6 +2568,8 @@ const NT_DEF = { eve: true, eveTime: "20:00", ev: true, evLead: 60, bd: true, fe
 let NTP = { ...NT_DEF }, ntSub = null, ntLoaded = false;
 const ntSupported = () => APP && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const ntIOSNeedsInstall = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !IS_STANDALONE;
+// Handy/Tablet: erst in der installierten App fragen – sonst kommt die Frage im Browser und in der App doppelt
+const ntWaitInstall = () => APP && IS_MOBILE && !IS_STANDALONE;
 const swReady = () => Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 3000))]);
 const unb64u = s => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 const subId = ep => { let h = 0; for (const c of ep) h = (h * 31 + c.charCodeAt(0)) | 0; return "s" + (h >>> 0).toString(36) + ep.length.toString(36); };
@@ -3924,7 +3926,7 @@ async function gDeleteOcc(btn, o, series) {
 // =================== Anmelden & Startbildschirm ===================
 // ---------- Anmeldung mit E-Mail (eigene App) ----------
 let AU = { mode: "login", step: "form", email: "", type: "", msg: "", busy: false, show: false };
-const AU_ERR = { invalid_credentials: "E-Mail oder Passwort stimmt nicht.", email_not_confirmed: "Deine E-Mail-Adresse ist noch nicht bestätigt. Wir haben dir eben eine neue Mail mit Code geschickt.",
+const AU_ERR = { invalid_credentials: "E-Mail oder Passwort stimmt nicht. Bisher mit Google angemeldet? Dann tippe oben auf „Mit Google anmelden“ – dein Google-Passwort gilt hier nicht. Oder lege mit „Passwort vergessen?“ ein eigenes Passwort für Mein Kalender fest.", email_not_confirmed: "Deine E-Mail-Adresse ist noch nicht bestätigt. Wir haben dir eben eine neue Mail mit Code geschickt.",
   over_email_send_rate_limit: "Es wurden gerade zu viele Mails verschickt. Bitte versuch es in ein paar Minuten nochmal.", over_request_rate_limit: "Zu viele Versuche. Bitte warte ein paar Minuten.",
   weak_password: "Das Passwort ist zu schwach. Bitte mindestens 8 Zeichen, gern mit Zahlen oder Zeichen.", otp_expired: "Der Code ist falsch oder abgelaufen. Lass dir einfach einen neuen schicken.",
   email_address_invalid: "Diese E-Mail-Adresse ist ungültig.", validation_failed: "Bitte prüfe die E-Mail-Adresse.", signup_disabled: "Neue Konten sind gerade nicht möglich.",
@@ -3942,8 +3944,8 @@ function auHtml() {
   const up = AU.mode === "signup";
   return `<form id="au-form" class="au" method="post" action="/app/" novalidate>
     <div class="au-tabs" role="group" aria-label="Anmelden oder registrieren"><button type="button" data-aumode="login" aria-pressed="${!up}">Anmelden</button><button type="button" data-aumode="signup" aria-pressed="${up}">Neu registrieren</button></div>
-    <label class="au-f"><span>E-Mail</span><input type="email" id="au-email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" value="${em}" required></label>
-    <label class="au-f"><span>Passwort${up ? " <i>(mind. 8 Zeichen)</i>" : ""}</span><span class="au-pw"><input type="${AU.show ? "text" : "password"}" id="au-pw" name="password" autocomplete="${up ? "new-password" : "current-password"}" minlength="8" required><button type="button" class="au-eye" data-auop="eye" aria-label="Passwort ${AU.show ? "verbergen" : "anzeigen"}">${AU.show ? "Verbergen" : "Anzeigen"}</button></span></label>
+    <label class="au-f"><span>E-Mail</span><input type="email" id="au-email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" value="${em}" required></label>
+    <label class="au-f"><span>Passwort${up ? " <i>(mind. 8 Zeichen)</i>" : ""}</span><span class="au-pw"><input type="${AU.show ? "text" : "password"}" id="au-pw" name="password" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="${up ? "new-password" : "current-password"}" minlength="8" required><button type="button" class="au-eye" data-auop="eye" aria-label="Passwort ${AU.show ? "verbergen" : "anzeigen"}">${AU.show ? "Verbergen" : "Anzeigen"}</button></span></label>
     ${msg}<button type="submit" class="wz-big accent" ${AU.busy ? "disabled" : ""}>${AU.busy ? "Einen Moment …" : up ? "Konto anlegen" : "Anmelden"}</button>
     <div class="au-links"><button type="button" class="link" data-auop="otp">Ohne Passwort: Code per Mail</button>${up ? "" : `<button type="button" class="link" data-auop="reset">Passwort vergessen?</button>`}</div>
     ${up ? `<p class="note">Tipp: Dein Passwortmanager (z. B. Bitwarden, iCloud-Schlüsselbund, Google) schlägt dir ein sicheres Passwort vor und merkt es sich.</p>` : ""}</form>`;
@@ -3951,13 +3953,13 @@ function auHtml() {
 function auRender() { const b = $("au-box"); if (b) b.innerHTML = auHtml(); }
 function auBox() { return `<button type="button" class="wz-big accent" id="app-login"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="vertical-align:-4px;margin-right:8px"><path fill="#fff" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#fff" opacity=".85" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#fff" opacity=".7" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2L6.4 14z"/><path fill="#fff" opacity=".55" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6z"/></svg>Mit Google anmelden</button>
     <div class="au-or"><span>oder mit E-Mail</span></div><div id="au-box">${auHtml()}</div>`; }
-const auEmail = () => { const v = ($("au-email")?.value || AU.email || "").trim(); AU.email = v; return v; };
+const auEmail = () => { const v = ($("au-email")?.value || AU.email || "").replace(/\s+/g, ""); AU.email = v; return v; };
 const auValid = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
 async function auRun(fn) { AU.busy = true; AU.msg = ""; auRender(); try { await fn(); } finally { AU.busy = false; auRender(); } }
 async function auSubmit(id) {
   if (!window.mkAuth || AU.busy) return;
   if (id === "au-form") {
-    const email = auEmail(), pw = $("au-pw")?.value || "";
+    const email = auEmail(), pw = ($("au-pw")?.value || "").replace(/\s+/g, "");
     if (!auValid(email)) { AU.msg = "Bitte gib eine gültige E-Mail-Adresse ein."; AU.ok = false; return auRender(); }
     if (pw.length < (AU.mode === "signup" ? 8 : 1)) { AU.msg = AU.mode === "signup" ? "Bitte wähle ein Passwort mit mindestens 8 Zeichen." : "Bitte gib dein Passwort ein."; AU.ok = false; return auRender(); }
     return auRun(async () => {
@@ -3996,13 +3998,13 @@ function showNewPw() {
   const me = window.mkAuthInfo?.() || {};
   openSheet("Neues Passwort festlegen", "Damit du dich künftig mit E-Mail und Passwort anmelden kannst", `<form id="au-np" class="au" novalidate>
     <input type="email" name="email" autocomplete="username" value="${esc(me.email || "")}" hidden>
-    <label class="au-f"><span>Neues Passwort <i>(mind. 8 Zeichen)</i></span><input type="password" id="au-np1" name="new-password" autocomplete="new-password" minlength="8" required></label>
-    <label class="au-f"><span>Noch einmal</span><input type="password" id="au-np2" autocomplete="new-password" minlength="8" required></label>
+    <label class="au-f"><span>Neues Passwort <i>(mind. 8 Zeichen)</i></span><input type="password" id="au-np1" name="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="new-password" minlength="8" required></label>
+    <label class="au-f"><span>Noch einmal</span><input type="password" id="au-np2" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="new-password" minlength="8" required></label>
     <p class="err" id="au-npmsg" role="alert" hidden></p>
     <div class="btnrow"><button type="submit" class="btn accent">Speichern</button><button type="button" class="btn ghost" id="sheet-close2">Später</button></div></form>`, "newpw");
 }
 async function saveNewPw() {
-  const a = $("au-np1")?.value || "", b = $("au-np2")?.value || "", m = $("au-npmsg"), say = t => { if (m) { m.textContent = t; m.hidden = !t; } };
+  const a = ($("au-np1")?.value || "").replace(/\s+/g, ""), b = ($("au-np2")?.value || "").replace(/\s+/g, ""), m = $("au-npmsg"), say = t => { if (m) { m.textContent = t; m.hidden = !t; } };
   if (a.length < 8) return say("Bitte mindestens 8 Zeichen.");
   if (a !== b) return say("Die beiden Passwörter stimmen nicht überein.");
   const r = await window.mkAuth("newpw", { pw: a });
@@ -4010,6 +4012,9 @@ async function saveNewPw() {
   try { sessionStorage.removeItem("mk-newpw"); } catch {}
   closeSheet(); toast("Neues Passwort gespeichert.");
 }
+// Leerzeichen in E-Mail und Passwort sofort entfernen (Handy-Tastaturen setzen gern eins nach „.“)
+document.addEventListener("input", ev => { const t = ev.target; if (!t?.id || !/^au-(email|pw|np1|np2)$/.test(t.id) || !/\s/.test(t.value)) return;
+  const pos = t.selectionStart ?? t.value.length, before = t.value.slice(0, pos).replace(/\s+/g, "").length; t.value = t.value.replace(/\s+/g, ""); try { t.setSelectionRange(before, before); } catch {} });
 document.addEventListener("submit", ev => { const id = ev.target.id; if (id === "au-form" || id === "au-code") { ev.preventDefault(); auSubmit(id); } if (id === "au-np") { ev.preventDefault(); saveNewPw(); } });
 document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-aumode]"); if (m) { auEmail(); AU.mode = m.dataset.aumode; AU.msg = ""; auRender(); return; }
   const o = ev.target.closest?.("[data-auop]"); if (o) { ev.preventDefault(); auOp(o.dataset.auop); } });
@@ -4085,7 +4090,7 @@ function renderDevCards() {
   set("app-card", ok && IS_MOBILE && !IS_STANDALONE && (relInstalled || store.get("ft-a2hs") === "done") && !laterK("ft-appcard", 3));
   const usedG = !!(PROFILE.gcalAsked || PROFILE.gcalSel?.length);
   set("gdev-card", ok && !!mcp && usedG && ["needs_reauth", "server_not_connected"].includes(gState) && !laterK("ft-gdev", 3));
-  set("ntdev-card", ok && ntSupported() && !ntIOSNeedsInstall() && ntChecked && !(ntSub && Notification.permission === "granted") && !laterK("ft-ntdev", 5));
+  set("ntdev-card", ok && ntSupported() && !ntIOSNeedsInstall() && !ntWaitInstall() && ntChecked && !(ntSub && Notification.permission === "granted") && !laterK("ft-ntdev", 5));
 }
 function renderHints0() {
   renderDevCards();
@@ -4158,7 +4163,7 @@ function startGoogleSetup() {
   startSetup(true); Object.assign(WZ, { step: "cals", useG: true, later: true }); renderWz();
 }
 const wzDots = keys => { const i = keys.indexOf(WZ.step); return `<div class="wz-dots">${keys.map((k, j) => `<i class="${j === i ? "on" : j < i ? "done" : ""}"></i>`).join("")}</div>`; };
-const wzNt = () => APP && ntSupported() && !(ntSub && Notification.permission === "granted");
+const wzNt = () => APP && ntSupported() && !ntWaitInstall() && !(ntSub && Notification.permission === "granted");
 const STEPS = () => { const n = wzNt() ? ["notify"] : []; return WZ.later ? ["cals", "family", "state", "pages", ...n, "import", "done"] : WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", ...n, "import", "done"] : ["google", "manual", "state", "pages", ...n, "import", "done"]; };
 function renderWz() {
   const W = WZ, el = wzEl(); if (!el) return;
@@ -5083,7 +5088,7 @@ function showAddon() {
     <div class="pq"><div><span>KI-Aktionen noch übrig${fam ? " (Familie)" : ""}</span><b>${left}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${left + A.ai}</b></div>
       <div><span>Ticket-Auswertungen noch übrig</span><b>${leftI}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${leftI + A.img}</b></div></div>
     <p class="note"><b>Was zählt als KI-Aktion?</b> Jedes Mal, wenn die KI etwas für dich erledigt: einen Freitext oder eine Nachricht eintragen, eine Packliste oder Geschenkideen erstellen, eine Hilfe-Frage beantworten. Ein Ticket, Foto oder PDF auslesen zählt zusätzlich als Ticket-Auswertung. Alles über das Formular, Erinnerungen und Zug live zählen nicht.</p>
-    ${A.ok ? "" : `<p class="addon-no">${A.why === "enough" ? `Du hast noch genug übrig. Ein Zusatzpaket kannst du buchen, sobald weniger als ${A.minLeft} % deines Kontingents übrig sind – so verfällt nichts ungenutzt.` : A.why === "day" ? "Heute wurde schon ein Zusatzpaket gebucht. Ab morgen geht wieder eins." : A.why === "month" ? `Diesen Monat wurden schon ${A.maxMonth} Zusatzpakete gebucht – mehr geht nicht. Ab dem ${res} gibt es wieder das volle Kontingent.` : "Zusatzpakete gibt es in Plus und Familie."}</p>`}
+    ${A.ok ? "" : `<p class="addon-no">${A.why === "enough" ? `Du hast noch genug übrig. Ein Zusatzpaket kannst du buchen, sobald ${100 - A.minLeft} % deines Kontingents verbraucht sind – so verfällt nichts ungenutzt.` : A.why === "day" ? "Heute wurde schon ein Zusatzpaket gebucht. Ab morgen geht wieder eins." : A.why === "month" ? `Diesen Monat wurden schon ${A.maxMonth} Zusatzpakete gebucht – mehr geht nicht. Ab dem ${res} gibt es wieder das volle Kontingent.` : "Zusatzpakete gibt es in Plus und Familie."}</p>`}
     <p class="note">Diesen Monat gebucht: ${A.month || 0} von ${A.maxMonth} Zusatzpaketen · höchstens ${A.maxDay} pro Tag.</p>
     <p class="btnrow">${A.ok ? `<button type="button" class="btn accent" data-addonbuy>${sim ? "Zusatzpaket buchen (Test)" : "Weiter zu Google Play"}</button>` : ""}<button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
 }
@@ -5104,7 +5109,7 @@ async function showPlans() {
   openSheet("Tarife", sim ? "Testphase – Abschluss wird nur simuliert, es wird nichts berechnet" : "", `<div class="plans">
     <div class="plan-cur"><div class="pc-h"><b>Dein Tarif: ${esc(cur.label)}</b><span>${ends}</span></div>
       ${meter(B.use.ai, cur.ai, "KI-Aktionen diesen Monat")}${meter(B.use.img, cur.img, "Tickets & PDFs diesen Monat")}
-      ${["plus", "family"].includes(cur.id) && !cur.member && !cur.trial ? `<div class="addon">${cur.addon ? `<span>✓ Zusatzpaket gebucht: +${cur.addon.ai} KI-Aktionen, +${cur.addon.img} Tickets bis Monatsende</span>` : ""}<button type="button" class="btn small" data-addon>+ Zusatzpaket: ${B.addon.ai} KI-Aktionen und ${B.addon.img} Tickets bis Monatsende${B.addon.price != null ? ` · ${eur(B.addon.price)}` : ""}</button></div>` : ""}
+      ${["plus", "family"].includes(cur.id) && !cur.member && !cur.trial && (cur.addon || B.addon?.ok) ? `<div class="addon">${cur.addon ? `<span>✓ Zusatzpaket gebucht: +${cur.addon.ai} KI-Aktionen, +${cur.addon.img} Tickets bis Monatsende</span>` : ""}${B.addon?.ok ? `<button type="button" class="btn small" data-addon>+ Zusatzpaket: ${B.addon.ai} KI-Aktionen und ${B.addon.img} Tickets bis Monatsende${B.addon.price != null ? ` · ${eur(B.addon.price)}` : ""}</button>` : ""}</div>` : ""}
       <p class="note">Neue Kontingente ab ${res} ${cur.flight ? "✈️ Flug live ist enthalten." : "✈️ Flug live gibt es ab Plus."}</p></div>
     ${famBox(B)}
     <div class="ptab" role="table">

@@ -37,7 +37,7 @@ window.MK_APP = true;
     return r; };
   // Anmeldung mit E-Mail: Passwort (Passwortmanager-tauglich), Code/Link per Mail, Passwort vergessen
   window.mkAuth = async (op, a = {}) => {
-    const red = location.origin + "/app/", email = String(a.email || "").trim().toLowerCase();
+    const red = location.origin + "/app/", email = String(a.email || "").replace(/\s+/g, "").toLowerCase(); if (a.pw != null) a.pw = String(a.pw).replace(/\s+/g, "");
     try {
       let r;
       if (op === "login") r = await sb.auth.signInWithPassword({ email, password: a.pw });
