@@ -8,10 +8,10 @@
 //                                  MODEL_QUICK, MODEL_DEFAULT, DAILY_LIMIT, IMAGE_DAILY_LIMIT,
 //                                  GOOGLE_CLIENT_ID  (+ Secret GOOGLE_CLIENT_SECRET für /google/token)
 
-import { vapid, runSchedule, testPush } from "./push.js";
+import { vapid, runSchedule, testPush, pushTo } from "./push.js";
 import { trainCheck } from "./train.js";
 import { flightCheck } from "./flight.js";
-import { billingRoute, planOf, resolvePlan, usageOf, planBlock, mode as billMode } from "./billing.js";
+import { billingRoute, planOf, resolvePlan, usageOf, planBlock, noteFamilyLimit, mode as billMode } from "./billing.js";
 
 const VERSION = "2026-11-17a";
 const PRICE = { "claude-sonnet-5-5": [2, 10], "claude-haiku-4-5-20251001": [1, 5], "claude-haiku-4-5": [1, 5], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-5-5": [5, 25] };   // $ je 1 Mio. Tokens (Ein-, Ausgabe) – wie im Dashboard
@@ -151,7 +151,7 @@ export default {
     // Tarif-Grenzen (Kostenlos / Plus / Familie)
     const plan = billMode(env) === "off" ? planOf(env, user) : await resolvePlan(env, user);
     const puse = plan.pool && plan.pool.length > 1 ? await usageOf(env, plan.pool) : { ai: mCalls, img: mrows.filter(r => String(r.task).startsWith("bilder")).reduce((s, r) => s + r.calls, 0), reset: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1)).toISOString().slice(0, 10) };
-    const pb = planBlock(env, plan, puse, images.length > 0); if (pb) return out(429, pb);
+    const pb = planBlock(env, plan, puse, images.length > 0); if (pb) { if (pb.member) await noteFamilyLimit(env, plan, pushTo).catch(() => {}); return out(429, pb); }
 
     // 4) Modell fragen
     let model = tier === "quick" ? env.MODEL_QUICK : env.MODEL_DEFAULT;

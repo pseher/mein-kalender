@@ -123,6 +123,11 @@ export async function runSchedule(env) {
   S.sent = sent; S.al = STAT.al; await saveStats(env, S);
   return { users: byUser.size, sent };
 }
+// eine einzelne Nachricht an alle Geräte eines Kontos (z. B. „Familien-Kontingent aufgebraucht“)
+export async function pushTo(env, uid, msg) {
+  const subs = await getDocs(env, `user_id=eq.${uid}&coll=eq.pushsub&select=user_id,id,data`);
+  return subs.length ? sendToUser(env, uid, subs, [msg]) : 0;
+}
 export async function testPush(env, uid) {
   const subs = await getDocs(env, `user_id=eq.${uid}&coll=eq.pushsub&select=user_id,id,data`);
   if (!subs.length) return { ok: false, code: "no_subscription" };

@@ -11,8 +11,9 @@
 // Wechsel: höherer Tarif sofort (mit anteiliger Gutschrift für die ungenutzten Tage, neue Laufzeit 1 Monat ab heute),
 //          niedrigerer Tarif zum Ende der laufenden Abrechnungsperiode, Kündigung ebenso.
 //
-// Familie: bis zu 4 Konten (Abschließende Person + 3 Eingeladene) teilen sich EIN Kontingent. Wer mehr braucht oder
-//          die Familie verlässt, bekommt ein eigenes Plus angeboten – so bleiben Einzelne als zahlende Nutzer gewinnbar.
+// Familie: bis zu 4 Konten (abschließende Person + 3 Eingeladene) teilen sich EIN Kontingent. Mitglieder (oft Kinder)
+//          bekommen nie ein Kaufangebot – nur die abschließende Person wird informiert und kann ein Zusatzpaket buchen.
+// Zusatzpaket (Plus und Familie): ADDON_JSON z. B. {"ai":200,"img":20}, Preis PRICE_ADDON z. B. "0.99" – gilt bis Monatsende.
 //
 // Der Tarif liegt in den app_metadata des Supabase-Kontos – die kann nur der Server ändern, nicht die App.
 
@@ -31,6 +32,11 @@ export const mode = env => ["off", "simulate", "live"].includes(env.BILLING_MODE
 
 const adm = env => ({ apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json", ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) });
 const RANK = { free: 0, plus: 1, family: 2 };
+export const addonOf = env => { let a = {}; try { a = JSON.parse(env.ADDON_JSON || "{}"); } catch {} return { ai: 200, img: 20, ...a, price: (v => isFinite(v) ? v : null)(parseFloat(String(env.PRICE_ADDON || "").replace(",", "."))) }; };
+const curMonth = () => new Date().toISOString().slice(0, 7);
+// Zusatzpakete dieses Monats aufs Kontingent rechnen
+const withAddons = (p, meta) => { const A = (meta?.addons || []).filter(a => a.m === curMonth()); if (!A.length) return p;
+  const ai = A.reduce((s, a) => s + (a.ai || 0), 0), img = A.reduce((s, a) => s + (a.img || 0), 0); return { ...p, ai: p.ai + ai, img: p.img + img, addon: { n: A.length, ai, img } }; };
 export const priceOf = (env, id) => { const v = parseFloat(String(id === "plus" ? env.PRICE_PLUS : id === "family" ? env.PRICE_FAMILY : "0").replace(",", ".")); return id === "free" ? 0 : isFinite(v) ? v : null; };
 const addMonth = t => { const d = new Date(t); const r = new Date(d); r.setUTCMonth(d.getUTCMonth() + 1); if (r.getUTCDate() !== d.getUTCDate()) r.setUTCDate(0); return r.getTime(); };
 // Ende der laufenden Abrechnungsperiode (monatlich ab „since“)
@@ -60,13 +66,13 @@ export async function resolvePlan(env, user) {
   const m = user?.app_metadata?.plan || {}, P = plans(env);
   if (m.src === "family" && m.owner) {
     const o = await getUser(env, m.owner), op = o ? planOf(env, o) : null, mem = o?.app_metadata?.plan?.members || [];
-    if (op && op.id === "family" && mem.includes(user.id)) return { ...P.family, id: "family", member: true, owner: o.id, ownerName: nameOf(o), src: "family", since: op.since, periodEnd: op.periodEnd, until: op.until, pool: [o.id, ...mem] };
+    if (op && op.id === "family" && mem.includes(user.id)) return withAddons({ ...P.family, id: "family", member: true, owner: o.id, ownerName: nameOf(o), src: "family", since: op.since, periodEnd: op.periodEnd, until: op.until, pool: [o.id, ...mem] }, o.app_metadata.plan);
     return { ...planOf(env, user), leftFamily: true, fromName: o ? nameOf(o) : "" };
   }
   const p = planOf(env, user);
   if (m.src === "family_left") p.leftFamily = m.left || true;
   if (p.id === "family") { p.owner = user.id; p.members = m.members || []; p.pool = [user.id, ...p.members]; }
-  return p;
+  return p.id === "free" ? p : withAddons(p, m);
 }
 
 // Verbrauch dieses Monats (aus ai_usage) – bei Familie für alle Konten zusammen
@@ -87,12 +93,19 @@ async function setPlan(env, uid, plan) {
 export function planBlock(env, plan, use, hasImages) {
   if (mode(env) === "off") return null;
   const base = { code: "rate_limited", reason: "plan", plan: plan.id, reset: use.reset };
-  if (use.ai >= plan.ai) return { ...base, member: !!plan.member, kind: "ai", used: use.ai, limit: plan.ai, message: plan.shared ? `Das gemeinsame Familien-Kontingent (${plan.ai} KI-Aktionen) ist für diesen Monat aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` : `Deine ${plan.ai} KI-Aktionen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` };
-  if (hasImages && use.img >= plan.img) return { ...base, kind: "img", used: use.img, limit: plan.img, message: `Deine ${plan.img} Ticket-Auswertungen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Ohne Anhang klappt es weiterhin.` };
+  if (use.ai >= plan.ai) return { ...base, member: !!plan.member, owner: plan.member ? plan.ownerName : null, kind: "ai", used: use.ai, limit: plan.ai, message: plan.shared ? `Das gemeinsame Familien-Kontingent ist für diesen Monat aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` : `Deine ${plan.ai} KI-Aktionen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` };
+  if (hasImages && use.img >= plan.img) return { ...base, member: !!plan.member, owner: plan.member ? plan.ownerName : null, kind: "img", used: use.img, limit: plan.img, message: `Deine ${plan.img} Ticket-Auswertungen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Ohne Anhang klappt es weiterhin.` };
   return null;
 }
 
 // Routen: /billing/status, /billing/simulate, /billing/play/verify, /admin/plan
+// Mitglied stößt an die Grenze → die abschließende Person einmal pro Monat benachrichtigen
+export async function noteFamilyLimit(env, plan, push) {
+  if (!plan?.shared || !plan.owner) return;
+  const o = await getUser(env, plan.owner), om = o?.app_metadata?.plan; if (!om || om.limitNote === curMonth()) return;
+  await setPlan(env, o.id, { ...om, limitNote: curMonth() });
+  await push(env, o.id, { title: "👨‍👩‍👧 Familien-Kontingent aufgebraucht", body: "Eure gemeinsamen KI-Aktionen sind für diesen Monat verbraucht. Unter „Tarif“ kannst du ein Zusatzpaket buchen.", tag: "fam-limit", url: "/app/?plans=1" }).catch(() => {});
+}
 export async function billingRoute(route, req, env, user, isAdmin, out) {
   const P = plans(env), md = mode(env);
   const prices = { plus: priceOf(env, "plus"), family: priceOf(env, "family") };
@@ -112,7 +125,7 @@ export async function billingRoute(route, req, env, user, isAdmin, out) {
     let family = null;
     if (plan.id === "family") { const ids = plan.pool || []; const us = await Promise.all(ids.map(i => i === user.id ? user : getUser(env, i)));
       family = { owner: plan.owner, me: user.id, seats: P.family.seats, members: us.filter(Boolean).map(u => ({ id: u.id, name: nameOf(u), owner: u.id === plan.owner, used: use.by?.[u.id] || 0 })) }; }
-    return out(200, { mode: md, plan, use, plans: P, prices, family, trialDays: +(env.TRIAL_DAYS || 0) });
+    return out(200, { mode: md, plan, use, plans: P, prices, family, addon: addonOf(env), trialDays: +(env.TRIAL_DAYS || 0) });
   }
   if (route.startsWith("/billing/family/")) {
     let b = {}; try { b = await req.json(); } catch {}
@@ -162,6 +175,12 @@ export async function billingRoute(route, req, env, user, isAdmin, out) {
     if (cur.src === "family" || cur.src === "family_left") cur = {};
     const want = String(b.plan || ""), eff = planOf(env, { ...user, app_metadata: { ...(user.app_metadata || {}), plan: cur } }), nowIso = new Date().toISOString();
     if (b.quote) return out(200, { ok: true, quote: P[want] ? quote(eff, want) : null, plan: eff });
+    if (b.addon) {                                             // Zusatzpaket bis Monatsende (nur Plus und Familie, nur die abschließende Person)
+      if (cur.src === "family" || !["plus", "family"].includes(eff.id)) return out(403, { code: "no_addon" });
+      const A = addonOf(env), next = { ...cur, addons: [...(cur.addons || []).filter(a => a.m >= curMonth()), { m: curMonth(), ai: A.ai, img: A.img, at: new Date().toISOString(), price: A.price }].slice(-12) };
+      if (!(await setPlan(env, user.id, next))) return out(502, { code: "save_failed" });
+      return out(200, { ok: true, addon: true });
+    }
     let next;
     if (want === "cancel" || (want === "free" && eff.id !== "free")) {          // kündigen: läuft bis zum Ende der bezahlten Periode
       if (eff.id === "free") return out(200, { ok: true, plan: eff });
