@@ -1339,6 +1339,13 @@ const occBtn = (o, showRange) => {
   const e = o.ev, age = ageTxt(o), sub = [showRange && !sameDay(o.a, o.b) ? rngTxt(o.a, o.b) : "", age, e.note].filter(Boolean).join(" · ");
   return `<button type="button" class="evr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${dotSt(e)}></span><span class="n">${esc(evName(e))}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
 };
+// Woche: dieselbe feste Zeile wie in „Heute“ – [Uhrzeit] [Punkt] [Titel + eine Zeile Zusatz]
+function weekRow(o) {
+  const e = o.ev, age = ageTxt(o), multi = !sameDay(o.a, o.b), tt = e.time ? `${esc(e.time)}${e.endTime ? `<small>${esc(e.endTime)}</small>` : ""}` : "";
+  const note = String(e.note || "").replace(/https?:\/\/\S+/g, "🔗 Link").split(/\n| · /)[0].trim();
+  const sub = [multi ? rngTxt(o.a, o.b) : "", age, e.place && !/^https?:/.test(e.place) ? e.place : "", !age && !e.place ? note : ""].filter(Boolean).join(" · ");
+  return `<button type="button" class="fr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="fr-t">${tt}</span><span class="fr-m"><span class="fr-dot" style="background:${colorOf(e)}"></span></span><span class="fr-x"><span class="fr-n">${esc(evName(e))}${trainBadge(o)}</span>${sub ? `<small class="fr-s">${esc(sub)}</small>` : ""}</span></button>`;
+}
 function renderWeek() {
   const days = [...Array(7)].map((_, i) => addDays(weekStart, i));
   $("w-name").textContent = `KW ${isoWeek(weekStart)}`;
@@ -1346,10 +1353,11 @@ function renderWeek() {
   $("w-prev").disabled = weekStart <= START; $("w-next").disabled = addDays(weekStart, 7) > END;
   $("week").innerHTML = days.map(dt => {
     const d = dayOf(dt); if (!d) return "";
-    const oc = occOn(dt);
+    const oc = occOn(dt).sort((a, b) => (a.ev.time || "").localeCompare(b.ev.time || "")), k = iso(dt);
+    const tk = canWrite ? TASKS.filter(t => !t.done && t.state !== "no" && t.due === k) : [];
     return `<div class="wd${isWE(dt) ? " we" : ""}${sameDay(dt, TODAY) ? " is-today" : ""}">
-      <button type="button" class="wd-h" data-day="${d.k}"><b>${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}.</b>${dayChips(d)}</button>
-      <div class="wd-ev">${oc.map(o => occBtn(o, true)).join("")}</div></div>`;
+      <button type="button" class="wd-h" data-day="${d.k}"><b>${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}.</b>${sameDay(dt, TODAY) ? `<span class="wd-today">heute</span>` : ""}${dayChips(d)}</button>
+      <div class="wd-ev fl">${oc.map(weekRow).join("")}${tk.map(t => `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(t.id)}">${esc(t.title)}<small> · Aufgabe</small></button></div>`).join("")}</div></div>`;
   }).join("");
 }
 function setWeek(dt) { weekStart = monday(dt); ensureGoogle(); if (weekStart < monday(START)) weekStart = monday(START); renderWeek(); }
@@ -4969,7 +4977,11 @@ function showFamLimit(e) {
 }
 function showAddon() {
   const A = BILL?.addon; if (!A) return; use("tarif_zusatz_ansehen"); const fam = BILL.plan.id === "family", sim = BILL.mode === "simulate";
+  const pl = BILL.plan, u = BILL.use, res = fmt(parseIso(u.reset)), left = Math.max(0, pl.ai - u.ai), leftI = Math.max(0, pl.img - u.img);
   openSheet("Zusatzpaket", sim ? "Testphase – es wird nichts berechnet" : "", `<div class="plans"><div class="plan-up"><b>+${A.ai} KI-Aktionen und +${A.img} Ticket-Auswertungen</b><span>Gilt sofort bis Monatsende${fam ? " – für die ganze Familie" : ""}. Einmalig${A.price != null ? `, ${A.price.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ", Preis folgt"}, kein Abo.</span></div>
+    <div class="pq"><div><span>KI-Aktionen noch übrig${fam ? " (Familie)" : ""}</span><b>${left}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${left + A.ai}</b></div>
+      <div><span>Ticket-Auswertungen noch übrig</span><b>${leftI}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${leftI + A.img}</b></div></div>
+    <p class="note"><b>Was zählt als KI-Aktion?</b> Jedes Mal, wenn die KI etwas für dich erledigt: einen Freitext oder eine Nachricht eintragen, eine Packliste oder Geschenkideen erstellen, eine Hilfe-Frage beantworten. Ein Ticket, Foto oder PDF auslesen zählt zusätzlich als Ticket-Auswertung. Alles über das Formular, Erinnerungen und Zug live zählen nicht.</p>
     <p class="btnrow"><button type="button" class="btn accent" data-addonbuy>${sim ? "Zusatzpaket buchen (Test)" : "Weiter zu Google Play"}</button><button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
 }
 async function showPlans() {

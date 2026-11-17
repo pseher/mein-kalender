@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117110100";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117110852";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -900,12 +900,15 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .upsec h3 { display: flex; align-items: center; gap: 8px; margin: 4px 6px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .up #sec-focus .nx { grid-template-columns: 44px 1fr; gap: 6px; } .up #sec-focus .nx .when:empty { visibility: hidden; } #sec-focus .ev-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 .fx-day { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 8px 2px; } .fx-day:first-child { margin-top: 2px; }
-#focus-list .fr { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; min-height: 34px; padding: 4px 6px; margin: 0; text-align: left; background: none; border: 0; border-radius: 8px; color: var(--fg); font: inherit; font-size: 15px; cursor: pointer; }
-#focus-list .fr:hover { background: var(--soft); } #focus-list div.fr { cursor: default; }
+#focus-list .fr, .fl .fr { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; min-height: 34px; padding: 4px 6px; margin: 0; text-align: left; background: none; border: 0; border-radius: 8px; color: var(--fg); font: inherit; font-size: 15px; cursor: pointer; }
+#focus-list .fr:hover, .fl .fr:hover { background: var(--soft); } #focus-list div.fr, .fl div.fr { cursor: default; }
 .fr-t { font-size: 12.5px; font-weight: 600; color: var(--both); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fr-m { display: flex; justify-content: center; align-items: center; font-size: 14px; } .fr-dot { width: 10px; height: 10px; border-radius: 50%; }
 .fr-x { min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; } .fr-x small { color: var(--muted); font-size: 12.5px; }
 .fr-btn { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; } .fr-ck { width: 18px; height: 18px; }
+.fl .fr { align-items: start; } .fl .fr-t, .fl .fr-m { padding-top: 2px; } .fl .fr-t small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
+.fl .fr-n { display: block; } .fl .fr-s { display: block; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+#week .wd { display: block; justify-items: stretch; padding: 10px 12px 8px; cursor: default; } #week .wd-h { padding: 0 6px; } .wd .wd-ev.fl { gap: 0; margin-top: 4px; width: 100%; } .wd-today { font-size: 11.5px; font-weight: 700; color: var(--both); text-transform: uppercase; letter-spacing: .05em; }
 #focus-list .fx-day { margin: 10px 6px 2px calc(6px + 44px + 8px); } #focus-list .fx-day:first-child { margin-top: 2px; }
 .focus-more { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 4px 2px; } .focus-more:empty { display: none; }
 .fchip { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg); background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 7px 8px; cursor: pointer; }
@@ -2654,6 +2657,13 @@ const occBtn = (o, showRange) => {
   const e = o.ev, age = ageTxt(o), sub = [showRange && !sameDay(o.a, o.b) ? rngTxt(o.a, o.b) : "", age, e.note].filter(Boolean).join(" · ");
   return `<button type="button" class="evr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${dotSt(e)}></span><span class="n">${esc(evName(e))}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
 };
+// Woche: dieselbe feste Zeile wie in „Heute“ – [Uhrzeit] [Punkt] [Titel + eine Zeile Zusatz]
+function weekRow(o) {
+  const e = o.ev, age = ageTxt(o), multi = !sameDay(o.a, o.b), tt = e.time ? `${esc(e.time)}${e.endTime ? `<small>${esc(e.endTime)}</small>` : ""}` : "";
+  const note = String(e.note || "").replace(/https?:\/\/\S+/g, "🔗 Link").split(/\n| · /)[0].trim();
+  const sub = [multi ? rngTxt(o.a, o.b) : "", age, e.place && !/^https?:/.test(e.place) ? e.place : "", !age && !e.place ? note : ""].filter(Boolean).join(" · ");
+  return `<button type="button" class="fr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="fr-t">${tt}</span><span class="fr-m"><span class="fr-dot" style="background:${colorOf(e)}"></span></span><span class="fr-x"><span class="fr-n">${esc(evName(e))}${trainBadge(o)}</span>${sub ? `<small class="fr-s">${esc(sub)}</small>` : ""}</span></button>`;
+}
 function renderWeek() {
   const days = [...Array(7)].map((_, i) => addDays(weekStart, i));
   $("w-name").textContent = `KW ${isoWeek(weekStart)}`;
@@ -2661,10 +2671,11 @@ function renderWeek() {
   $("w-prev").disabled = weekStart <= START; $("w-next").disabled = addDays(weekStart, 7) > END;
   $("week").innerHTML = days.map(dt => {
     const d = dayOf(dt); if (!d) return "";
-    const oc = occOn(dt);
+    const oc = occOn(dt).sort((a, b) => (a.ev.time || "").localeCompare(b.ev.time || "")), k = iso(dt);
+    const tk = canWrite ? TASKS.filter(t => !t.done && t.state !== "no" && t.due === k) : [];
     return `<div class="wd${isWE(dt) ? " we" : ""}${sameDay(dt, TODAY) ? " is-today" : ""}">
-      <button type="button" class="wd-h" data-day="${d.k}"><b>${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}.</b>${dayChips(d)}</button>
-      <div class="wd-ev">${oc.map(o => occBtn(o, true)).join("")}</div></div>`;
+      <button type="button" class="wd-h" data-day="${d.k}"><b>${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}.</b>${sameDay(dt, TODAY) ? `<span class="wd-today">heute</span>` : ""}${dayChips(d)}</button>
+      <div class="wd-ev fl">${oc.map(weekRow).join("")}${tk.map(t => `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(t.id)}">${esc(t.title)}<small> · Aufgabe</small></button></div>`).join("")}</div></div>`;
   }).join("");
 }
 function setWeek(dt) { weekStart = monday(dt); ensureGoogle(); if (weekStart < monday(START)) weekStart = monday(START); renderWeek(); }
@@ -6284,7 +6295,11 @@ function showFamLimit(e) {
 }
 function showAddon() {
   const A = BILL?.addon; if (!A) return; use("tarif_zusatz_ansehen"); const fam = BILL.plan.id === "family", sim = BILL.mode === "simulate";
+  const pl = BILL.plan, u = BILL.use, res = fmt(parseIso(u.reset)), left = Math.max(0, pl.ai - u.ai), leftI = Math.max(0, pl.img - u.img);
   openSheet("Zusatzpaket", sim ? "Testphase – es wird nichts berechnet" : "", `<div class="plans"><div class="plan-up"><b>+${A.ai} KI-Aktionen und +${A.img} Ticket-Auswertungen</b><span>Gilt sofort bis Monatsende${fam ? " – für die ganze Familie" : ""}. Einmalig${A.price != null ? `, ${A.price.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ", Preis folgt"}, kein Abo.</span></div>
+    <div class="pq"><div><span>KI-Aktionen noch übrig${fam ? " (Familie)" : ""}</span><b>${left}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${left + A.ai}</b></div>
+      <div><span>Ticket-Auswertungen noch übrig</span><b>${leftI}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${leftI + A.img}</b></div></div>
+    <p class="note"><b>Was zählt als KI-Aktion?</b> Jedes Mal, wenn die KI etwas für dich erledigt: einen Freitext oder eine Nachricht eintragen, eine Packliste oder Geschenkideen erstellen, eine Hilfe-Frage beantworten. Ein Ticket, Foto oder PDF auslesen zählt zusätzlich als Ticket-Auswertung. Alles über das Formular, Erinnerungen und Zug live zählen nicht.</p>
     <p class="btnrow"><button type="button" class="btn accent" data-addonbuy>${sim ? "Zusatzpaket buchen (Test)" : "Weiter zu Google Play"}</button><button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
 }
 async function showPlans() {
