@@ -1124,7 +1124,13 @@ async function showAdmin(reload) {
     return tr([uName(u.id), `#${D.evn?.[u.id] || 0}`, `#${ds.length}`, yes(ds.some(x => x.sa)), yes(ds.some(x => x.g === "ok")), yes((D.pushBy?.[u.id] || 0) > 0), b ? (b === curB ? "✅ aktuell" : "⚠️ alt") : "–", `#${u.last ? dShort(u.last) : "–"}`]); });
   const actDays = new Map(); D.use.forEach(r => (actDays.get(r.u) || actDays.set(r.u, new Set()).get(r.u)).add(r.d)); ai.forEach(r => (actDays.get(r.user_id) || actDays.set(r.user_id, new Set()).get(r.user_id)).add(r.day));
   const ret = n => { const C = D.users.filter(u => u.created && iso(addDays(parseIso(u.created.slice(0, 10)), n)) <= today); const k = C.filter(u => [...(actDays.get(u.id) || [])].some(d => d >= iso(addDays(parseIso(u.created.slice(0, 10)), n)))).length; return `${k} von ${C.length} (${pct(k, C.length)})`; };
-  T.nutzer = `<h3>Einrichtungsstand je Nutzer</h3>${tbl(["Nutzer", "#Einträge", "#Geräte", "App", "Google", "Push", "Version", "#zuletzt"], setupRows)}
+  const PL = { free: "Kostenlos", plus: "Plus", family: "Familie" };
+  const planRows = D.users.slice().sort((a, b) => (b.last || "").localeCompare(a.last || "")).map(u => { const m = mU.get(u.id) || { n: 0 };
+    return tr([uName(u.id), `${PL[u.plan] || "Kostenlos"}${u.trial ? " (Probe)" : ""}${u.planSrc === "sim" ? " · Test" : u.planSrc === "admin" ? " · gesetzt" : ""}${u.planUntil ? ` · bis ${dShort(u.planUntil)}` : ""}`, `#${m.n}`,
+      Object.keys(PL).filter(k => k !== (u.plan || "free")).map(k => `<button type="button" class="link" data-admplan="${esc(u.id)}|${k}">${PL[k]}</button>`).join(" · ")]); });
+  T.nutzer = `<h3>Tarife</h3><p class="note">Abrechnung: <b>${esc(D.billing === "off" ? "aus (keine Tarif-Grenzen)" : D.billing === "live" ? "live" : "Simulation – Abschluss ohne Zahlung")}</b> · umstellen in Cloudflare über die Variable BILLING_MODE (off / simulate / live).</p>
+    ${tbl(["Nutzer", "Tarif", "#KI diesen Monat", "setzen auf"], planRows)}
+    <h3>Einrichtungsstand je Nutzer</h3>${tbl(["Nutzer", "#Einträge", "#Geräte", "App", "Google", "Push", "Version", "#zuletzt"], setupRows)}
     <p class="note">App = als App installiert · Google = auf mindestens einem Gerät verbunden · Version = neueste genutzte App-Version. Geräte melden sich seit diesem Update.</p>
     <h3>Bleiben die Nutzer?</h3><p>noch aktiv nach 1 Tag: <b>${ret(1)}</b> · nach 7 Tagen: <b>${ret(7)}</b> · nach 30 Tagen: <b>${ret(30)}</b></p>
     <h3>Häufigste Hilfe-Fragen</h3>${(D.helpq || []).length ? `<ul class="adm-l">${D.helpq.slice(0, 40).map(h => `<li>„${esc(h.q)}“ <span class="note">${dShort(h.at)} · ${short(h.u)}</span></li>`).join("")}</ul>` : `<p class="note">noch keine Fragen gestellt</p>`}
@@ -1911,7 +1917,7 @@ function osmPrefetch() { clearTimeout(osmBgT); osmBgT = setTimeout(async () => {
 
 // =================== Dokumente: Tickets, PDFs, Bilder (privat, in Stücken gespeichert) ===================
 const FILE_MAX = 5e6, CHUNK = 180000, FILECACHE = new Map(), PDF_MAX_PAGES = 30, PDF_AI_PAGES = 3;
-const RL = e => e?.code === "rate_limited" && /limit/i.test(e?.message || "") ? e.message : "Gerade zu viele Anfragen. Versuch es gleich noch einmal.";
+const RL = e => { if (e?.reason === "plan") { setTimeout(() => showLimit(e), 450); return e.message; } return e?.code === "rate_limited" && /limit|aufgebraucht/i.test(e?.message || "") ? e.message : "Gerade zu viele Anfragen. Versuch es gleich noch einmal."; };
 async function pdfTooLong(f) {
   if (!(f.type === "application/pdf" || /\.pdf$/i.test(f.name || ""))) return 0;
   try { const lib = await loadPdfJs(), d = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise, n = d.numPages; d.destroy?.(); return n > PDF_MAX_PAGES ? n : 0; } catch { return 0; }
@@ -2683,6 +2689,7 @@ function trainDetail(o) {
   const fl = flightOf(o.ev) || (rt0 ? `${rt0.al ? rt0.al + " " : ""}${rt0.dep}→${rt0.arr}` : ""), tr = (TRST[trainKey(o)]?.code ? TRST[trainKey(o)].code.replace(/^([A-Z0-9]{2})(\d)/, "$1 $2") : "") || fl || trainOf(o.ev); if (!tr || !o.ev.time) return ""; const s = TRST[trainKey(o)], st = fl ? (o.ev.place || "").split(",")[0] : stationOf(o.ev), ic = fl ? "✈️" : "🚆";
   const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
   const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (fl && !flightAllowed() && at > new Date()) return `<p class="trd">${ic} ${esc(tr)} · <b>Flug live</b> (Gate, Verspätung, Gepäckband) gibt es mit Plus. <button type="button" class="link" data-plans>Tarife ansehen</button></p>`;
   if (!s?.seen) return at > new Date() ? `<p class="trd">${ic} ${esc(tr)} wird ab ${hm(new Date(at - (fl ? 180 : 150) * 60e3))} Uhr live beobachtet${st ? ` (${esc(st)})` : ""}.</p>` : "";
   if (s.flight) { const plan = new Date(s.pt || at), real = new Date(plan.getTime() + (s.d || 0) * 60e3), what = s.kind === "dep" ? "Abflug" : "Landung";
     const head = s.c ? `❌ ${esc(tr)} gestrichen` : s.status === "landed" ? `🛬 ${esc(tr)} gelandet` : s.d >= 15 ? `🔴 ${esc(tr)}: +${s.d} Min.` : s.d >= 5 ? `🟡 ${esc(tr)}: +${s.d} Min.` : `✅ ${esc(tr)} planmäßig`;
@@ -2734,6 +2741,7 @@ function trainWatch() {
   for (const e of EV) { if (e.repeat && e.repeat !== "none") continue; const L = tripLegs(e); if (L.length < (e.type === "trip" || e.type === "urlaub" ? 1 : 2)) continue;
     L.forEach((l, i) => { const d = parseIso(l.date); if (d < lo || d > hi) return; const [h, m] = l.time.split(":").map(Number), at = new Date(d); at.setHours(h, m, 0, 0);
       if (at.getTime() < Date.now() - 30 * 60e3) return; const id = legKey(e, l, i); seen.add("ev:" + e.id);
+      if (l.mode === "flug" && !flightAllowed()) return;
       W.push({ id, train: l.train, st: l.st, at: at.toISOString(), title: evName(e), prefer: l.prefer, ...(l.mode ? { mode: "flug" } : {}) }); });
     if (L.length) seen.add("ev:" + e.id); }
   OCC.filter(o => !o.part && !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
@@ -2743,6 +2751,7 @@ function trainWatch() {
     const id = `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`; if (seen.has(id)) return; seen.add(id);
     if (at.getTime() < Date.now() - 30 * 60e3) return;   // abgefahrene Züge nicht mehr beobachten
     const tx = [o.ev.title, o.ev.note].join(" "), prefer = /abhol|ankunft|ankommen|kommt an|empfang/i.test(tx) ? "arr" : /abfahrt|losfahren|fahre |hinfahrt|abreise|zug nach/i.test(tx) ? "dep" : "";
+    if (fl && !flightAllowed()) return;
     W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}), ...(rt ? { route: rt } : {}) }); });
   return W.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 8);
 }
@@ -2752,6 +2761,7 @@ function legsDetail(o) {
   const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   return `<div class="trd">${L.map((l, i) => { const s = TRST[legKey(e, l, i)], d = parseIso(l.date), at = new Date(d), F = l.mode === "flug"; const [h, m] = l.time.split(":").map(Number); at.setHours(h, m, 0, 0);
     const ic = F ? "✈️" : "🚆", when = `${fmt(d)} ${l.time}`, kind = l.prefer === "arr" ? "an" : "ab";
+    if (F && !flightAllowed() && at > new Date()) return `<div>${ic} <b>${esc(l.train)}</b> ${kind} ${esc(l.st)} · ${when}<br><span class="note">Flug live gibt es mit Plus · <button type="button" class="link" data-plans>Tarife ansehen</button></span></div>`;
     if (!s?.seen) return `<div>${ic} <b>${esc(l.train)}</b> ${kind} ${esc(l.st)} · ${when}<br><span class="note">${at > new Date() ? `wird ab ${fmt(new Date(at - (F ? 180 : 150) * 60e3))} ${hm(new Date(at - (F ? 180 : 150) * 60e3))} Uhr live beobachtet` : "vorbei"}</span></div>`;
     const real = new Date(new Date(s.pt || at).getTime() + (s.d || 0) * 60e3);
     const head = s.c ? `❌ fällt aus` : s.d >= (F ? 15 : 5) ? `🔴 +${s.d} Min. (ca. ${hm(real)})` : s.d >= (F ? 5 : 2) ? `🟡 +${s.d} Min.` : "✅ pünktlich";
@@ -3961,6 +3971,8 @@ addEventListener("unhandledrejection", e => { const m = String(e?.reason?.messag
 addEventListener("mk-ki-err", e => { const { task, code } = e.detail || {}; if (code === "rate_limited") use("ki_limit"); else use(`ki_fehler_${String(task || "allgemein").replace(/[^\w-]/g, "").slice(0, 30)}__${String(code || "").replace(/[^\w-]/g, "").slice(0, 20)}`); });
 function renderDevCards() {
   try { devReport(); } catch {}
+  if (APP && dbState === "ready" && !BILL && Date.now() - billT > 60e3) billLoad();
+  { const c = $("quota-card"); if (c) c.hidden = c.dataset.on !== "1"; }
   const ok = APP && dbState === "ready" && canWrite && PROFILE.setupDone, set = (id, on) => { const c = $(id); if (c) c.hidden = !on; };
   set("app-card", ok && IS_MOBILE && !IS_STANDALONE && (relInstalled || store.get("ft-a2hs") === "done") && !laterK("ft-appcard", 3));
   const usedG = !!(PROFILE.gcalAsked || PROFILE.gcalSel?.length);
@@ -4372,6 +4384,13 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-ftype]"))) { const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
+  if ((el = q("[data-plans]"))) { showPlans(); return; }
+  if ((el = q("[data-checkout]"))) { showCheckout(el.dataset.checkout); return; }
+  if ((el = q("[data-buy]"))) { const id = el.dataset.buy; billDo(id, `${BILL?.plans?.[id]?.label || "Tarif"} ist aktiv (Test)`); return; }
+  if ((el = q("[data-cancel]"))) { openSheet("Abo kündigen?", "", `<p>Dein ${esc(BILL?.plan?.label || "")}-Tarif läuft bis zum Ende des bezahlten Monats weiter. Danach gelten wieder die Grenzen von „Kostenlos“ – alle Termine und Einstellungen bleiben erhalten.</p><p class="btnrow"><button type="button" class="btn danger" data-cancelok>Jetzt kündigen</button><button type="button" class="btn ghost" data-plans>Behalten</button></p>`, "plan"); return; }
+  if ((el = q("[data-cancelok]"))) { billDo("cancel", "Gekündigt (Test) – läuft bis Monatsende weiter"); return; }
+  if ((el = q("[data-resume]"))) { billDo("resume", "Kündigung zurückgenommen (Test)"); return; }
+  if ((el = q("[data-admplan]"))) { const [u, pl] = el.dataset.admplan.split("|"); window.mkAdminPlan?.(u, pl).then(r => { toast(r?.ok ? "Tarif gesetzt" : "Ging nicht"); showAdmin(true); }); return; }
   if ((el = q("[data-admtab]"))) { ADM_TAB = el.dataset.admtab; showAdmin(); return; }
   if ((el = q("[data-qcol]"))) { const v = el.dataset.qcol, cid = v.slice(v.lastIndexOf("|") + 1), eid = v.slice(0, v.lastIndexOf("|")); if (eid.startsWith("g:")) quickGColor(eid, cid); else quickColor(eid, cid); return; }
   if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
@@ -4425,6 +4444,9 @@ document.addEventListener("click", ev => {
     case "a-go": runAssistant(); break;
     case "f-mail-btn": switchEntry("text"); setTimeout(() => { const i = $("a-in"); if (i) { i.placeholder = "Hier den Text der Buchungsbestätigung einfügen (lange tippen → Einfügen) – ich trage dann alles ein."; i.focus(); } }, 50); break;
     case "mi-help": showHelp(); break;
+    case "mi-plan": showPlans(); break;
+    case "card-quota-go": $("quota-card").hidden = true; $("quota-card").dataset.on = ""; showPlans(); break;
+    case "card-quota-x": $("quota-card").hidden = true; $("quota-card").dataset.on = ""; renderHints(); break;
     case "help-go": helpAsk(); break;
     case "card-app-x": store.set("ft-appcard", String(Date.now())); renderHints(); break;
     case "card-gdev-go": window.mkConnectGoogle?.(); break;
@@ -4879,6 +4901,83 @@ async function helpAsk() {
   try { window.MK_TASK = "hilfe"; const r = await sample(`${HELP_GUIDE}\n\nHäufige Fragen und Antworten:\n${HELP.map(([a, b]) => `- ${a} ${b}`).join("\n")}\n\nFrage des Nutzers: ${q.slice(0, 600)}\nAntworte nur mit der Antwort (Klartext, keine Überschriften).`, { modelTier: "quick" });
     out.innerHTML = `<p class="help-a">${esc((r.text || "").trim()).replace(/\n/g, "<br>")}</p>`; }
   catch (err) { out.innerHTML = `<p class="err">${err?.code === "rate_limited" ? esc(RL(err)) : "Das hat gerade nicht geklappt – schau bei den häufigen Fragen unten."}</p>`; }
+}
+// =================== Tarife (Testphase: Abschluss wird nur simuliert) ===================
+let BILL = null, billT = 0;
+const flightAllowed = () => !BILL || BILL.mode === "off" || !!BILL.plan?.flight;
+const PLAN_ROWS = [
+  ["Kalender, Formular, Serien, Farben", () => true],
+  ["Erinnerungen & Benachrichtigungen", () => true],
+  ["Geburtstage, Geschenke, Ferien, gemeinsam frei", () => true],
+  ["Teilen & Google Kalender", () => true],
+  ["Hinweise zu Visum, ESTA, Maut, Vignette", () => true],
+  ["Zug live (Deutsche Bahn)", () => true],
+  ["KI-Aktionen pro Monat (Freitext, Packliste, Hilfe …)", p => String(p.ai)],
+  ["Tickets & PDFs auslesen pro Monat", p => String(p.img)],
+  ["Flug live (Gate, Verspätung, Gepäckband)", p => !!p.flight],
+  ["Für die ganze Familie", p => p.family ? `bis ${p.seats || 5} Personen` : false],
+];
+async function billLoad(force) {
+  if (!APP || !window.mkBilling || (!force && Date.now() - billT < 60e3)) return BILL; billT = Date.now();
+  const r = await window.mkBilling("status"); if (r && r.plan) { BILL = r; renderPlanMenu(); try { renderHints(); } catch {} } return BILL;
+}
+const monthKey = () => iso(TODAY).slice(0, 7);
+function renderPlanMenu() {
+  const b = $("mi-plan"); if (!b) return; b.hidden = !BILL || BILL.mode === "off";
+  if (BILL && BILL.mode !== "off") b.lastChild.textContent = ` Tarif: ${BILL.plan.label}${BILL.plan.trial ? " (Probezeit)" : ""} · KI ${Math.min(BILL.use.ai, BILL.plan.ai)}/${BILL.plan.ai}`;
+}
+addEventListener("mk-quota", e => {
+  const q = e.detail || {}; if (!BILL) { billLoad(true); return; }
+  BILL.use.ai = q.ai; BILL.use.img = q.img; renderPlanMenu();
+  const k = `ft-qhint-${monthKey()}`, left = q.aiLimit - q.ai;
+  if (q.aiLimit && q.ai >= Math.ceil(q.aiLimit * 0.8) && left > 0 && !store.get(k)) { store.set(k, "1"); showQuotaCard(left, q.aiLimit); }
+});
+function showQuotaCard(left, lim) {
+  const c = $("quota-card"); if (!c) return; use("tarif_hinweis_80");
+  c.querySelector("span").textContent = `Noch ${left} von ${lim} KI-Aktionen diesen Monat. Danach kannst du weiter alles über das Formular eintragen – ab dem 1. geht es wieder los.`;
+  c.hidden = false; c.dataset.on = "1"; try { renderHints(); } catch {}
+}
+function showLimit(e) {
+  use("tarif_limit_" + (e.kind || "ai")); const P = BILL?.plans || {}, nx = e.plan === "free" ? "plus" : null, res = e.reset ? fmt(parseIso(e.reset)) : "1. des Monats";
+  openSheet(e.kind === "img" ? "Ticket-Auswertungen aufgebraucht" : "KI-Aktionen aufgebraucht", `Tarif ${BILL?.plan?.label || "Kostenlos"} · bis ${res}`, `<div class="plan-lim">
+    <p>Du hast diesen Monat <b>${e.used} von ${e.limit}</b> ${e.kind === "img" ? "Ticket- und PDF-Auswertungen" : "KI-Aktionen"} genutzt. Ab <b>${res}</b> geht es wieder los.</p>
+    <p><b>Das klappt weiterhin:</b> Eintragen über das Formular, Erinnerungen, Geburtstage, Ferien, Teilen, Google Kalender und Zug live.</p>
+    ${nx && P[nx] ? `<div class="plan-up"><b>Mehr mit ${esc(P[nx].label)}</b><span>${P[nx].ai} KI-Aktionen und ${P[nx].img} Ticket-Auswertungen pro Monat, dazu Flug live.</span><button type="button" class="btn accent" data-checkout="${nx}">${esc(P[nx].label)} ansehen</button></div>` : ""}
+    <p class="btnrow"><button type="button" class="btn ghost" id="sheet-close2">Später</button><button type="button" class="link" data-plans>Alle Tarife vergleichen</button></p></div>`, "plan");
+}
+async function showPlans() {
+  use("tarife"); openSheet("Tarife", "lädt …", `<p class="note">Einen Moment …</p>`, "plan");
+  const B = await billLoad(true); if (!B) { openSheet("Tarife", "", `<p>Die Tarife konnten gerade nicht geladen werden.</p>`, "plan"); return; }
+  const P = B.plans, cur = B.plan, ids = ["free", "plus", "family"], res = fmt(parseIso(B.use.reset));
+  const cell = v => v === true ? "✓" : v === false ? "–" : esc(v);
+  const meter = (u, l, t) => `<div class="pm"><div class="pm-h"><span>${t}</span><b>${Math.min(u, l)} / ${l}</b></div><div class="pm-b"><i style="width:${Math.min(100, Math.round(u / (l || 1) * 100))}%${u / (l || 1) >= .8 ? ";background:var(--holiday)" : ""}"></i></div></div>`;
+  const sim = B.mode === "simulate";
+  const ends = cur.until ? `läuft bis ${fmt(new Date(cur.until))} (gekündigt)` : cur.trial ? `Probezeit bis ${fmt(new Date(cur.trialUntil))}` : cur.id === "free" ? "kostenlos, ohne Laufzeit" : "monatlich kündbar";
+  openSheet("Tarife", sim ? "Testphase – Abschluss wird nur simuliert, es wird nichts berechnet" : "", `<div class="plans">
+    <div class="plan-cur"><div class="pc-h"><b>Dein Tarif: ${esc(cur.label)}</b><span>${ends}</span></div>
+      ${meter(B.use.ai, cur.ai, "KI-Aktionen diesen Monat")}${meter(B.use.img, cur.img, "Tickets & PDFs diesen Monat")}
+      <p class="note">Neue Kontingente ab ${res} ${cur.flight ? "✈️ Flug live ist enthalten." : "✈️ Flug live gibt es ab Plus."}</p></div>
+    <div class="ptab" role="table">
+      <div class="pt-r pt-h" role="row"><span role="columnheader"></span>${ids.map(i => `<span role="columnheader"${i === cur.id ? ' class="on"' : ""}>${esc(P[i].label)}<small>${i === "free" ? "0 €" : esc(B.prices[i] || "Preis folgt")}</small></span>`).join("")}</div>
+      ${PLAN_ROWS.map(([t, f]) => `<div class="pt-r" role="row"><span role="rowheader">${esc(t)}</span>${ids.map(i => `<span role="cell"${i === cur.id ? ' class="on"' : ""}>${cell(f(P[i]))}</span>`).join("")}</div>`).join("")}
+      <div class="pt-r pt-a" role="row"><span></span>${ids.map(i => `<span>${i === cur.id ? `<em>aktiv</em>` : i === "free" ? (cur.id !== "free" && !cur.until ? `<button type="button" class="link" data-cancel>Kündigen</button>` : "") : `<button type="button" class="btn small${i === "plus" ? " accent" : ""}" data-checkout="${i}">Wählen</button>`}</span>`).join("")}</div>
+    </div>
+    <p class="note">Alles, was keine laufenden Kosten verursacht, bleibt für alle kostenlos. Nach einer Kündigung bleiben alle Termine, Dokumente und Einstellungen erhalten – es gelten nur wieder die Grenzen von „Kostenlos“.</p>
+    ${cur.id !== "free" && !cur.until && !cur.trial ? `<p><button type="button" class="btn ghost small danger-t" data-cancel>Verträge hier kündigen</button></p>` : cur.until ? `<p><button type="button" class="btn ghost small" data-resume>Kündigung zurücknehmen</button></p>` : ""}
+  </div>`, "plan");
+}
+function showCheckout(id) {
+  const P = BILL?.plans || {}, p = P[id]; if (!p) return; use("tarif_checkout_" + id);
+  const sim = BILL.mode === "simulate", price = BILL.prices?.[id] || "Preis wird noch festgelegt";
+  openSheet(`${p.label} abschließen`, sim ? "Testphase – es wird nichts berechnet" : "", `<div class="plans">
+    <div class="plan-up"><b>${esc(p.label)} · ${esc(price)}</b><span>${p.ai} KI-Aktionen und ${p.img} Ticket-Auswertungen pro Monat${p.flight ? ", Flug live" : ""}${p.family ? `, für bis zu ${p.seats || 5} Personen` : ""}. Monatlich kündbar.</span></div>
+    ${sim ? `<p class="note">So würde der Abschluss später aussehen: Bezahlt wird dann über Google Play. Jetzt in der Testphase wird der Tarif sofort freigeschaltet – ohne Zahlung, du kannst ihn jederzeit wieder kündigen.</p>` : ""}
+    <p class="btnrow"><button type="button" class="btn accent" data-buy="${id}">${sim ? "Abo abschließen (Test)" : "Weiter zu Google Play"}</button><button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
+}
+async function billDo(op, label) {
+  if (BILL?.mode !== "simulate") { toast("Bezahlung ist noch nicht eingerichtet."); return; }
+  const r = await window.mkBilling("simulate", { plan: op }); if (!r?.ok) { toast("Das hat gerade nicht geklappt."); return; }
+  use("tarif_sim_" + op); BILL.plan = r.plan; { const c = $("quota-card"); if (c) { c.hidden = true; c.dataset.on = ""; } } renderPlanMenu(); await billLoad(true); pushPlanQueue(500); toast(label); showPlans();
 }
 function takeShare() {
   let t = ""; try { t = sessionStorage.getItem("mk-share") || ""; sessionStorage.removeItem("mk-share"); } catch {}

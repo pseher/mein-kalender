@@ -11,8 +11,9 @@
 import { vapid, runSchedule, testPush } from "./push.js";
 import { trainCheck } from "./train.js";
 import { flightCheck } from "./flight.js";
+import { billingRoute, planOf, usageOf, planBlock, mode as billMode } from "./billing.js";
 
-const VERSION = "2026-11-16o";
+const VERSION = "2026-11-17a";
 const PRICE = { "claude-sonnet-5-5": [2, 10], "claude-haiku-4-5-20251001": [1, 5], "claude-haiku-4-5": [1, 5], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-5-5": [5, 25] };   // $ je 1 Mio. Tokens (Ein-, Ausgabe) – wie im Dashboard
 const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
@@ -33,7 +34,7 @@ export default {
     const route = new URL(req.url).pathname;
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
     if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: VERSION, model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
-    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train", "/admin/plan", "/billing/status", "/billing/simulate", "/billing/play/verify"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
@@ -48,6 +49,7 @@ export default {
     // Betreiber-Dashboard: nur für Konten aus dem Secret ADMIN_EMAIL (kommagetrennt)
     const isAdmin = !!user.email && String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean).includes(String(user.email).toLowerCase());
     if (route === "/admin/me") return out(200, { admin: isAdmin, configured: !!env.ADMIN_EMAIL });
+    if (route.startsWith("/billing/") || route === "/admin/plan") return await billingRoute(route, req, env, user, isAdmin, out);
     if (route === "/admin/stats") {
       if (!isAdmin) return out(403, { code: "not_admin" });
       const sv = { apikey: env.SUPABASE_SERVICE_KEY, ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
@@ -65,8 +67,8 @@ export default {
         j(`${env.SUPABASE_URL}/rest/v1/docs?coll=eq.events&select=user_id&limit=50000`),
       ]);
       const evn = {}; for (const r of evs) evn[r.user_id] = (evn[r.user_id] || 0) + 1;
-      const users = (ur.users || []).map(u => ({ id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id }));
-      return out(200, { at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { usd: +(env.MONTHLY_USD || 3), day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length, pushBy: subs.reduce((m, s) => (m[s.user_id] = (m[s.user_id] || 0) + 1, m), {}),
+      const users = (ur.users || []).map(u => { const pl = planOf(env, u); return { id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id, plan: pl.id, planSrc: pl.src, planUntil: pl.until, trial: pl.trial }; });
+      return out(200, { billing: billMode(env), at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { usd: +(env.MONTHLY_USD || 3), day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length, pushBy: subs.reduce((m, s) => (m[s.user_id] = (m[s.user_id] || 0) + 1, m), {}),
         sys: sys.map(r => ({ d: r.id, ...r.data })), dev: dev.map(r => ({ u: r.user_id, id: r.id, ...r.data })), helpq: helpq.map(r => ({ u: r.user_id, q: String(r.data?.q || "").slice(0, 300), at: r.updated_at })), evn,
         version: VERSION, keys: { airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET } });
     }
@@ -146,6 +148,9 @@ export default {
     if (used >= L.day) return out(429, { code: "rate_limited", message: `Tageslimit erreicht (${L.day} KI-Anfragen) – morgen geht es weiter.` });
     if (images.length && usedImg >= L.img) return out(429, { code: "rate_limited", message: `Tageslimit für Tickets/Bilder erreicht (${L.img}) – morgen geht es weiter. Ohne Anhang klappt es weiterhin.` });
     if (mCalls >= L.month || mTok >= L.tok) return out(429, { code: "rate_limited", message: "Monatslimit für KI-Anfragen erreicht – ab dem 1. geht es weiter. Das Formular funktioniert weiterhin." });
+    // Tarif-Grenzen (Kostenlos / Plus / Familie)
+    const plan = planOf(env, user), puse = { ai: mCalls, img: mrows.filter(r => String(r.task).startsWith("bilder")).reduce((s, r) => s + r.calls, 0), reset: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1)).toISOString().slice(0, 10) };
+    const pb = planBlock(env, plan, puse, images.length > 0); if (pb) return out(429, pb);
 
     // 4) Modell fragen
     let model = tier === "quick" ? env.MODEL_QUICK : env.MODEL_DEFAULT;
@@ -170,6 +175,7 @@ export default {
     // 6) Antwort, bei Bedarf als JSON
     let value;
     if (body.json) { const m = text.match(/[\[{][\s\S]*[\]}]/); try { value = m ? JSON.parse(m[0]) : null; } catch { value = null; } }
-    return out(200, { text, value, truncated: res.stop_reason === "max_tokens" });
+    const quota = billMode(env) === "off" ? null : { plan: plan.id, ai: puse.ai + 1, aiLimit: plan.ai, img: puse.img + (images.length ? 1 : 0), imgLimit: plan.img, reset: puse.reset };
+    return out(200, { text, value, truncated: res.stop_reason === "max_tokens", quota });
   },
 };

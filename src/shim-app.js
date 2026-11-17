@@ -36,6 +36,10 @@ window.MK_APP = true;
   window.mkPushKey = async () => { const r = await fetch(CFG.workerUrl + "/push/key"); const b = await r.json().catch(() => ({})); if (!b.key) throw Object.assign(new Error("no key"), { code: b.code || "no_vapid" }); return b.key; };
   const wPost = async route => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); return r.json().catch(() => null); };
   window.mkAdminMe = () => wPost("/admin/me").catch(() => null);
+  // Tarife: Status, simulierter Abschluss/Kündigung, Betreiber setzt Tarif
+  const wPostB = async (route, data) => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify(data || {}) }); return r.json().catch(() => null); };
+  window.mkBilling = (op, data) => wPostB("/billing/" + op, data).catch(() => null);
+  window.mkAdminPlan = (user, plan) => wPostB("/admin/plan", { user, plan }).catch(() => null);
   window.mkAdminStats = () => wPost("/admin/stats");
   window.mkAdminTrain = () => wPost("/admin/train");
   window.mkPushTest = async () => { const s = await freshSession(); const r = await fetch(CFG.workerUrl + "/push/test", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: "{}" }); return r.json().catch(() => ({ ok: false })); };
@@ -142,7 +146,8 @@ window.MK_APP = true;
       body: JSON.stringify({ prompt: textOf(input), tier: opts.modelTier === "quick" ? "quick" : "default", json, images, task: opts.task || window.MK_TASK || "" }) }); window.MK_TASK = "";
     const body = await r.json().catch(() => ({}));
     const kiErr = c => { try { dispatchEvent(new CustomEvent("mk-ki-err", { detail: { task: task0, code: c } })); } catch {} };
-    if (!r.ok) { kiErr(body.code || "http_" + r.status); window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable" }); }
+    if (!r.ok) { kiErr(body.code || "http_" + r.status); window.mkKiLast = `KI ${r.status} ${body.code || ""}${body.detail ? " – " + body.detail : ""}`; throw Object.assign(new Error(body.message || "KI nicht erreichbar"), { code: body.code || "unavailable", reason: body.reason, kind: body.kind, plan: body.plan, used: body.used, limit: body.limit, reset: body.reset }); }
+    if (body.quota) try { window.mkQuota = body.quota; dispatchEvent(new CustomEvent("mk-quota", { detail: body.quota })); } catch {}
     if (json && body.value == null) kiErr("kein_json"); else if (body.truncated) kiErr("abgeschnitten");
     if (json && body.value == null) window.mkKiLast = "KI-Antwort war kein gültiges JSON" + (body.truncated ? " (abgeschnitten)" : "");
     opts.onText?.({ text: body.text || "", delta: body.text || "" });
