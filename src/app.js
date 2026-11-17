@@ -414,7 +414,18 @@ function renderBigMonth() {
     $("m-name").textContent = `${MON[m]} ${y}`;
     $("m-prev").disabled = curMi === 0; $("m-next").disabled = curMi === MONTHS.length - 1;
   }
+  fitMonth();
 }
+// Tablet/Computer: Monat füllt die Bildschirmhöhe (Handy hat dafür eigene Vollbild-Regeln)
+function fitMonth() {
+  const g = document.querySelector("#v-month .mg"); if (!g) return;
+  if (compact() || !["month", "two"].includes(view)) { g.style.removeProperty("--mt-h"); return; }
+  const wk = +(getComputedStyle(g).getPropertyValue("--wk") || 6) || 6, dow = g.querySelector(".dow")?.offsetHeight || 20;
+  const p1 = $("p1") || document.body, top = g.getBoundingClientRect().top - p1.getBoundingClientRect().top + (parseFloat(getComputedStyle(p1).paddingTop) || 0) * 0;
+  const avail = innerHeight - Math.max(0, top) - dow - 24, h = Math.floor((avail - (wk - 1) * 3) / wk);
+  if (h > 96) g.style.setProperty("--mt-h", h + "px"); else g.style.removeProperty("--mt-h");
+}
+addEventListener("orientationchange", () => setTimeout(() => { if (view === "month" || view === "two") renderBigMonth(); }, 250));
 // Nur so viele Balken zeigen, wie in die Wochenzeile passen; Rest je Tag als „+n“
 if (window.ResizeObserver) { let lastH = 0, rt = null; new ResizeObserver(es => { const h = Math.round(es[0].contentRect.height); if (Math.abs(h - lastH) < 4) return; lastH = h;
   clearTimeout(rt); rt = setTimeout(() => { if ((view === "month" || view === "two") && compact()) renderBigMonth(); }, 80); }).observe(bigEl); }

@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117074827";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117075616";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -577,6 +577,7 @@ a.btn { text-decoration: none; display: inline-block; }
 .wb .ch { margin: 0 3px; min-width: 0; align-self: start; }
 .wb .ch.hl { background: none; color: var(--holiday); font-weight: 600; padding: 0 1px; }
 .mt { min-height: 96px; }
+.mg .mt { min-height: var(--mt-h, 96px); } .mg.wk2 .mt { min-height: max(180px, var(--mt-h, 180px)); }
 .mt .chm { position: absolute; left: 4px; bottom: 2px; padding: 0; line-height: 11px; }
 .mt .fx { position: absolute; left: 6px; right: 6px; bottom: 1px; height: 3px; border-radius: 2px; z-index: 2; }
 .d .fx { position: absolute; left: 3px; right: 3px; bottom: 1px; height: 2px; border-radius: 1px; }
@@ -1711,7 +1712,18 @@ function renderBigMonth() {
     $("m-name").textContent = `${MON[m]} ${y}`;
     $("m-prev").disabled = curMi === 0; $("m-next").disabled = curMi === MONTHS.length - 1;
   }
+  fitMonth();
 }
+// Tablet/Computer: Monat füllt die Bildschirmhöhe (Handy hat dafür eigene Vollbild-Regeln)
+function fitMonth() {
+  const g = document.querySelector("#v-month .mg"); if (!g) return;
+  if (compact() || !["month", "two"].includes(view)) { g.style.removeProperty("--mt-h"); return; }
+  const wk = +(getComputedStyle(g).getPropertyValue("--wk") || 6) || 6, dow = g.querySelector(".dow")?.offsetHeight || 20;
+  const p1 = $("p1") || document.body, top = g.getBoundingClientRect().top - p1.getBoundingClientRect().top + (parseFloat(getComputedStyle(p1).paddingTop) || 0) * 0;
+  const avail = innerHeight - Math.max(0, top) - dow - 24, h = Math.floor((avail - (wk - 1) * 3) / wk);
+  if (h > 96) g.style.setProperty("--mt-h", h + "px"); else g.style.removeProperty("--mt-h");
+}
+addEventListener("orientationchange", () => setTimeout(() => { if (view === "month" || view === "two") renderBigMonth(); }, 250));
 // Nur so viele Balken zeigen, wie in die Wochenzeile passen; Rest je Tag als „+n“
 if (window.ResizeObserver) { let lastH = 0, rt = null; new ResizeObserver(es => { const h = Math.round(es[0].contentRect.height); if (Math.abs(h - lastH) < 4) return; lastH = h;
   clearTimeout(rt); rt = setTimeout(() => { if ((view === "month" || view === "two") && compact()) renderBigMonth(); }, 80); }).observe(bigEl); }
