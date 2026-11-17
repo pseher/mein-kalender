@@ -41,7 +41,7 @@
 <meta name="apple-mobile-web-app-title" content="Kalender">
 <link rel="stylesheet" href="/site.css">
 <style>
-  :root { --ink: #121417; --text: #2a2f35; --soft: #5b636c; --line: #e6e7e9; --bg: #fafaf8; --card: #fff; --acc: #0f6e73; --acc-2: #e7f3f2; --warm: #b4610f; --warm-2: #fbf1e4; }
+  :root { --ink: #10161a; --text: #1f2a30; --soft: #4d5a61; --line: #dfe7e6; --bg: #ffffff; --card: #fff; --acc: #0f6e73; --acc-2: #e4f2f0; --acc-3: #c9e6e2; --warm: #b4610f; --warm-2: #fcefdc; --sh: 0 18px 50px rgba(15,60,62,.10), 0 2px 8px rgba(15,60,62,.06); }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 Inter, system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
@@ -90,21 +90,21 @@
   .d-push img { width: 26px; height: 26px; border-radius: 7px; position: static; }
   .d-push b { display: block; font-size: 13px; }
   /* Laufband */
-  .band { overflow: hidden; border-block: 1px solid var(--line); background: #fff; margin-top: 8px; }
+  .band { overflow: hidden; background: var(--acc-2); margin-top: 8px; }
   .band .rail { display: flex; gap: 10px; width: max-content; padding: 14px 0; animation: rail 70s linear infinite; }
-  .band span { white-space: nowrap; font-size: 14.5px; font-weight: 600; color: var(--text); background: var(--bg); border: 1px solid var(--line); padding: 7px 14px; border-radius: 999px; }
+  .band span { white-space: nowrap; font-size: 14.5px; font-weight: 600; color: #0b4f53; background: #fff; padding: 7px 14px; border-radius: 999px; box-shadow: 0 1px 3px rgba(15,60,62,.08); }
   @keyframes rail { to { transform: translateX(-50%); } }
   /* Abschnitte */
-  section { padding: 76px 0 8px; }
+  section { padding: 64px 0 8px; }
   .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); margin-bottom: 12px; }
   .h2 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.08; }
   .sub { color: var(--text); font-size: 17.5px; line-height: 1.55; margin-top: 14px; max-width: 34em; }
   .center { text-align: center; } .center .sub { margin-left: auto; margin-right: auto; }
   /* Drei Schritte */
   .three { display: grid; gap: 14px; margin-top: 36px; }
-  .s3 { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 22px; text-align: left; position: relative; }
+  .s3 { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 18px 20px; text-align: left; position: relative; box-shadow: var(--sh); }
   .s3 .n { position: absolute; top: 18px; right: 20px; font-size: 13px; font-weight: 700; color: var(--soft); }
-  .s3 h3 { font-size: 18px; margin: 12px 0 6px; } .s3 p { color: var(--text); font-size: 15.5px; }
+  .s3 h3 { font-size: 17px; margin: 12px 0 0; } .s3 p { display: none; }
   .bub { background: #e9f7ea; border-radius: 16px 16px 16px 5px; padding: 10px 14px; font-size: 15px; display: inline-block; line-height: 1.45; } .bub b { display: block; font-size: 12px; color: #2c7a3c; }
   .evc { display: flex; gap: 12px; } .evc i { width: 4px; border-radius: 4px; background: #6b56c9; } .evc b { display: block; } .evc span { color: var(--soft); font-size: 14px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; } .chips span { font-size: 13px; font-weight: 600; background: var(--acc-2); color: var(--acc); padding: 5px 10px; border-radius: 999px; }
@@ -123,17 +123,39 @@
   .note-card b { display: block; font-size: 13.5px; }
   .note-card .t { color: var(--soft); font-size: 11.5px; margin-left: auto; padding-left: 8px; white-space: nowrap; }
   .nc1 { left: -40px; top: 16%; } .nc2 { right: -46px; top: 46%; } .nc3 { left: -30px; bottom: 12%; }
+  /* Kapitel als Karten, die sich beim Scrollen übereinanderschieben */
+  .stack { position: relative; padding: 40px 0 10px; }
+  .sk { position: sticky; top: calc(72px + var(--i) * 12px); margin: 0 auto 28px; max-width: 1080px; border-radius: 32px; background: var(--acc-2); box-shadow: var(--sh); overflow: hidden;
+    display: grid; gap: 0; transform-origin: 50% 0; will-change: transform; }
+  .sk:nth-child(even) { background: var(--warm-2); }
+  .sk .tx { padding: 24px 22px 4px; }
+  @media (max-width: 899px) { .sk p { font-size: 15.5px; margin-top: 10px; } .sk .chips { margin-top: 12px; } .sk .pv .phone { width: 240px; } }
+  .sk h2 { font-size: clamp(28px, 4.4vw, 44px); line-height: 1.07; }
+  .sk p { color: var(--text); font-size: 16.5px; line-height: 1.5; margin-top: 12px; max-width: 30em; }
+  .sk .chips { margin-top: 16px; } .sk .chips span { background: #fff; color: #0b4f53; font-size: 13.5px; padding: 6px 11px; box-shadow: 0 1px 3px rgba(15,60,62,.08); }
+  .sk:nth-child(even) .chips span { color: #7a420a; }
+  .sk .eyebrow { margin-bottom: 8px; } .sk:nth-child(even) .eyebrow { color: var(--warm); }
+  .sk .pv { position: relative; height: min(300px, calc(100svh - 470px)); min-height: 220px; overflow: hidden; display: flex; justify-content: center; padding-top: 18px; }
+  .sk .pv .phone { width: 270px; height: auto; aspect-ratio: 390/844; border-bottom: 0; border-radius: 36px 36px 0 0; box-shadow: 0 20px 50px rgba(15,60,62,.18); align-self: flex-start; flex: none; }
+  .sk .note-card { z-index: 2; }
+  .sk .nc1 { left: 8px; top: 120px; } .sk .nc3 { left: auto; right: 8px; top: 150px; bottom: auto; }
+  @media (min-width: 900px) {
+    .sk { grid-template-columns: 1.05fr .95fr; align-items: center; min-height: 520px; }
+    .sk .tx { padding: 48px 20px 48px 56px; }
+    .sk .pv { height: 520px; padding-top: 48px; } .sk .pv .phone { width: 300px; }
+    .sk .nc1 { left: 0; top: 150px; } .sk .nc3 { right: 0; top: 230px; }
+  }
   /* Band in Farbe */
   .claim { background: var(--ink); color: #fff; border-radius: 32px; padding: 64px 26px; text-align: center; }
   .claim h2 { font-size: clamp(32px, 5.6vw, 60px); line-height: 1.05; } .claim h2 span { color: #8fd3cf; }
   .claim p { color: #c8ced4; max-width: 34em; margin: 18px auto 0; font-size: 17.5px; }
   /* Kacheln */
-  .tiles { display: grid; gap: 12px; margin-top: 34px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); text-align: left; }
-  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; }
-  .tile .ic { font-size: 22px; } .tile b { display: block; font-size: 16px; margin: 8px 0 4px; } .tile span { color: var(--text); font-size: 14.8px; line-height: 1.5; }
+  .tiles { display: grid; gap: 10px; margin-top: 30px; grid-template-columns: repeat(2, minmax(0, 1fr)); text-align: left; }
+  .tile { background: var(--acc-2); border-radius: 20px; padding: 16px; } .tile:nth-child(even) { background: var(--warm-2); }
+  .tile .ic { font-size: 22px; } .tile b { display: block; font-size: 15.5px; margin: 6px 0 2px; line-height: 1.3; } .tile span { color: var(--text); font-size: 13.8px; line-height: 1.45; }
   /* Start */
-  .steps { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 30px; text-align: left; }
-  .step { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px; color: var(--text); font-size: 15.5px; }
+  .steps { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 28px; text-align: left; }
+  .step { background: var(--card); border-radius: 20px; padding: 18px 20px; color: var(--text); font-size: 15px; box-shadow: var(--sh); display: grid; grid-template-columns: 32px 1fr; gap: 0 14px; } .step b { grid-row: span 2; margin: 0 !important; }
   .step b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--acc); color: #fff; font-size: 14px; margin-bottom: 12px; }
   .step strong { display: block; color: var(--ink); font-size: 16.5px; margin-bottom: 4px; }
   .trust { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; margin-top: 22px; color: var(--text); font-size: 14.5px; } .trust span::before { content: "✓ "; color: var(--acc); font-weight: 700; }
@@ -204,82 +226,40 @@
   </div>
 </section>
 
-<section>
-  <div class="wrap ch">
-    <div class="txt">
-      <span class="eyebrow rv">Reisen &amp; Urlaub</span>
-      <h2 class="h2 rv">Ihr plant die Reise.<br>Er denkt an den Rest.</h2>
-      <p class="sub rv d1">Ticket oder Buchung hochladen – fertig. Abfahrt, Sitzplatz, Hotel und Rückreise stehen im Kalender, und die Hinweise kommen genau dann, wenn sie wichtig werden.</p>
-      <ul class="list">
-        <li class="rv"><span class="ic">🛂</span><div><b>Visum, ESTA, ETA</b>Er weiß, was das Reiseziel verlangt, und erinnert rechtzeitig daran.</div></li>
-        <li class="rv d1"><span class="ic">🚗</span><div><b>Maut &amp; Vignette</b>Mit dem Auto nach Österreich oder in die Schweiz? Die Vignette steht auf der Liste.</div></li>
-        <li class="rv d2"><span class="ic">🎒</span><div><b>Packliste, die mitdenkt</b>Passend zu Ziel, Jahreszeit und ob Zug, Auto oder Flug.</div></li>
-      </ul>
-    </div>
-    <div class="stage rv d1"><div class="phone"><img src="img/s-usa.jpg" alt="Reise nach New York mit Flugüberwachung und ESTA-Hinweis" loading="lazy"></div></div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap ch rev">
-    <div class="txt">
-      <span class="eyebrow rv">Live unterwegs</span>
-      <h2 class="h2 rv">Verspätung? Gleiswechsel?<br>Du weißt es zuerst.</h2>
-      <p class="sub rv d1">Steht ein Zug oder Flug im Termin, beobachtet er ihn ab ein paar Stunden vor der Abfahrt – Hin- und Rückfahrt, auch mit Umstieg. Beim Abholen am Bahnhof genauso.</p>
-      <ul class="list">
-        <li class="rv"><span class="ic">🚆</span><div><b>Deutsche Bahn live</b>Verspätung, Ausfall und neues Gleis – als Benachrichtigung aufs Handy.</div></li>
-        <li class="rv d1"><span class="ic">✈️</span><div><b>Flüge live</b>Gate, Terminal, Verspätung und Gepäckband.</div></li>
-      </ul>
-    </div>
-    <div class="stage rv">
-      <div class="phone"><img src="img/s-reise.jpg" alt="Ostsee-Wochenende mit Live-Status von Hin- und Rückfahrt" loading="lazy"></div>
-      <div class="note-card nc1 rv d1"><img src="icon-192.png" alt=""><div><b>🚆 ICE 1707 · +12 Min.</b>Abfahrt ca. 09:24 · Gleis 7 statt 5</div><span class="t">jetzt</span></div>
-      <div class="note-card nc2 rv d3"><img src="icon-192.png" alt=""><div><b>🚉 Oma Hilde abholen</b>RE 1 kommt pünktlich · Gleis 13</div><span class="t">17:30</span></div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap ch">
-    <div class="txt">
-      <span class="eyebrow rv">Familie im Takt</span>
-      <h2 class="h2 rv">Schichten, Schule, Abholen –<br>alles in einem Blick.</h2>
-      <p class="sub rv d1">Früh- und Spätdienste, Elternabend, wer wen wann abholt: farbig nach Art, gemeinsam mit Partner oder Familie – sicher verschlüsselt geteilt.</p>
-      <ul class="list">
-        <li class="rv"><span class="ic">🕐</span><div><b>Schichten in Sekunden</b>„Früh“, „Spät“ antippen – auch als Serie, alle 2 Wochen oder alle 3 Jahre.</div></li>
-        <li class="rv d1"><span class="ic">👨‍👩‍👧</span><div><b>Mit Partner &amp; Familie</b>Teilen, was wichtig ist – privat bleibt privat.</div></li>
-      </ul>
-    </div>
-    <div class="stage rv d1"><div class="phone"><img src="img/s-monat.jpg" alt="Monatsansicht mit Schichten, Reise und Geburtstagen" loading="lazy"></div></div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap ch rev">
-    <div class="txt">
-      <span class="eyebrow rv">Gemeinsame Zeit</span>
-      <h2 class="h2 rv">Wann haben wir eigentlich alle frei?</h2>
-      <p class="sub rv d1">Schulferien, Feiertage und Brückentage – auch wenn ihr in verschiedenen Bundesländern lebt. So findet ihr die Tage für den nächsten gemeinsamen Urlaub sofort.</p>
-    </div>
-    <div class="stage rv"><div class="phone"><img src="img/s-ueberblick.jpg" alt="Gemeinsam freie Zeiträume für Berlin und Brandenburg" loading="lazy"></div></div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap ch">
-    <div class="txt">
-      <span class="eyebrow rv">Jeden Morgen</span>
-      <h2 class="h2 rv">Ein Blick – und der Tag ist sortiert.</h2>
-      <p class="sub rv d1">Was heute und morgen ansteht, Countdowns bis zur Reise und zu den Ferien, Aufgaben mit Frist – und Geburtstage so rechtzeitig, dass noch Zeit fürs Geschenk bleibt.</p>
-      <ul class="list">
-        <li class="rv"><span class="ic">🎂</span><div><b>Geburtstage mit Vorlauf</b>Bei runden Geburtstagen und Kindern früher erinnert – Geschenkideen inklusive.</div></li>
-        <li class="rv d1"><span class="ic">✅</span><div><b>Aufgaben, die von selbst auftauchen</b>„Reifen wechseln bis Ende Oktober“ erscheint dann, wenn es so weit ist.</div></li>
-      </ul>
-    </div>
-    <div class="stage rv d1"><div class="phone"><img src="img/s-heute.jpg" alt="Heute-Seite mit Countdowns, Terminen, Aufgaben und Zug-Status" loading="lazy"></div>
-      <div class="note-card nc3 rv d2"><img src="icon-192.png" alt=""><div><b>🎂 Oma Hilde wird 80</b>in 3 Tagen · Geschenk schon besorgt?</div><span class="t">08:00</span></div></div>
-  </div>
-</section>
+<div class="stack wrap" id="stack">
+  <article class="sk" style="--i:0">
+    <div class="tx"><span class="eyebrow">Reisen &amp; Urlaub</span><h2>Ihr plant die Reise.<br>Er denkt an den Rest.</h2>
+      <p>Ticket oder Buchung hochladen – Abfahrt, Hotel und Rückreise stehen im Kalender. Die Hinweise kommen, wenn sie wichtig werden.</p>
+      <div class="chips"><span>🛂 Visum · ESTA · ETA</span><span>🚗 Maut &amp; Vignette</span><span>🎒 Packliste</span><span>📎 Tickets am Termin</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-usa.jpg" alt="Reise nach New York mit Flugüberwachung und ESTA-Hinweis" loading="lazy"></div></div>
+  </article>
+  <article class="sk" style="--i:1">
+    <div class="tx"><span class="eyebrow">Live unterwegs</span><h2>Verspätung? Gleiswechsel?<br>Du weißt es zuerst.</h2>
+      <p>Züge und Flüge werden ab ein paar Stunden vor der Abfahrt beobachtet – Hin- und Rückfahrt, mit Umstieg, auch beim Abholen am Bahnhof.</p>
+      <div class="chips"><span>🚆 Deutsche Bahn live</span><span>✈️ Gate &amp; Verspätung</span><span>🔔 Aufs Handy</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-reise.jpg" alt="Ostsee-Wochenende mit Live-Status von Hin- und Rückfahrt" loading="lazy"></div>
+      <div class="note-card nc1"><img src="icon-192.png" alt=""><div><b>🚆 ICE 1707 · +12 Min.</b>Abfahrt ca. 09:24 · Gleis 7 statt 5</div><span class="t">jetzt</span></div></div>
+  </article>
+  <article class="sk" style="--i:2">
+    <div class="tx"><span class="eyebrow">Familie im Takt</span><h2>Schichten, Schule, Abholen – in einem Blick.</h2>
+      <p>Früh- und Spätdienste, Elternabend, wer wen wann abholt: farbig nach Art und auf Wunsch mit Partner oder Familie geteilt.</p>
+      <div class="chips"><span>🕐 Schichten</span><span>🔁 Alle 2 Wochen · alle 3 Jahre</span><span>👨‍👩‍👧 Gemeinsam</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-monat.jpg" alt="Monatsansicht mit Schichten, Reise und Geburtstagen" loading="lazy"></div></div>
+  </article>
+  <article class="sk" style="--i:3">
+    <div class="tx"><span class="eyebrow">Gemeinsame Zeit</span><h2>Wann haben wir eigentlich alle frei?</h2>
+      <p>Schulferien, Feiertage und Brückentage – auch über zwei Bundesländer. So findet ihr sofort die Tage für den nächsten gemeinsamen Urlaub.</p>
+      <div class="chips"><span>🏖️ Gemeinsam frei</span><span>🌉 Brückentage</span><span>🗺️ Zwei Bundesländer</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-ueberblick.jpg" alt="Gemeinsam freie Zeiträume für Berlin und Brandenburg" loading="lazy"></div></div>
+  </article>
+  <article class="sk" style="--i:4">
+    <div class="tx"><span class="eyebrow">Jeden Morgen</span><h2>Ein Blick – und der Tag ist sortiert.</h2>
+      <p>Heute und morgen, Countdowns bis zur Reise – und Geburtstage so früh, dass noch Zeit fürs Geschenk bleibt.</p>
+      <div class="chips"><span>🎂 Geburtstage mit Vorlauf</span><span>🎁 Geschenkideen</span><span>✅ Aufgaben mit Frist</span></div></div>
+    <div class="pv"><div class="phone"><img src="img/s-heute.jpg" alt="Heute-Seite mit Countdowns, Terminen, Aufgaben und Zug-Status" loading="lazy"></div>
+      <div class="note-card nc3"><img src="icon-192.png" alt=""><div><b>🎂 Oma Hilde wird 80</b>in 3 Tagen · Geschenk besorgt?</div><span class="t">08:00</span></div></div>
+  </article>
+</div>
 
 <section>
   <div class="wrap">
@@ -293,12 +273,12 @@
     <span class="eyebrow rv">Und im Alltag</span>
     <h2 class="h2 rv">Die kleinen Dinge auch.</h2>
     <div class="tiles">
-      <div class="tile rv"><span class="ic">📎</span><b>Tickets am Termin</b><span>PDFs und Fotos griffbereit – unterwegs und auch später.</span></div>
-      <div class="tile rv d1"><span class="ic">🎁</span><b>Geschenke im Blick</b><span>Ideen merken, Status sehen – für Geburtstage und Weihnachten.</span></div>
-      <div class="tile rv d2"><span class="ic">🔁</span><b>Wiederkehrendes</b><span>Müll alle 2 Wochen, Vorsorge alle 3 Jahre – einmal eintragen, fertig.</span></div>
-      <div class="tile rv"><span class="ic">📅</span><b>Mit Google Kalender</b><span>Deine Termine bleiben, wo sie sind – Neues landet auf Wunsch auch dort.</span></div>
-      <div class="tile rv d1"><span class="ic">🔒</span><b>Privat &amp; verschlüsselt</b><span>Deine Termine siehst nur du. Geteiltes ist verschlüsselt.</span></div>
-      <div class="tile rv d2"><span class="ic">❓</span><b>Hilfe, die antwortet</b><span>„Wie ändere ich die Farbe?“ – einfach fragen, die App erklärt’s.</span></div>
+      <div class="tile rv"><span class="ic">🚉</span><b>Abholen</b><span>Zug kommt – du weißt, wann und wo.</span></div>
+      <div class="tile rv d1"><span class="ic">🎁</span><b>Geschenke im Blick</b><span>Ideen merken, nichts vergessen.</span></div>
+      <div class="tile rv d2"><span class="ic">🔁</span><b>Wiederkehrendes</b><span>Müll, Vorsorge – einmal eintragen.</span></div>
+      <div class="tile rv"><span class="ic">📅</span><b>Mit Google Kalender</b><span>Läuft mit – auf Wunsch.</span></div>
+      <div class="tile rv d1"><span class="ic">🔒</span><b>Privat &amp; verschlüsselt</b><span>Deine Termine siehst nur du.</span></div>
+      <div class="tile rv d2"><span class="ic">❓</span><b>Hilfe, die antwortet</b><span>Einfach fragen – die App erklärt’s.</span></div>
     </div>
   </div>
 </section>
@@ -354,6 +334,11 @@
     at(t0 + 9500, function () { push.classList.add("on"); });
     at(t0 + 15500, run);
   }
+  try { if (!localStorage.getItem("mk-consent") && !BACK) setTimeout(function () { document.getElementById("consent").hidden = false; }, 1800); } catch (e) {}
+  // gestapelte Karten: die untere Karte tritt leicht zurück, wenn die nächste darüber gleitet
+  var cards = [].slice.call(document.querySelectorAll(".sk"));
+  if (!reduce && cards.length) { var tick = false; function upd() { tick = false; cards.forEach(function (c, i) { var n = cards[i + 1]; if (!n) return; var r = n.getBoundingClientRect(), top = parseFloat(getComputedStyle(n).top) || 80, h = c.offsetHeight || 1; var p = Math.min(1, Math.max(0, 1 - (r.top - top) / h)); c.style.transform = p ? "scale(" + (1 - p * .06) + ")" : ""; c.style.filter = p ? "brightness(" + (1 - p * .08) + ")" : ""; }); }
+    addEventListener("scroll", function () { if (!tick) { tick = true; requestAnimationFrame(upd); } }, { passive: true }); upd(); }
   var started = false, demo = document.getElementById("demo");
   var io2 = new IntersectionObserver(function (es) { if (es[0].isIntersecting && !started) { started = true; run(); } }, { threshold: .3 }); io2.observe(demo);
 })();
