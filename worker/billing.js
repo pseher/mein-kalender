@@ -14,6 +14,8 @@
 // Familie: bis zu 4 Konten (abschließende Person + 3 Eingeladene) teilen sich EIN Kontingent. Mitglieder (oft Kinder)
 //          bekommen nie ein Kaufangebot – nur die abschließende Person wird informiert und kann ein Zusatzpaket buchen.
 // Zusatzpaket (Plus und Familie): ADDON_JSON z. B. {"ai":200,"img":20}, Preis PRICE_ADDON z. B. "0.99" – gilt bis Monatsende.
+//   Schutz vor Fehlkäufen: höchstens ADDON_MAX_MONTH (3) pro Monat, ADDON_MAX_DAY (1) pro Tag, und erst wenn
+//   weniger als ADDON_MIN_LEFT (25 %) des Kontingents übrig sind – sonst verfällt Bezahltes ungenutzt.
 //
 // Der Tarif liegt in den app_metadata des Supabase-Kontos – die kann nur der Server ändern, nicht die App.
 
@@ -32,7 +34,16 @@ export const mode = env => ["off", "simulate", "live"].includes(env.BILLING_MODE
 
 const adm = env => ({ apikey: env.SUPABASE_SERVICE_KEY, "Content-Type": "application/json", ...(String(env.SUPABASE_SERVICE_KEY).startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) });
 const RANK = { free: 0, plus: 1, family: 2 };
-export const addonOf = env => { let a = {}; try { a = JSON.parse(env.ADDON_JSON || "{}"); } catch {} return { ai: 200, img: 20, ...a, price: (v => isFinite(v) ? v : null)(parseFloat(String(env.PRICE_ADDON || "").replace(",", "."))) }; };
+export const addonOf = env => { let a = {}; try { a = JSON.parse(env.ADDON_JSON || "{}"); } catch {} return { ai: 200, img: 20, ...a, price: (v => isFinite(v) ? v : null)(parseFloat(String(env.PRICE_ADDON || "").replace(",", "."))),
+  maxMonth: +(env.ADDON_MAX_MONTH || 3), maxDay: +(env.ADDON_MAX_DAY || 1), minLeft: +(env.ADDON_MIN_LEFT || 25) }; };
+// Darf jetzt ein Zusatzpaket gebucht werden? → { ok, why, month, day }
+export function addonCheck(env, meta, plan, use) {
+  const A = addonOf(env), list = (meta?.addons || []).filter(a => a.m === curMonth()), today = new Date().toISOString().slice(0, 10);
+  const month = list.length, day = list.filter(a => String(a.at || "").slice(0, 10) === today).length, left = Math.max(0, plan.ai - use.ai), leftI = Math.max(0, plan.img - use.img);
+  const low = left <= plan.ai * A.minLeft / 100 || leftI <= plan.img * A.minLeft / 100;
+  const why = month >= A.maxMonth ? "month" : day >= A.maxDay ? "day" : !low ? "enough" : null;
+  return { ok: !why, why, month, day, maxMonth: A.maxMonth, maxDay: A.maxDay, minLeft: A.minLeft };
+}
 const curMonth = () => new Date().toISOString().slice(0, 7);
 // Zusatzpakete dieses Monats aufs Kontingent rechnen
 const withAddons = (p, meta) => { const A = (meta?.addons || []).filter(a => a.m === curMonth()); if (!A.length) return p;
@@ -125,7 +136,8 @@ export async function billingRoute(route, req, env, user, isAdmin, out) {
     let family = null;
     if (plan.id === "family") { const ids = plan.pool || []; const us = await Promise.all(ids.map(i => i === user.id ? user : getUser(env, i)));
       family = { owner: plan.owner, me: user.id, seats: P.family.seats, members: us.filter(Boolean).map(u => ({ id: u.id, name: nameOf(u), owner: u.id === plan.owner, used: use.by?.[u.id] || 0 })) }; }
-    return out(200, { mode: md, plan, use, plans: P, prices, family, addon: addonOf(env), trialDays: +(env.TRIAL_DAYS || 0) });
+    const ometa = plan.member ? null : user.app_metadata?.plan;
+    return out(200, { mode: md, plan, use, plans: P, prices, family, addon: { ...addonOf(env), ...(ometa && ["plus", "family"].includes(plan.id) ? addonCheck(env, ometa, plan, use) : { ok: false, why: "plan" }) }, trialDays: +(env.TRIAL_DAYS || 0) });
   }
   if (route.startsWith("/billing/family/")) {
     let b = {}; try { b = await req.json(); } catch {}
@@ -177,6 +189,8 @@ export async function billingRoute(route, req, env, user, isAdmin, out) {
     if (b.quote) return out(200, { ok: true, quote: P[want] ? quote(eff, want) : null, plan: eff });
     if (b.addon) {                                             // Zusatzpaket bis Monatsende (nur Plus und Familie, nur die abschließende Person)
       if (cur.src === "family" || !["plus", "family"].includes(eff.id)) return out(403, { code: "no_addon" });
+      const rp = await resolvePlan(env, user), chk = addonCheck(env, cur, rp, await usageOf(env, rp.pool || user.id));
+      if (!chk.ok) return out(409, { code: "addon_" + chk.why, ...chk });
       const A = addonOf(env), next = { ...cur, addons: [...(cur.addons || []).filter(a => a.m >= curMonth()), { m: curMonth(), ai: A.ai, img: A.img, at: new Date().toISOString(), price: A.price }].slice(-12) };
       if (!(await setPlan(env, user.id, next))) return out(502, { code: "save_failed" });
       return out(200, { ok: true, addon: true });

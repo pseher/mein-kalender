@@ -4395,7 +4395,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-plans]"))) { showPlans(); return; }
   if ((el = q("[data-faminv]"))) { famInvite(); return; }
   if ((el = q("[data-addon]"))) { showAddon(); return; }
-  if ((el = q("[data-addonbuy]"))) { if (BILL?.mode !== "simulate") { toast("Bezahlung ist noch nicht eingerichtet."); return; } window.mkBilling("simulate", { addon: true }).then(async r => { if (r?.ok) { use("tarif_zusatz_gebucht"); toast("Zusatzpaket ist aktiv (Test)"); await billLoad(true); showPlans(); } else toast("Ging gerade nicht."); }); return; }
+  if ((el = q("[data-addonbuy]"))) { if (BILL?.mode !== "simulate") { toast("Bezahlung ist noch nicht eingerichtet."); return; } window.mkBilling("simulate", { addon: true }).then(async r => { if (r?.ok) { use("tarif_zusatz_gebucht"); toast("Zusatzpaket ist aktiv (Test)"); await billLoad(true); showPlans(); } else { await billLoad(true); showAddon(); } }); return; }
   if ((el = q("[data-famshare]"))) { const t = el.dataset.famshare; if (navigator.share) navigator.share({ text: t }).catch(() => {}); else navigator.clipboard?.writeText(t).then(() => toast("Link kopiert")); return; }
   if ((el = q("[data-famjoin]"))) { window.mkBilling("family/join", { code: el.dataset.famjoin }).then(async r => { if (r?.ok) { use("familie_beigetreten"); toast(`Willkommen in der Familie von ${r.ownerName}!`); await billLoad(true); pushPlanQueue(500); showPlans(); } else toast("Beitreten ging gerade nicht."); }); return; }
   if ((el = q("[data-famrm]"))) { const id = el.dataset.famrm; window.mkBilling("family/remove", { user: id }).then(async r => { toast(r?.ok ? "Aus der Familie entfernt" : "Ging nicht"); await billLoad(true); showPlans(); }); return; }
@@ -4982,7 +4982,9 @@ function showAddon() {
     <div class="pq"><div><span>KI-Aktionen noch übrig${fam ? " (Familie)" : ""}</span><b>${left}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${left + A.ai}</b></div>
       <div><span>Ticket-Auswertungen noch übrig</span><b>${leftI}</b></div><div><span>mit Zusatzpaket bis ${res}</span><b>${leftI + A.img}</b></div></div>
     <p class="note"><b>Was zählt als KI-Aktion?</b> Jedes Mal, wenn die KI etwas für dich erledigt: einen Freitext oder eine Nachricht eintragen, eine Packliste oder Geschenkideen erstellen, eine Hilfe-Frage beantworten. Ein Ticket, Foto oder PDF auslesen zählt zusätzlich als Ticket-Auswertung. Alles über das Formular, Erinnerungen und Zug live zählen nicht.</p>
-    <p class="btnrow"><button type="button" class="btn accent" data-addonbuy>${sim ? "Zusatzpaket buchen (Test)" : "Weiter zu Google Play"}</button><button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
+    ${A.ok ? "" : `<p class="addon-no">${A.why === "enough" ? `Du hast noch genug übrig. Ein Zusatzpaket kannst du buchen, sobald weniger als ${A.minLeft} % deines Kontingents übrig sind – so verfällt nichts ungenutzt.` : A.why === "day" ? "Heute wurde schon ein Zusatzpaket gebucht. Ab morgen geht wieder eins." : A.why === "month" ? `Diesen Monat wurden schon ${A.maxMonth} Zusatzpakete gebucht – mehr geht nicht. Ab dem ${res} gibt es wieder das volle Kontingent.` : "Zusatzpakete gibt es in Plus und Familie."}</p>`}
+    <p class="note">Diesen Monat gebucht: ${A.month || 0} von ${A.maxMonth} Zusatzpaketen · höchstens ${A.maxDay} pro Tag.</p>
+    <p class="btnrow">${A.ok ? `<button type="button" class="btn accent" data-addonbuy>${sim ? "Zusatzpaket buchen (Test)" : "Weiter zu Google Play"}</button>` : ""}<button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
 }
 async function showPlans() {
   use("tarife"); openSheet("Tarife", "lädt …", `<p class="note">Einen Moment …</p>`, "plan");
