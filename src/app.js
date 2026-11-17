@@ -2788,7 +2788,8 @@ async function showAccount() {
   closeMenu();
   let me = {}; try { me = await (await claude.use("user"))?.me?.() || {}; } catch {}
   openSheet("Konto", "", `<div class="acc">
-    <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">angemeldet mit Google</span></div>
+    <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">${(() => { const a = window.mkAuthInfo?.() || {}; return a.google && a.pw ? "angemeldet mit Google oder E-Mail und Passwort" : a.google ? "angemeldet mit Google" : "angemeldet mit E-Mail"; })()}</span></div>
+    <button type="button" class="btn ghost big" id="acc-pw">${(window.mkAuthInfo?.() || {}).pw ? "Passwort ändern" : "Passwort festlegen"}</button>
     <button type="button" class="btn ghost big" id="app-logout">Abmelden</button>
     <p class="note">Deine Daten bleiben gespeichert – nach der nächsten Anmeldung ist alles wieder da.</p>
     <div class="acc-danger"><b>Konto löschen</b><span>Entfernt dein Konto und alle Daten in Mein Kalender endgültig.</span><button type="button" class="btn danger" id="app-delacc">Konto löschen …</button></div>
@@ -3921,6 +3922,104 @@ async function gDeleteOcc(btn, o, series) {
 }
 
 // =================== Anmelden & Startbildschirm ===================
+// ---------- Anmeldung mit E-Mail (eigene App) ----------
+let AU = { mode: "login", step: "form", email: "", type: "", msg: "", busy: false, show: false };
+const AU_ERR = { invalid_credentials: "E-Mail oder Passwort stimmt nicht.", email_not_confirmed: "Deine E-Mail-Adresse ist noch nicht bestätigt. Wir haben dir eben eine neue Mail mit Code geschickt.",
+  over_email_send_rate_limit: "Es wurden gerade zu viele Mails verschickt. Bitte versuch es in ein paar Minuten nochmal.", over_request_rate_limit: "Zu viele Versuche. Bitte warte ein paar Minuten.",
+  weak_password: "Das Passwort ist zu schwach. Bitte mindestens 8 Zeichen, gern mit Zahlen oder Zeichen.", otp_expired: "Der Code ist falsch oder abgelaufen. Lass dir einfach einen neuen schicken.",
+  email_address_invalid: "Diese E-Mail-Adresse ist ungültig.", validation_failed: "Bitte prüfe die E-Mail-Adresse.", signup_disabled: "Neue Konten sind gerade nicht möglich.",
+  same_password: "Das ist dein bisheriges Passwort – bitte wähle ein neues.", user_already_exists: "Zu dieser E-Mail gibt es schon ein Konto. Bitte melde dich an.", net: "Keine Verbindung. Bitte prüfe dein Internet." };
+const auErr = r => AU_ERR[r?.code] || (r?.msg ? "Das hat nicht geklappt: " + r.msg : "Das hat nicht geklappt. Bitte versuch es nochmal.");
+function auHtml() {
+  const em = esc(AU.email), msg = AU.msg ? `<p class="${AU.ok ? "au-ok" : "err"}" role="alert">${esc(AU.msg)}</p>` : "";
+  if (AU.step === "code") return `<form id="au-code" class="au" novalidate>
+    <p class="au-sent">Wir haben dir eine Mail an <b>${em}</b> geschickt. Gib den <b>Code</b> aus der Mail hier ein – oder tippe in der Mail auf den Link.</p>
+    <input type="email" name="email" autocomplete="username" value="${em}" hidden>
+    <label class="au-f"><span>Code aus der Mail</span><input id="au-otp" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="12" placeholder="123456" required></label>
+    ${msg}<button type="submit" class="wz-big accent" ${AU.busy ? "disabled" : ""}>${AU.busy ? "Einen Moment …" : "Bestätigen"}</button>
+    <div class="au-links"><button type="button" class="link" data-auop="again">Neue Mail schicken</button><button type="button" class="link" data-auop="back">Zurück</button></div>
+    <p class="note">Keine Mail da? Schau auch im Spam-Ordner nach.</p></form>`;
+  const up = AU.mode === "signup";
+  return `<form id="au-form" class="au" method="post" action="/app/" novalidate>
+    <div class="au-tabs" role="group" aria-label="Anmelden oder registrieren"><button type="button" data-aumode="login" aria-pressed="${!up}">Anmelden</button><button type="button" data-aumode="signup" aria-pressed="${up}">Neu registrieren</button></div>
+    <label class="au-f"><span>E-Mail</span><input type="email" id="au-email" name="email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" value="${em}" required></label>
+    <label class="au-f"><span>Passwort${up ? " <i>(mind. 8 Zeichen)</i>" : ""}</span><span class="au-pw"><input type="${AU.show ? "text" : "password"}" id="au-pw" name="password" autocomplete="${up ? "new-password" : "current-password"}" minlength="8" required><button type="button" class="au-eye" data-auop="eye" aria-label="Passwort ${AU.show ? "verbergen" : "anzeigen"}">${AU.show ? "Verbergen" : "Anzeigen"}</button></span></label>
+    ${msg}<button type="submit" class="wz-big accent" ${AU.busy ? "disabled" : ""}>${AU.busy ? "Einen Moment …" : up ? "Konto anlegen" : "Anmelden"}</button>
+    <div class="au-links"><button type="button" class="link" data-auop="otp">Ohne Passwort: Code per Mail</button>${up ? "" : `<button type="button" class="link" data-auop="reset">Passwort vergessen?</button>`}</div>
+    ${up ? `<p class="note">Tipp: Dein Passwortmanager (z. B. Bitwarden, iCloud-Schlüsselbund, Google) schlägt dir ein sicheres Passwort vor und merkt es sich.</p>` : ""}</form>`;
+}
+function auRender() { const b = $("au-box"); if (b) b.innerHTML = auHtml(); }
+function auBox() { return `<button type="button" class="wz-big accent" id="app-login"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="vertical-align:-4px;margin-right:8px"><path fill="#fff" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#fff" opacity=".85" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#fff" opacity=".7" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2L6.4 14z"/><path fill="#fff" opacity=".55" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6z"/></svg>Mit Google anmelden</button>
+    <div class="au-or"><span>oder mit E-Mail</span></div><div id="au-box">${auHtml()}</div>`; }
+const auEmail = () => { const v = ($("au-email")?.value || AU.email || "").trim(); AU.email = v; return v; };
+const auValid = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+async function auRun(fn) { AU.busy = true; AU.msg = ""; auRender(); try { await fn(); } finally { AU.busy = false; auRender(); } }
+async function auSubmit(id) {
+  if (!window.mkAuth || AU.busy) return;
+  if (id === "au-form") {
+    const email = auEmail(), pw = $("au-pw")?.value || "";
+    if (!auValid(email)) { AU.msg = "Bitte gib eine gültige E-Mail-Adresse ein."; AU.ok = false; return auRender(); }
+    if (pw.length < (AU.mode === "signup" ? 8 : 1)) { AU.msg = AU.mode === "signup" ? "Bitte wähle ein Passwort mit mindestens 8 Zeichen." : "Bitte gib dein Passwort ein."; AU.ok = false; return auRender(); }
+    return auRun(async () => {
+      if (AU.mode === "login") { const r = await window.mkAuth("login", { email, pw }); AU.ok = false;
+        if (r.ok) { AU.ok = true; AU.msg = "Angemeldet – einen Moment …"; return; }
+        if (r.code === "email_not_confirmed") { await window.mkAuth("resend", { email }); AU.step = "code"; AU.type = "signup"; AU.ok = true; }
+        AU.msg = auErr(r); return; }
+      const r = await window.mkAuth("signup", { email, pw }); AU.ok = false;
+      if (!r.ok) { AU.msg = auErr(r); if (r.code === "user_already_exists") AU.mode = "login"; return; }
+      if (r.exists) { AU.mode = "login"; AU.msg = "Zu dieser E-Mail gibt es schon ein Konto. Bitte melde dich an – oder nutze „Passwort vergessen?“."; return; }
+      if (r.session) { AU.ok = true; AU.msg = "Konto angelegt – einen Moment …"; return; }
+      AU.step = "code"; AU.type = "signup"; AU.ok = true; AU.msg = "";
+    });
+  }
+  if (id === "au-code") {
+    const code = ($("au-otp")?.value || "").replace(/\D/g, "");
+    if (code.length < 6) { AU.msg = "Bitte gib den Code aus der Mail ein."; AU.ok = false; return auRender(); }
+    return auRun(async () => { const r = await window.mkAuth("verify", { email: AU.email, code, type: AU.type || "email" });
+      AU.ok = r.ok; AU.msg = r.ok ? "Bestätigt – einen Moment …" : auErr(r); });
+  }
+}
+async function auOp(op) {
+  if (op === "eye") { const v = $("au-pw")?.value || ""; auEmail(); AU.show = !AU.show; auRender(); const p = $("au-pw"); if (p) { p.value = v; p.focus(); } return; }
+  if (op === "back") { AU.step = "form"; AU.msg = ""; return auRender(); }
+  if (op === "otp" || op === "reset") {
+    const email = auEmail(); if (!auValid(email)) { AU.msg = "Bitte gib zuerst oben deine E-Mail-Adresse ein."; AU.ok = false; auRender(); $("au-email")?.focus(); return; }
+    return auRun(async () => { const r = await window.mkAuth(op, { email });
+      if (!r.ok) { AU.msg = auErr(r); AU.ok = false; return; }
+      AU.step = "code"; AU.type = op === "reset" ? "recovery" : "email"; AU.msg = op === "reset" ? "Mit dem Code meldest du dich an und legst danach ein neues Passwort fest." : ""; AU.ok = true; });
+  }
+  if (op === "again") return auRun(async () => { const t = AU.type, r = await window.mkAuth(t === "signup" ? "resend" : t === "recovery" ? "reset" : "otp", { email: AU.email });
+    AU.ok = r.ok; AU.msg = r.ok ? "Neue Mail ist unterwegs." : auErr(r); });
+}
+// Nach „Passwort vergessen“: neues Passwort festlegen
+function showNewPw() {
+  const me = window.mkAuthInfo?.() || {};
+  openSheet("Neues Passwort festlegen", "Damit du dich künftig mit E-Mail und Passwort anmelden kannst", `<form id="au-np" class="au" novalidate>
+    <input type="email" name="email" autocomplete="username" value="${esc(me.email || "")}" hidden>
+    <label class="au-f"><span>Neues Passwort <i>(mind. 8 Zeichen)</i></span><input type="password" id="au-np1" name="new-password" autocomplete="new-password" minlength="8" required></label>
+    <label class="au-f"><span>Noch einmal</span><input type="password" id="au-np2" autocomplete="new-password" minlength="8" required></label>
+    <p class="err" id="au-npmsg" role="alert" hidden></p>
+    <div class="btnrow"><button type="submit" class="btn accent">Speichern</button><button type="button" class="btn ghost" id="sheet-close2">Später</button></div></form>`, "newpw");
+}
+async function saveNewPw() {
+  const a = $("au-np1")?.value || "", b = $("au-np2")?.value || "", m = $("au-npmsg"), say = t => { if (m) { m.textContent = t; m.hidden = !t; } };
+  if (a.length < 8) return say("Bitte mindestens 8 Zeichen.");
+  if (a !== b) return say("Die beiden Passwörter stimmen nicht überein.");
+  const r = await window.mkAuth("newpw", { pw: a });
+  if (!r.ok) return say(auErr(r));
+  try { sessionStorage.removeItem("mk-newpw"); } catch {}
+  closeSheet(); toast("Neues Passwort gespeichert.");
+}
+document.addEventListener("submit", ev => { const id = ev.target.id; if (id === "au-form" || id === "au-code") { ev.preventDefault(); auSubmit(id); } if (id === "au-np") { ev.preventDefault(); saveNewPw(); } });
+document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-aumode]"); if (m) { auEmail(); AU.mode = m.dataset.aumode; AU.msg = ""; auRender(); return; }
+  const o = ev.target.closest?.("[data-auop]"); if (o) { ev.preventDefault(); auOp(o.dataset.auop); } });
+// Google-Kalender verbinden – bei E-Mail-Konten wird Google an dasselbe Konto gehängt
+async function gConnect() {
+  const r = await window.mkConnectGoogle?.();
+  if (r?.error) { const c = r.error.code || "";
+    toast(c === "identity_already_exists" ? "Dieses Google-Konto gehört schon zu einem anderen Mein-Kalender-Konto." : c === "manual_linking_disabled" ? "Google verbinden ist für E-Mail-Konten noch nicht freigeschaltet." : "Google-Verbindung hat nicht geklappt: " + (r.error.message || c)); }
+}
+
 const UA = navigator.userAgent || "", IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1), IS_ANDROID = /Android/i.test(UA);
 const IS_MOBILE = IS_IOS || IS_ANDROID;
 const IS_STANDALONE = (() => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch { return false; } })();
@@ -3936,8 +4035,9 @@ async function doInstall() {
 }
 function showSignin() {
   if (APP) return openSheet("Kostenlos anmelden", "Damit dein Kalender nur dir gehört", `
-    <p class="tip" style="color:var(--fg)">Melde dich mit deinem <b>Google-Konto</b> an – kostenlos, ohne neues Passwort. Deine Einträge sind privat, nur du siehst sie.</p>
-    <div class="btnrow" style="margin-top:14px"><button type="button" class="btn accent" id="app-login">Mit Google anmelden</button><button type="button" class="btn ghost" id="sheet-close2">Erst mal umschauen</button></div>
+    <p class="tip" style="color:var(--fg)">Melde dich mit deinem <b>Google-Konto</b> oder deiner <b>E-Mail-Adresse</b> an – kostenlos. Deine Einträge sind privat, nur du siehst sie.</p>
+    <div class="au-wrap">${auBox()}</div>
+    <div class="btnrow" style="margin-top:10px"><button type="button" class="btn ghost" id="sheet-close2">Erst mal umschauen</button></div>
     <p class="note" style="margin-top:10px">Ohne Anmeldung kannst du dich trotzdem umsehen: Ferien, Feiertage, Brückentage und gemeinsame freie Zeiten funktionieren auch so.</p>`, "signin");
   openSheet("Kostenlos anmelden", "Damit dein Kalender nur dir gehört", `
     <p class="tip" style="color:var(--fg)">Für eigene Termine, Erinnerungen und Geschenkelisten brauchst du ein <b>kostenloses Claude-Konto</b>. Deine Einträge sind privat – nur du siehst sie.</p>
@@ -4031,9 +4131,8 @@ function showGate() {
     <div class="wz-logo" aria-hidden="true"><svg viewBox="0 0 48 48" width="56" height="56"><rect x="6" y="9" width="36" height="33" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M6 19h36M16 5v8M32 5v8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="31" r="3.5" fill="currentColor"/></svg></div>
     <h1>Mein Kalender</h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
-    <div class="wz-box"><b>Kostenlos mit Google anmelden.</b><span>Kein neues Passwort. Deine Termine sind privat gespeichert – nur du siehst sie.</span></div>
-    <button type="button" class="wz-big accent" id="app-login">Mit Google anmelden</button>
-    <p class="note">Danach geht die Einrichtung direkt weiter.</p>${window.mkAuthErr ? `<p class="err" role="alert">Die Anmeldung hat nicht geklappt: ${esc(window.mkAuthErr)}</p>` : ""}
+    <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
+    <div class="au-wrap">${auBox()}</div>${window.mkAuthErr ? `<p class="err" role="alert">Die Anmeldung hat nicht geklappt: ${esc(window.mkAuthErr)}</p>` : ""}
     <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
@@ -4169,7 +4268,7 @@ function wzReadState() { if ($("wz-name")) WZ.name = $("wz-name").value.trim(); 
 async function wzConnectGoogle() {
   WZ.gBusy = true; WZ.gMsg = ""; renderWz(); gTry = 0;
   await initGoogle(); WZ.gBusy = false;
-  if (APP && FATAL.includes(gState) && gState !== "api_disabled") { window.mkConnectGoogle?.(); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
+  if (APP && FATAL.includes(gState) && gState !== "api_disabled") { gConnect(); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
   if (gState === "ok" && !gPrimarySummary) { try { const r = await withTimeout(mcp.callTool(GSERVER, "list_events", { pageSize: 1 }), 12000); gPrimarySummary = String(r?.payload?.summary || ""); } catch {} }
   if (gState === "ok") { WZ.useG = true; gShow = true; store.set("ft-gshow", "1"); wzGo("cals"); }
   else { WZ.gMsg = gStatusText() || "Google antwortet gerade nicht. Versuch es noch einmal oder mach ohne Google weiter."; renderWz(); }
@@ -4465,7 +4564,7 @@ document.addEventListener("click", ev => {
     case "card-quota-x": $("quota-card").hidden = true; $("quota-card").dataset.on = ""; renderHints(); break;
     case "help-go": helpAsk(); break;
     case "card-app-x": store.set("ft-appcard", String(Date.now())); renderHints(); break;
-    case "card-gdev-go": window.mkConnectGoogle?.(); break;
+    case "card-gdev-go": gConnect(); break;
     case "card-gdev-x": store.set("ft-gdev", String(Date.now())); renderHints(); break;
     case "card-nt-go": notifyOn().then(() => renderHints()).catch(() => showNotify()); break;
     case "card-nt-x": store.set("ft-ntdev", String(Date.now())); renderHints(); break;
@@ -4541,6 +4640,7 @@ document.addEventListener("click", ev => {
     case "app-logout": window.mkSignOut?.(); break;
     case "app-delacc": showDeleteAccount(); break;
     case "mi-account": showAccount(); break;
+    case "acc-pw": showNewPw(); break;
     case "mi-admin": showAdmin(true); break;
     case "adm-reload": showAdmin(true); break;
     case "adm-train": { const o = $("adm-train-out"); o.innerHTML = `<p class="note">frage bei der Bahn …</p>`; window.mkAdminTrain?.().then(r => {
@@ -4588,7 +4688,7 @@ document.addEventListener("click", ev => {
     case "trip-dec": tripStep(-1); break;
     case "trip-inc": tripStep(1); break;
     case "gpick-done": closeSheet(); toast(`${selectedCals().length} Google-Kalender werden angezeigt`); break;
-    case "g-retry": if (APP && FATAL.includes(gState) && gState !== "api_disabled") { window.mkConnectGoogle?.(); break; } gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
+    case "g-retry": if (APP && FATAL.includes(gState) && gState !== "api_disabled") { gConnect(); break; } gTry = 0; initGoogle().then(() => { if (sheetMode === "google") showGoogleSheet(); }); break;
   }
 });
 document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { statsOpen = ev.target.open; if (statsOpen) { if (ensureGoogle()) renderAll(); else renderStats(); } } }, true);
@@ -4786,6 +4886,7 @@ renderAll();
   } else { try { PROFILE = JSON.parse(store.get("ft-profile") || "null") || {}; } catch {} }
   if (mcp) initGoogle(); else renderGPill();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
+  if (APP) { let np = false; try { np = sessionStorage.getItem("mk-newpw") === "1"; } catch {} if (np) setTimeout(showNewPw, 900); }
   if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));

@@ -9,6 +9,7 @@ window.MK_APP = true;
   window.mkSupabase = sb;
   // Fehler aus der Rückleitung (Google/Supabase) festhalten, bevor supabase-js die Adresse aufräumt
   try { const P = new URLSearchParams(location.search + "&" + location.hash.slice(1)); const e = P.get("error_description") || P.get("error");
+    if (P.get("type") === "recovery") sessionStorage.setItem("mk-newpw", "1");
     if (e) { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
   let session = null;
   const ready = sb.auth.getSession().then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
@@ -17,6 +18,7 @@ window.MK_APP = true;
   let startedWith = undefined;   // undefined = Start läuft noch, sonst: true/false
   ready.then(s => { startedWith = !!s; });
   sb.auth.onAuthStateChange((ev, s) => {
+    if (ev === "PASSWORD_RECOVERY") { try { sessionStorage.setItem("mk-newpw", "1"); } catch {} }
     if (s) { session = s; keepGoogle(s); } else if (ev === "SIGNED_OUT") { session = null; Object.values(GK).forEach(k => lsSet(k, "")); }
     if (startedWith === undefined) return;
     if (ev === "SIGNED_OUT" && startedWith) location.reload();
@@ -25,7 +27,34 @@ window.MK_APP = true;
   // Eine Anmeldung für beides: Konto + Zugriff auf Google Kalender (Google fragt die Kalender-Rechte einzeln ab)
   const G_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
   window.mkSignIn = () => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } });
-  window.mkConnectGoogle = () => { try { sessionStorage.setItem("mk-wz-g", "1"); } catch {} return window.mkSignIn(); };
+  // Mit E-Mail angemeldet: Google-Kalender an DIESES Konto hängen (sonst entstünde ein zweites Konto)
+  window.mkConnectGoogle = async () => { try { sessionStorage.setItem("mk-wz-g", "1"); } catch {}
+    const u = session?.user, hasG = !u || u.app_metadata?.provider === "google" || (u.identities || []).some(i => i.provider === "google");
+    if (hasG) return window.mkSignIn();
+    const r = await sb.auth.linkIdentity({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } }).catch(e => ({ error: e }));
+    if (r?.error) { try { sessionStorage.removeItem("mk-wz-g"); } catch {} return { error: { code: r.error.code || "", message: r.error.message || String(r.error) } }; }
+    return r; };
+  // Anmeldung mit E-Mail: Passwort (Passwortmanager-tauglich), Code/Link per Mail, Passwort vergessen
+  window.mkAuth = async (op, a = {}) => {
+    const red = location.origin + "/app/", email = String(a.email || "").trim().toLowerCase();
+    try {
+      let r;
+      if (op === "login") r = await sb.auth.signInWithPassword({ email, password: a.pw });
+      else if (op === "signup") r = await sb.auth.signUp({ email, password: a.pw, options: { emailRedirectTo: red } });
+      else if (op === "otp") r = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: red, shouldCreateUser: true } });
+      else if (op === "resend") r = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: red } });
+      else if (op === "reset") r = await sb.auth.resetPasswordForEmail(email, { redirectTo: red });
+      else if (op === "verify") { if (a.type === "recovery") try { sessionStorage.setItem("mk-newpw", "1"); } catch {}
+        r = await sb.auth.verifyOtp({ email, token: String(a.code || "").replace(/\D/g, ""), type: a.type || "email" });
+        if (r.error) try { sessionStorage.removeItem("mk-newpw"); } catch {} }
+      else if (op === "newpw") r = await sb.auth.updateUser({ password: a.pw });
+      else return { ok: false, code: "op" };
+      if (r.error) return { ok: false, code: r.error.code || (r.error.status === 429 ? "over_request_rate_limit" : ""), msg: r.error.message || "" };
+      const d = r.data || {};
+      return { ok: true, session: !!d.session, exists: op === "signup" && !!d.user && Array.isArray(d.user.identities) && d.user.identities.length === 0 };
+    } catch (e) { return { ok: false, code: "net", msg: String(e?.message || e) }; }
+  };
+  window.mkAuthInfo = () => { const u = session?.user; return u ? { email: u.email || "", google: u.app_metadata?.provider === "google" || (u.identities || []).some(i => i.provider === "google"), pw: (u.identities || []).some(i => i.provider === "email") } : null; };
   // Google-Schlüssel aus der Anmeldung merken (nur in diesem Browser)
   const GK = { at: "mk-g-at", exp: "mk-g-exp", rt: "mk-g-rt" };
   const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
