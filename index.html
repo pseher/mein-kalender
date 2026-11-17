@@ -178,6 +178,54 @@
     .ch .stage { margin-top: 10px; }
   }
 </style>
+<style id="klar">
+  @font-face { font-family: Roboto; font-weight: 300; font-display: swap; src: url(/fonts/roboto-latin-300-normal.woff2) format("woff2"); }
+  @font-face { font-family: Roboto; font-weight: 400; font-display: swap; src: url(/fonts/roboto-latin-400-normal.woff2) format("woff2"); }
+  @font-face { font-family: Roboto; font-weight: 500; font-display: swap; src: url(/fonts/roboto-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: Roboto; font-weight: 700; font-display: swap; src: url(/fonts/roboto-latin-700-normal.woff2) format("woff2"); }
+  :root { --ink: #202124; --text: #3c4043; --soft: #5f6368; --line: #dadce0; --bg: #fff; --card: #fff; --gray: #f1f3f4; --acc: #0b7a5f; --acc-2: #e8f3ee; --warm-2: #fbf1e4; --sh: none; --lift: 0 1px 2px rgba(60,64,67,.10), 0 10px 28px rgba(60,64,67,.10); }
+  body { font-family: Roboto, system-ui, sans-serif; background: #fff; color: var(--ink); -webkit-font-smoothing: auto; }
+  h1, h2, h3, .h2 { font-weight: 400; letter-spacing: 0; }
+  .hero h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.12; font-weight: 400; } .hero h1 em { color: var(--acc); }
+  .h2, .sk h2, .cta h2 { font-size: clamp(26px, 3.6vw, 36px); line-height: 1.2; }
+  h3, .s3 h3, .step strong, .tile b, .list li b { font-weight: 500; }
+  .lead, .sub, .sk p { color: var(--text); }
+  .btn { border-radius: 8px; box-shadow: none; background: var(--acc); font-weight: 500; padding: 12px 24px; font-size: 15.5px; } .btn:hover { transform: none; box-shadow: none; background: #08664f; }
+  .btn.ghost { background: #fff; color: var(--acc); border: 1px solid var(--line); } .btn.ghost:hover { background: var(--acc-2); }
+  .nav { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 1px solid var(--line); }
+  .nav .wrap { font-weight: 400; font-size: 20px; color: var(--soft); } .nav img { border-radius: 8px; }
+  .nav a.nb { border-radius: 8px; background: var(--acc); font-weight: 500; }
+  .kick { background: none; padding: 0; color: var(--soft); font-weight: 400; font-size: 14px; }
+  .eyebrow { color: var(--acc); font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 14px; }
+  .free { color: var(--soft); }
+  .band { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .band span { background: #fff; box-shadow: none; border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-weight: 500; font-size: 14px; }
+  .s3, .step { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: none; }
+  .s3 .n { color: var(--soft); font-weight: 400; }
+  .bub { background: var(--gray); } .bub b { color: var(--acc); }
+  .chips span, .sk .chips span, .sk:nth-child(even) .chips span { background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-weight: 500; box-shadow: none; }
+  .stage::before { display: none; }
+  .phone { border-width: 8px; border-color: #202124; box-shadow: none; }
+  .note-card { border-radius: 12px; box-shadow: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15); }
+  /* Kapitel: helle Karten wie Store-Screenshots */
+  .sk { background: var(--acc-2); box-shadow: var(--lift); border-radius: 28px; } .sk:nth-child(even) { background: var(--warm-2); }
+  .sk .eyebrow { color: var(--acc); } .sk:nth-child(even) .eyebrow { color: #a4560c; }
+  .sk .chips span, .sk:nth-child(even) .chips span { border-color: transparent; box-shadow: 0 1px 2px rgba(60,64,67,.12); }
+  .sk .pv .phone { box-shadow: 0 16px 40px rgba(60,64,67,.18); }
+  .claim { background: #202124; color: #fff; border-radius: 28px; } .claim h2 { font-weight: 400; } .claim h2 span { color: #7fd3b6; } .claim p { color: #c4c7c5; }
+  .tile { background: var(--acc-2); border: 0; border-radius: 16px; box-shadow: var(--lift); } .tile:nth-child(even) { background: var(--warm-2); }
+  .tile .ic { display: none; } .tile > span:last-child { display: block; color: var(--text); }
+  .step b { background: var(--acc-2); color: var(--acc); font-weight: 500; }
+  .trust span::before { color: var(--acc); }
+  .list li .ic { border-radius: 8px; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; }
+</style>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var re = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]+\s*/gu, w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), n;
+    while ((n = w.nextNode())) { if (n.parentElement.closest(".phone,script,style")) continue; n.nodeValue = n.nodeValue.replace(re, ""); }
+  });
+</script>
 </head>
 <body>
 <script>if (/[?&]geloescht=1/.test(location.search)) document.addEventListener("DOMContentLoaded", function () { var d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "background:#0f6e73;color:#fff;padding:12px 16px;text-align:center;font-weight:600"; d.textContent = "Dein Konto und alle Daten wurden gelöscht. Danke, dass du Mein Kalender ausprobiert hast."; document.body.prepend(d); try { history.replaceState(null, "", "/?info"); } catch (e) {} });</script>
