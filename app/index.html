@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117074530";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117074827";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -6115,6 +6115,8 @@ renderAll();
   setTimeout(() => check(false), 30e3);
   try { if (sessionStorage.getItem("ft-updated")) { sessionStorage.removeItem("ft-updated"); setTimeout(() => toast("✨ Mein Kalender ist auf dem neuesten Stand"), 1200); } } catch {}
 })();
+// Installierte App auf Android: ältere Installationen sind noch auf Hochformat festgelegt – Drehen wieder freigeben
+if (APP && IS_STANDALONE) try { screen.orientation?.lock?.("any")?.catch(() => {}); } catch {}
 // Geteilter Text (Android: „Teilen → Kalender“ aus Mail oder WhatsApp) – nach dem Start im Freitext auswerten
 (function shareIn() {
   if (!APP) return; const q = new URLSearchParams(location.search), t = [q.get("title"), q.get("text"), q.get("url")].filter(Boolean).join("\n").trim();

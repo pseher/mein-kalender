@@ -4818,6 +4818,8 @@ renderAll();
   setTimeout(() => check(false), 30e3);
   try { if (sessionStorage.getItem("ft-updated")) { sessionStorage.removeItem("ft-updated"); setTimeout(() => toast("✨ Mein Kalender ist auf dem neuesten Stand"), 1200); } } catch {}
 })();
+// Installierte App auf Android: ältere Installationen sind noch auf Hochformat festgelegt – Drehen wieder freigeben
+if (APP && IS_STANDALONE) try { screen.orientation?.lock?.("any")?.catch(() => {}); } catch {}
 // Geteilter Text (Android: „Teilen → Kalender“ aus Mail oder WhatsApp) – nach dem Start im Freitext auswerten
 (function shareIn() {
   if (!APP) return; const q = new URLSearchParams(location.search), t = [q.get("title"), q.get("text"), q.get("url")].filter(Boolean).join("\n").trim();
