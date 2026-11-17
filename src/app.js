@@ -769,7 +769,7 @@ async function saveGroups(G, msg) {
 async function setFamCal(id) { saveGroups(id ? [{ cal: id, members: [], std: true }] : []); }
 
 // =================== Aufgaben ===================
-let TASKS = [], tkShowDone = false, tkAll = false;
+let TASKS = [], tkShowDone = false, tkAll = false, tkSelMode = false, TKSEL = new Set(), tkCleaned = false;
 const MONS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
 const WDS = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
 function parseTask(txt, base) { // „Reifen wechseln bis Ende Oktober“, „Morgen tanken“, „Sonntag zu Ina fahren“ → Titel + Frist
@@ -828,14 +828,19 @@ function renderTasks() {
   if (!canWrite) return;
   const all = TASKS.filter(t => !t.done && t.state !== "no").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")), sug = taskSuggest();
   const later = all.filter(tkLater), open = all.filter(t => !tkLater(t));
-  const done = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < 7 * 864e5);
+  const done = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < TK_KEEP * 864e5).sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)));
+  if (!tkCleaned && TASKS.length) { tkCleaned = true; setTimeout(tkAutoClean, 3000); }
   $("n-tasks").textContent = open.length || "";
   const MAXT = 5, more = tkAll ? 0 : Math.max(0, open.length - MAXT);
   $("tasks-list").innerHTML = (tkAll ? open : open.slice(0, MAXT)).map(t => `<div class="tk"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") +
     (more ? `<button type="button" class="link tk-dl" id="tk-all">+${more} weitere</button>` : tkAll && open.length > MAXT ? `<button type="button" class="link tk-dl" id="tk-all">Weniger anzeigen</button>` : "") +
     (later.length ? `<button type="button" class="link tk-dl" id="tk-later" aria-expanded="${tkLaterOpen}">${tkLaterOpen ? "Spätere ausblenden" : `Später: ${later.length} (ab ${fmt(parseIso(later[0].due))})`}</button>${tkLaterOpen ? later.map(t => `<div class="tk tk-lt"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") : ""}` : "") +
     (sug.length ? `<div class="tk-sug">${sug.map((s, i) => `<div class="tk sg2"><span><b>${esc(s.title)}</b><small>${esc(s.for)}</small></span><button type="button" class="ic ok" data-tksug="${i}" aria-label="Übernehmen">✓</button><button type="button" class="ic no" data-tkno="${i}" aria-label="Nicht nötig">✕</button></div>`).join("")}</div>` : "") +
-    (done.length ? `<button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? done.map(t => `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") : ""}` : "");
+    (done.length ? `<div class="tk-dbar"><button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? (tkSelMode
+        ? `<button type="button" class="link tk-dl danger-t" id="tk-delsel"${TKSEL.size ? "" : " aria-disabled=\"true\""}>Ausgewählte löschen${TKSEL.size ? ` (${TKSEL.size})` : ""}</button><button type="button" class="link tk-dl" id="tk-selall">${TKSEL.size === done.length ? "Keine" : "Alle"} auswählen</button><button type="button" class="link tk-dl" id="tk-selx">Fertig</button>`
+        : `<button type="button" class="link tk-dl" id="tk-sel">Auswählen</button><button type="button" class="link tk-dl danger-t" id="tk-delall">Alle löschen</button>`) : ""}</div>${tkShowDone ? done.map(t => tkSelMode
+        ? `<label class="tk dn sel"><input type="checkbox" class="ckb" data-tksel="${esc(t.id)}"${TKSEL.has(t.id) ? " checked" : ""} aria-label="${esc(t.title)} auswählen"><span>${esc(t.title)}</span></label>`
+        : `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") + `<p class="note tk-keep">Erledigte Aufgaben werden nach ${TK_KEEP} Tagen automatisch gelöscht.</p>` : ""}` : "");
   window.__tkSug = sug;
 }
 // Aufgabe eintragen: Text frei, Frist im eigenen Feld. Ein Datum im Text wird nur vorgeschlagen (sichtbar im Feld), der Text bleibt wie getippt.
@@ -852,10 +857,23 @@ function showTaskEdit(id) {
   const t = TASKS.find(x => x.id === id); if (!t) return;
   const d = parseIso(t.due);
   openSheet("Aufgabe", "Ändern, Frist setzen oder löschen", `<div class="form">
-    <label for="tk-e-title">Aufgabe</label><input id="tk-e-title" type="text" value="${esc(t.title)}">
+    <label for="tk-e-title">Aufgabe</label><textarea class="in" id="tk-e-title" rows="${Math.min(6, Math.max(2, Math.ceil(t.title.length / 34)))}">${esc(t.title)}</textarea>
     <label for="tk-e-due">Frist</label><input id="tk-e-due" type="date" value="${esc(t.due || "")}">
     <div class="shift"><span>Schnell:</span><button type="button" class="btn ghost small" data-tkq="0">Heute</button><button type="button" class="btn ghost small" data-tkq="1">Morgen</button><button type="button" class="btn ghost small" data-tkq="7">+1 Woche</button><button type="button" class="btn ghost small" data-tkq="">Keine</button></div></div>
     <div class="btnrow"><button type="button" class="btn" data-tksave="${esc(id)}">Speichern</button><button type="button" class="btn ghost" data-tkdone2="${esc(id)}">✓ Erledigt</button><button type="button" class="btn danger push" data-tkdel="${esc(id)}">Löschen</button></div>`, "task");
+}
+// Erledigte nach 30 Tagen wegräumen; Vorschlags-Aufgaben (key) bleiben als „abgelehnt“ stehen, damit sie nicht wieder vorgeschlagen werden
+const TK_KEEP = 30;
+const tkGone = t => t.key ? COLL("tasks").doc(t.id).update({ state: "no" }) : COLL("tasks").doc(t.id).delete();
+async function tkAutoClean() {
+  if (!canWrite) return; const old = TASKS.filter(t => t.done && t.state !== "no" && Date.now() - Date.parse(t.doneAt || t.created || 0) > TK_KEEP * 864e5).slice(0, 50);
+  for (const t of old) { try { await tkGone(t); } catch {} }
+}
+async function tkDelMany(ids) {
+  const L = TASKS.filter(t => ids.includes(t.id)); if (!L.length) return; use("aufgaben_aufraeumen");
+  for (const t of L) { try { await tkGone(t); } catch (err) { toast(writeErr(err)); return; } }
+  TKSEL.clear(); tkSelMode = false; renderTasks();
+  toast(`${L.length} Aufgabe${L.length > 1 ? "n" : ""} gelöscht`, async () => { for (const t of L) { try { await COLL("tasks").doc(t.id).set({ ...t, id: undefined }); } catch {} } });
 }
 async function tkDel(id) { const t = TASKS.find(x => x.id === id); try { await COLL("tasks").doc(id).delete(); } catch (err) { toast(writeErr(err)); return; }
   closeSheet(); toast("Aufgabe gelöscht", t ? async () => { try { await COLL("tasks").doc(id).set({ ...t, id: undefined }); } catch {} } : null); }
@@ -4426,7 +4444,12 @@ document.addEventListener("click", ev => {
     case "tk-later": tkLaterOpen = !tkLaterOpen; renderTasks(); break;
     case "tk-go": { const i = $("tk-in"), v = i.value.trim(); if (v) { addTask({ title: v[0].toUpperCase() + v.slice(1), due: $("tk-due").value || "" }); tkReset(); i.focus(); toast("Aufgabe eingetragen"); } break; }
     case "tk-all": tkAll = !tkAll; renderTasks(); break;
-    case "tk-showdone": tkShowDone = !tkShowDone; renderTasks(); break;
+    case "tk-showdone": tkShowDone = !tkShowDone; tkSelMode = false; TKSEL.clear(); renderTasks(); break;
+    case "tk-sel": tkSelMode = true; TKSEL.clear(); renderTasks(); break;
+    case "tk-selx": tkSelMode = false; TKSEL.clear(); renderTasks(); break;
+    case "tk-selall": { const D = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < TK_KEEP * 864e5).map(t => t.id); if (TKSEL.size === D.length) TKSEL.clear(); else D.forEach(i => TKSEL.add(i)); renderTasks(); break; }
+    case "tk-delsel": if (TKSEL.size) tkDelMany([...TKSEL]); break;
+    case "tk-delall": tkDelMany(TASKS.filter(t => t.done && t.state !== "no").map(t => t.id)); break;
     case "mi-share": shrNew = null; shrAcc = null; shrGrp = null; showShareMgr(); break;
     case "shr-new": shrNew = { name: "" }; showShareMgr(); setTimeout(() => $("shr-name")?.focus(), 50); break;
     case "shr-new-x": case "shr-new-done": shrNew = null; showShareMgr(); break;
@@ -4525,6 +4548,7 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.docadd) { const e = EV.find(x => x.id === ev.target.dataset.docadd), fs = [...(ev.target.files || [])]; ev.target.value = ""; if (e && fs.length) docUpload(e, fs); return; }
   if (ev.target.dataset?.page) { setPage(ev.target.dataset.page, ev.target.checked); return; }
   if (ev.target.dataset?.fsh !== undefined) { formShManual = true; return; }
+  if (ev.target.dataset?.tksel) { const id = ev.target.dataset.tksel; if (ev.target.checked) TKSEL.add(id); else TKSEL.delete(id); renderTasks(); return; }
   if (ev.target.dataset?.tkdone) { const id = ev.target.dataset.tkdone; ev.target.closest(".tk")?.classList.add("gone"); setTimeout(() => tkSet(id, { done: true, doneAt: new Date().toISOString() }), 250);
     toast("Erledigt", async () => tkSet(id, { done: false, doneAt: "" })); return; }
   if (ev.target.dataset?.tkundo) { tkSet(ev.target.dataset.tkundo, { done: false, doneAt: "" }); return; }

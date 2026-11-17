@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117053156";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117053633";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -887,7 +887,7 @@ html.sheet-open.snap { scroll-snap-type: none; }
 #focus-list .fr:hover { background: var(--soft); } #focus-list div.fr { cursor: default; }
 .fr-t { font-size: 12.5px; font-weight: 600; color: var(--both); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fr-m { display: flex; justify-content: center; align-items: center; font-size: 14px; } .fr-dot { width: 10px; height: 10px; border-radius: 50%; }
-.fr-x { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; } .fr-x small { color: var(--muted); font-size: 12.5px; }
+.fr-x { min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; } .fr-x small { color: var(--muted); font-size: 12.5px; }
 .fr-btn { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; } .fr-ck { width: 18px; height: 18px; }
 #focus-list .fx-day { margin: 10px 6px 2px calc(6px + 44px + 8px); } #focus-list .fx-day:first-child { margin-top: 2px; }
 .focus-more { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 4px 2px; } .focus-more:empty { display: none; }
@@ -1138,7 +1138,10 @@ html.rg-on #bigmonth, html.rg-on #year { touch-action: none; }
 html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration: underline; }
 
 .tk .tk-t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.tk .tk-t > span { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk .tk-t > span { flex: 1; min-width: 0; font-size: 14px; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.tk.dn > span { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; } .tk.sel { cursor: pointer; }
+.tk-dbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; } .danger-t { color: var(--holiday) !important; } [aria-disabled="true"] { opacity: .5; pointer-events: none; } .tk-keep { margin: 4px 6px 0; font-size: 12px; }
+#tk-e-title { width: 100%; resize: vertical; font: inherit; line-height: 1.4; }
 .tk.dn .ic.no { margin-left: auto; filter: grayscale(1); opacity: .7; }
 
 /* Seiten ausgeblendet */
@@ -2062,7 +2065,7 @@ async function saveGroups(G, msg) {
 async function setFamCal(id) { saveGroups(id ? [{ cal: id, members: [], std: true }] : []); }
 
 // =================== Aufgaben ===================
-let TASKS = [], tkShowDone = false, tkAll = false;
+let TASKS = [], tkShowDone = false, tkAll = false, tkSelMode = false, TKSEL = new Set(), tkCleaned = false;
 const MONS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
 const WDS = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
 function parseTask(txt, base) { // „Reifen wechseln bis Ende Oktober“, „Morgen tanken“, „Sonntag zu Ina fahren“ → Titel + Frist
@@ -2121,14 +2124,19 @@ function renderTasks() {
   if (!canWrite) return;
   const all = TASKS.filter(t => !t.done && t.state !== "no").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")), sug = taskSuggest();
   const later = all.filter(tkLater), open = all.filter(t => !tkLater(t));
-  const done = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < 7 * 864e5);
+  const done = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < TK_KEEP * 864e5).sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)));
+  if (!tkCleaned && TASKS.length) { tkCleaned = true; setTimeout(tkAutoClean, 3000); }
   $("n-tasks").textContent = open.length || "";
   const MAXT = 5, more = tkAll ? 0 : Math.max(0, open.length - MAXT);
   $("tasks-list").innerHTML = (tkAll ? open : open.slice(0, MAXT)).map(t => `<div class="tk"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") +
     (more ? `<button type="button" class="link tk-dl" id="tk-all">+${more} weitere</button>` : tkAll && open.length > MAXT ? `<button type="button" class="link tk-dl" id="tk-all">Weniger anzeigen</button>` : "") +
     (later.length ? `<button type="button" class="link tk-dl" id="tk-later" aria-expanded="${tkLaterOpen}">${tkLaterOpen ? "Spätere ausblenden" : `Später: ${later.length} (ab ${fmt(parseIso(later[0].due))})`}</button>${tkLaterOpen ? later.map(t => `<div class="tk tk-lt"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") : ""}` : "") +
     (sug.length ? `<div class="tk-sug">${sug.map((s, i) => `<div class="tk sg2"><span><b>${esc(s.title)}</b><small>${esc(s.for)}</small></span><button type="button" class="ic ok" data-tksug="${i}" aria-label="Übernehmen">✓</button><button type="button" class="ic no" data-tkno="${i}" aria-label="Nicht nötig">✕</button></div>`).join("")}</div>` : "") +
-    (done.length ? `<button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? done.map(t => `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") : ""}` : "");
+    (done.length ? `<div class="tk-dbar"><button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? (tkSelMode
+        ? `<button type="button" class="link tk-dl danger-t" id="tk-delsel"${TKSEL.size ? "" : " aria-disabled=\"true\""}>Ausgewählte löschen${TKSEL.size ? ` (${TKSEL.size})` : ""}</button><button type="button" class="link tk-dl" id="tk-selall">${TKSEL.size === done.length ? "Keine" : "Alle"} auswählen</button><button type="button" class="link tk-dl" id="tk-selx">Fertig</button>`
+        : `<button type="button" class="link tk-dl" id="tk-sel">Auswählen</button><button type="button" class="link tk-dl danger-t" id="tk-delall">Alle löschen</button>`) : ""}</div>${tkShowDone ? done.map(t => tkSelMode
+        ? `<label class="tk dn sel"><input type="checkbox" class="ckb" data-tksel="${esc(t.id)}"${TKSEL.has(t.id) ? " checked" : ""} aria-label="${esc(t.title)} auswählen"><span>${esc(t.title)}</span></label>`
+        : `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") + `<p class="note tk-keep">Erledigte Aufgaben werden nach ${TK_KEEP} Tagen automatisch gelöscht.</p>` : ""}` : "");
   window.__tkSug = sug;
 }
 // Aufgabe eintragen: Text frei, Frist im eigenen Feld. Ein Datum im Text wird nur vorgeschlagen (sichtbar im Feld), der Text bleibt wie getippt.
@@ -2145,10 +2153,23 @@ function showTaskEdit(id) {
   const t = TASKS.find(x => x.id === id); if (!t) return;
   const d = parseIso(t.due);
   openSheet("Aufgabe", "Ändern, Frist setzen oder löschen", `<div class="form">
-    <label for="tk-e-title">Aufgabe</label><input id="tk-e-title" type="text" value="${esc(t.title)}">
+    <label for="tk-e-title">Aufgabe</label><textarea class="in" id="tk-e-title" rows="${Math.min(6, Math.max(2, Math.ceil(t.title.length / 34)))}">${esc(t.title)}</textarea>
     <label for="tk-e-due">Frist</label><input id="tk-e-due" type="date" value="${esc(t.due || "")}">
     <div class="shift"><span>Schnell:</span><button type="button" class="btn ghost small" data-tkq="0">Heute</button><button type="button" class="btn ghost small" data-tkq="1">Morgen</button><button type="button" class="btn ghost small" data-tkq="7">+1 Woche</button><button type="button" class="btn ghost small" data-tkq="">Keine</button></div></div>
     <div class="btnrow"><button type="button" class="btn" data-tksave="${esc(id)}">Speichern</button><button type="button" class="btn ghost" data-tkdone2="${esc(id)}">✓ Erledigt</button><button type="button" class="btn danger push" data-tkdel="${esc(id)}">Löschen</button></div>`, "task");
+}
+// Erledigte nach 30 Tagen wegräumen; Vorschlags-Aufgaben (key) bleiben als „abgelehnt“ stehen, damit sie nicht wieder vorgeschlagen werden
+const TK_KEEP = 30;
+const tkGone = t => t.key ? COLL("tasks").doc(t.id).update({ state: "no" }) : COLL("tasks").doc(t.id).delete();
+async function tkAutoClean() {
+  if (!canWrite) return; const old = TASKS.filter(t => t.done && t.state !== "no" && Date.now() - Date.parse(t.doneAt || t.created || 0) > TK_KEEP * 864e5).slice(0, 50);
+  for (const t of old) { try { await tkGone(t); } catch {} }
+}
+async function tkDelMany(ids) {
+  const L = TASKS.filter(t => ids.includes(t.id)); if (!L.length) return; use("aufgaben_aufraeumen");
+  for (const t of L) { try { await tkGone(t); } catch (err) { toast(writeErr(err)); return; } }
+  TKSEL.clear(); tkSelMode = false; renderTasks();
+  toast(`${L.length} Aufgabe${L.length > 1 ? "n" : ""} gelöscht`, async () => { for (const t of L) { try { await COLL("tasks").doc(t.id).set({ ...t, id: undefined }); } catch {} } });
 }
 async function tkDel(id) { const t = TASKS.find(x => x.id === id); try { await COLL("tasks").doc(id).delete(); } catch (err) { toast(writeErr(err)); return; }
   closeSheet(); toast("Aufgabe gelöscht", t ? async () => { try { await COLL("tasks").doc(id).set({ ...t, id: undefined }); } catch {} } : null); }
@@ -5719,7 +5740,12 @@ document.addEventListener("click", ev => {
     case "tk-later": tkLaterOpen = !tkLaterOpen; renderTasks(); break;
     case "tk-go": { const i = $("tk-in"), v = i.value.trim(); if (v) { addTask({ title: v[0].toUpperCase() + v.slice(1), due: $("tk-due").value || "" }); tkReset(); i.focus(); toast("Aufgabe eingetragen"); } break; }
     case "tk-all": tkAll = !tkAll; renderTasks(); break;
-    case "tk-showdone": tkShowDone = !tkShowDone; renderTasks(); break;
+    case "tk-showdone": tkShowDone = !tkShowDone; tkSelMode = false; TKSEL.clear(); renderTasks(); break;
+    case "tk-sel": tkSelMode = true; TKSEL.clear(); renderTasks(); break;
+    case "tk-selx": tkSelMode = false; TKSEL.clear(); renderTasks(); break;
+    case "tk-selall": { const D = TASKS.filter(t => t.done && t.state !== "no" && t.doneAt && Date.now() - Date.parse(t.doneAt) < TK_KEEP * 864e5).map(t => t.id); if (TKSEL.size === D.length) TKSEL.clear(); else D.forEach(i => TKSEL.add(i)); renderTasks(); break; }
+    case "tk-delsel": if (TKSEL.size) tkDelMany([...TKSEL]); break;
+    case "tk-delall": tkDelMany(TASKS.filter(t => t.done && t.state !== "no").map(t => t.id)); break;
     case "mi-share": shrNew = null; shrAcc = null; shrGrp = null; showShareMgr(); break;
     case "shr-new": shrNew = { name: "" }; showShareMgr(); setTimeout(() => $("shr-name")?.focus(), 50); break;
     case "shr-new-x": case "shr-new-done": shrNew = null; showShareMgr(); break;
@@ -5818,6 +5844,7 @@ document.addEventListener("change", ev => {
   if (ev.target.dataset?.docadd) { const e = EV.find(x => x.id === ev.target.dataset.docadd), fs = [...(ev.target.files || [])]; ev.target.value = ""; if (e && fs.length) docUpload(e, fs); return; }
   if (ev.target.dataset?.page) { setPage(ev.target.dataset.page, ev.target.checked); return; }
   if (ev.target.dataset?.fsh !== undefined) { formShManual = true; return; }
+  if (ev.target.dataset?.tksel) { const id = ev.target.dataset.tksel; if (ev.target.checked) TKSEL.add(id); else TKSEL.delete(id); renderTasks(); return; }
   if (ev.target.dataset?.tkdone) { const id = ev.target.dataset.tkdone; ev.target.closest(".tk")?.classList.add("gone"); setTimeout(() => tkSet(id, { done: true, doneAt: new Date().toISOString() }), 250);
     toast("Erledigt", async () => tkSet(id, { done: false, doneAt: "" })); return; }
   if (ev.target.dataset?.tkundo) { tkSet(ev.target.dataset.tkundo, { done: false, doneAt: "" }); return; }
