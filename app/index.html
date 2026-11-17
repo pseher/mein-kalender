@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117093550";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261117104606";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -445,6 +445,8 @@ button { font: inherit; color: inherit; }
 .ptab { display: grid; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 13.5px; } .pt-r { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); } .pt-r:first-child { border-top: 0; }
 .pt-r > span { padding: 8px 6px; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; } .pt-r > span:first-child { text-align: left; align-items: flex-start; padding-left: 10px; }
 .pt-h > span { font-weight: 700; } .pt-h small { font-weight: 500; color: var(--muted); font-size: 11.5px; } .pt-r > .on { background: color-mix(in srgb, var(--both) 10%, transparent); } .pt-a em { font-style: normal; font-weight: 700; color: var(--both); font-size: 12.5px; }
+.pq { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; } .pq > div { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; } .pq-t { border-top: 1px solid var(--line); padding-top: 6px; font-weight: 700; }
+.pt-a > span { gap: 4px; } .pt-a small { color: var(--muted); font-size: 11.5px; }
 .plan-up { display: grid; gap: 6px; background: color-mix(in srgb, var(--both) 10%, transparent); border-radius: 14px; padding: 12px 14px; } .plan-up span { font-size: 14px; } .plan-up .btn { justify-self: start; margin-top: 4px; } .plan-lim p { margin: 0 0 10px; line-height: 1.5; }
 .help-ask { display: grid; gap: 8px; margin-bottom: 8px; } .help-ask .btn { justify-self: start; } .help-a { background: var(--soft); border-radius: 12px; padding: 10px 12px; line-height: 1.5; }
 .help-q { border-bottom: 1px solid var(--line); padding: 10px 2px; } .help-q summary { cursor: pointer; font-weight: 600; } .help-q p { margin: 8px 0 2px; line-height: 1.5; color: var(--fg); }
@@ -5697,10 +5699,10 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
   if ((el = q("[data-plans]"))) { showPlans(); return; }
   if ((el = q("[data-checkout]"))) { showCheckout(el.dataset.checkout); return; }
-  if ((el = q("[data-buy]"))) { const id = el.dataset.buy; billDo(id, `${BILL?.plans?.[id]?.label || "Tarif"} ist aktiv (Test)`); return; }
-  if ((el = q("[data-cancel]"))) { openSheet("Abo kündigen?", "", `<p>Dein ${esc(BILL?.plan?.label || "")}-Tarif läuft bis zum Ende des bezahlten Monats weiter. Danach gelten wieder die Grenzen von „Kostenlos“ – alle Termine und Einstellungen bleiben erhalten.</p><p class="btnrow"><button type="button" class="btn danger" data-cancelok>Jetzt kündigen</button><button type="button" class="btn ghost" data-plans>Behalten</button></p>`, "plan"); return; }
+  if ((el = q("[data-buy]"))) { const id = el.dataset.buy, up = ({ free: 0, plus: 1, family: 2 })[id] > ({ free: 0, plus: 1, family: 2 })[BILL?.plan?.id || "free"]; billDo(id, up ? `${BILL?.plans?.[id]?.label || "Tarif"} ist aktiv (Test)` : `Wechsel zu ${BILL?.plans?.[id]?.label || ""} vorgemerkt (Test)`); return; }
+  if ((el = q("[data-cancel]"))) { openSheet("Abo kündigen?", "", `<p>Dein ${esc(BILL?.plan?.label || "")}-Tarif läuft bis ${BILL?.plan?.periodEnd ? fmt(new Date(BILL.plan.periodEnd)) : "zum Ende des bezahlten Monats"} weiter. Danach gelten wieder die Grenzen von „Kostenlos“ – alle Termine und Einstellungen bleiben erhalten.</p><p class="btnrow"><button type="button" class="btn danger" data-cancelok>Jetzt kündigen</button><button type="button" class="btn ghost" data-plans>Behalten</button></p>`, "plan"); return; }
   if ((el = q("[data-cancelok]"))) { billDo("cancel", "Gekündigt (Test) – läuft bis Monatsende weiter"); return; }
-  if ((el = q("[data-resume]"))) { billDo("resume", "Kündigung zurückgenommen (Test)"); return; }
+  if ((el = q("[data-resume]"))) { billDo("resume", "Zurückgenommen – alles bleibt wie es war (Test)"); return; }
   if ((el = q("[data-admplan]"))) { const [u, pl] = el.dataset.admplan.split("|"); window.mkAdminPlan?.(u, pl).then(r => { toast(r?.ok ? "Tarif gesetzt" : "Ging nicht"); showAdmin(true); }); return; }
   if ((el = q("[data-admtab]"))) { ADM_TAB = el.dataset.admtab; showAdmin(); return; }
   if ((el = q("[data-qcol]"))) { const v = el.dataset.qcol, cid = v.slice(v.lastIndexOf("|") + 1), eid = v.slice(0, v.lastIndexOf("|")); if (eid.startsWith("g:")) quickGColor(eid, cid); else quickColor(eid, cid); return; }
@@ -6220,13 +6222,13 @@ const PLAN_ROWS = [
   ["Kalender, Formular, Serien, Farben", () => true],
   ["Erinnerungen & Benachrichtigungen", () => true],
   ["Geburtstage, Geschenke, Ferien, gemeinsam frei", () => true],
-  ["Teilen & Google Kalender", () => true],
+  ["Teilen mit beliebig vielen Personen, Google Kalender", () => true],
   ["Hinweise zu Visum, ESTA, Maut, Vignette", () => true],
   ["Zug live (Deutsche Bahn)", () => true],
   ["KI-Aktionen pro Monat (Freitext, Packliste, Hilfe …)", p => String(p.ai)],
   ["Tickets & PDFs auslesen pro Monat", p => String(p.img)],
   ["Flug live (Gate, Verspätung, Gepäckband)", p => !!p.flight],
-  ["Für die ganze Familie", p => p.family ? `bis ${p.seats || 5} Personen` : false],
+  ["Ein Abo für mehrere Konten", p => p.family ? `bis ${p.seats || 5}` : false],
 ];
 async function billLoad(force) {
   if (!APP || !window.mkBilling || (!force && Date.now() - billT < 60e3)) return BILL; billT = Date.now();
@@ -6263,27 +6265,41 @@ async function showPlans() {
   const cell = v => v === true ? "✓" : v === false ? "–" : esc(v);
   const meter = (u, l, t) => `<div class="pm"><div class="pm-h"><span>${t}</span><b>${Math.min(u, l)} / ${l}</b></div><div class="pm-b"><i style="width:${Math.min(100, Math.round(u / (l || 1) * 100))}%${u / (l || 1) >= .8 ? ";background:var(--holiday)" : ""}"></i></div></div>`;
   const sim = B.mode === "simulate";
-  const ends = cur.until ? `läuft bis ${fmt(new Date(cur.until))} (gekündigt)` : cur.trial ? `Probezeit bis ${fmt(new Date(cur.trialUntil))}` : cur.id === "free" ? "kostenlos, ohne Laufzeit" : "monatlich kündbar";
+  const eur = v => v == null ? "Preis folgt" : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  const ends = cur.until ? `gekündigt – läuft bis ${fmt(new Date(cur.until))}` : cur.next ? `ab ${fmt(new Date(cur.nextAt))}: ${esc(cur.nextLabel || "")}` : cur.trial ? `Probezeit bis ${fmt(new Date(cur.trialUntil))}` : cur.id === "free" ? "kostenlos, ohne Laufzeit" : cur.periodEnd ? `verlängert sich am ${fmt(new Date(cur.periodEnd))}` : "monatlich kündbar";
+  const act = i => { if (i === cur.id) return `<em>aktiv</em>${cur.id !== "free" && !cur.trial ? (cur.until || cur.next ? `<button type="button" class="link" data-resume>Zurücknehmen</button>` : `<button type="button" class="link danger-t" data-cancel>Kündigen</button>`) : ""}`;
+    if (cur.next === i) return `<small>ab ${fmt(new Date(cur.nextAt))}</small>`;
+    if (i === "free") return cur.until ? "" : `<button type="button" class="btn small ghost" data-cancel>Wechseln</button>`;
+    return `<button type="button" class="btn small${i === "plus" ? " accent" : ""}" data-checkout="${i}">${cur.id === "free" ? "Wählen" : "Wechseln"}</button>`; };
   openSheet("Tarife", sim ? "Testphase – Abschluss wird nur simuliert, es wird nichts berechnet" : "", `<div class="plans">
     <div class="plan-cur"><div class="pc-h"><b>Dein Tarif: ${esc(cur.label)}</b><span>${ends}</span></div>
       ${meter(B.use.ai, cur.ai, "KI-Aktionen diesen Monat")}${meter(B.use.img, cur.img, "Tickets & PDFs diesen Monat")}
       <p class="note">Neue Kontingente ab ${res} ${cur.flight ? "✈️ Flug live ist enthalten." : "✈️ Flug live gibt es ab Plus."}</p></div>
     <div class="ptab" role="table">
-      <div class="pt-r pt-h" role="row"><span role="columnheader"></span>${ids.map(i => `<span role="columnheader"${i === cur.id ? ' class="on"' : ""}>${esc(P[i].label)}<small>${i === "free" ? "0 €" : esc(B.prices[i] || "Preis folgt")}</small></span>`).join("")}</div>
+      <div class="pt-r pt-h" role="row"><span role="columnheader"></span>${ids.map(i => `<span role="columnheader"${i === cur.id ? ' class="on"' : ""}>${esc(P[i].label)}<small>${i === "free" ? "0 €" : eur(B.prices[i]) + (B.prices[i] != null ? " / Monat" : "")}</small></span>`).join("")}</div>
       ${PLAN_ROWS.map(([t, f]) => `<div class="pt-r" role="row"><span role="rowheader">${esc(t)}</span>${ids.map(i => `<span role="cell"${i === cur.id ? ' class="on"' : ""}>${cell(f(P[i]))}</span>`).join("")}</div>`).join("")}
-      <div class="pt-r pt-a" role="row"><span></span>${ids.map(i => `<span>${i === cur.id ? `<em>aktiv</em>` : i === "free" ? (cur.id !== "free" && !cur.until ? `<button type="button" class="link" data-cancel>Kündigen</button>` : "") : `<button type="button" class="btn small${i === "plus" ? " accent" : ""}" data-checkout="${i}">Wählen</button>`}</span>`).join("")}</div>
+      <div class="pt-r pt-a" role="row"><span></span>${ids.map(i => `<span${i === cur.id ? ' class="on"' : ""}>${act(i)}</span>`).join("")}</div>
     </div>
+    <p class="note"><b>Wechseln:</b> In einen höheren Tarif sofort – die ungenutzten Tage des alten Tarifs werden anteilig gutgeschrieben, die neue Laufzeit beginnt am selben Tag für einen Monat. In einen niedrigeren Tarif zum Ende der laufenden Periode.</p>
     <p class="note">Alles, was keine laufenden Kosten verursacht, bleibt für alle kostenlos. Nach einer Kündigung bleiben alle Termine, Dokumente und Einstellungen erhalten – es gelten nur wieder die Grenzen von „Kostenlos“.</p>
-    ${cur.id !== "free" && !cur.until && !cur.trial ? `<p><button type="button" class="btn ghost small danger-t" data-cancel>Verträge hier kündigen</button></p>` : cur.until ? `<p><button type="button" class="btn ghost small" data-resume>Kündigung zurücknehmen</button></p>` : ""}
+    ${cur.id !== "free" && !cur.until && !cur.trial ? `<p><button type="button" class="btn ghost small danger-t" data-cancel>Verträge hier kündigen</button></p>` : ""}
   </div>`, "plan");
 }
-function showCheckout(id) {
+async function showCheckout(id) {
   const P = BILL?.plans || {}, p = P[id]; if (!p) return; use("tarif_checkout_" + id);
-  const sim = BILL.mode === "simulate", price = BILL.prices?.[id] || "Preis wird noch festgelegt";
-  openSheet(`${p.label} abschließen`, sim ? "Testphase – es wird nichts berechnet" : "", `<div class="plans">
-    <div class="plan-up"><b>${esc(p.label)} · ${esc(price)}</b><span>${p.ai} KI-Aktionen und ${p.img} Ticket-Auswertungen pro Monat${p.flight ? ", Flug live" : ""}${p.family ? `, für bis zu ${p.seats || 5} Personen` : ""}. Monatlich kündbar.</span></div>
-    ${sim ? `<p class="note">So würde der Abschluss später aussehen: Bezahlt wird dann über Google Play. Jetzt in der Testphase wird der Tarif sofort freigeschaltet – ohne Zahlung, du kannst ihn jederzeit wieder kündigen.</p>` : ""}
-    <p class="btnrow"><button type="button" class="btn accent" data-buy="${id}">${sim ? "Abo abschließen (Test)" : "Weiter zu Google Play"}</button><button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
+  const sim = BILL.mode === "simulate", cur = BILL.plan, eur = v => v == null ? "–" : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  openSheet(`Zu ${p.label} wechseln`, "lädt …", `<p class="note">Einen Moment …</p>`, "plan");
+  const r = await window.mkBilling("simulate", { plan: id, quote: true }), q = r?.quote || { kind: "up" };
+  const price = BILL.prices?.[id], what = `${p.ai} KI-Aktionen und ${p.img} Ticket-Auswertungen pro Monat${p.flight ? ", Flug live" : ""}${p.family ? `, für bis zu ${p.seats || 5} Konten` : ""}. Monatlich kündbar.`;
+  const sum = q.kind === "down"
+    ? `<p>Der Wechsel gilt ab <b>${fmt(new Date(q.at))}</b>, wenn deine laufende ${esc(cur.label)}-Periode endet. Bis dahin bleibt alles wie jetzt.</p>`
+    : `<div class="pq">${price != null ? `<div><span>${esc(p.label)} · 1 Monat</span><b>${eur(price)}</b></div>` : ""}${q.credit ? `<div><span>Gutschrift ${esc(cur.label)} (${q.days} ungenutzte Tage)</span><b>− ${eur(q.credit)}</b></div>` : ""}
+        <div class="pq-t"><span>Heute zu zahlen</span><b>${q.pay != null ? eur(q.pay) : "anteilig – Preis folgt"}</b></div></div>
+       <p class="note">Sofort aktiv. Neue Laufzeit bis ${fmt(new Date(q.until))}, danach verlängert sich ${esc(p.label)} monatlich.</p>`;
+  openSheet(`Zu ${p.label} wechseln`, sim ? "Testphase – es wird nichts berechnet" : "", `<div class="plans">
+    <div class="plan-up"><b>${esc(p.label)}${price != null ? ` · ${eur(price)} / Monat` : ""}</b><span>${what}</span></div>${sum}
+    ${sim ? `<p class="note">So würde der Abschluss später aussehen: Bezahlt wird dann über Google Play. Jetzt in der Testphase wird nichts berechnet – du kannst jederzeit wieder wechseln oder kündigen.</p>` : ""}
+    <p class="btnrow"><button type="button" class="btn accent" data-buy="${id}">${sim ? (q.kind === "down" ? "Wechsel vormerken (Test)" : cur.id === "free" ? "Abo abschließen (Test)" : "Jetzt wechseln (Test)") : "Weiter zu Google Play"}</button><button type="button" class="btn ghost" data-plans>Zurück</button></p></div>`, "plan");
 }
 async function billDo(op, label) {
   if (BILL?.mode !== "simulate") { toast("Bezahlung ist noch nicht eingerichtet."); return; }
