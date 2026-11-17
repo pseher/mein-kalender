@@ -11,12 +11,15 @@
 // Wechsel: höherer Tarif sofort (mit anteiliger Gutschrift für die ungenutzten Tage, neue Laufzeit 1 Monat ab heute),
 //          niedrigerer Tarif zum Ende der laufenden Abrechnungsperiode, Kündigung ebenso.
 //
+// Familie: bis zu 4 Konten (Abschließende Person + 3 Eingeladene) teilen sich EIN Kontingent. Wer mehr braucht oder
+//          die Familie verlässt, bekommt ein eigenes Plus angeboten – so bleiben Einzelne als zahlende Nutzer gewinnbar.
+//
 // Der Tarif liegt in den app_metadata des Supabase-Kontos – die kann nur der Server ändern, nicht die App.
 
 export const PLAN_BASE = {
   free:   { label: "Kostenlos", ai: 30,  img: 5,  flight: false, family: false },
   plus:   { label: "Plus",      ai: 300, img: 50, flight: true,  family: false },
-  family: { label: "Familie",   ai: 300, img: 50, flight: true,  family: true, seats: 5 },
+  family: { label: "Familie",   ai: 500, img: 60, flight: true,  family: true, seats: 4, shared: true },   // Kontingent gilt gemeinsam für alle 4
 };
 
 export function plans(env) {
@@ -36,7 +39,8 @@ const nextMonth = () => { const d = new Date(); return new Date(Date.UTC(d.getUT
 
 // Welcher Tarif gilt gerade für dieses Konto?
 export function planOf(env, user) {
-  const P = plans(env), m = user?.app_metadata?.plan || {}, now = Date.now();
+  const P = plans(env), now = Date.now(); let m = user?.app_metadata?.plan || {};
+  if (m.src === "family" || m.src === "family_left") m = {};          // Mitglied einer Familie: wird in resolvePlan() geprüft
   const admin = !!user?.email && String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map(x => x.trim()).includes(String(user.email).toLowerCase());
   let id = P[m.id] ? m.id : admin ? "plus" : "free", trial = false, since = m.since || null;      // Betreiber ohne gesetzten Tarif: Plus (zum Testen auf „Kostenlos“ umstellen)
   if (m.next && P[m.next] && m.nextAt && Date.parse(m.nextAt) <= now) { id = m.next; since = m.nextAt; }      // vorgemerkter Wechsel nach unten ist fällig
@@ -48,12 +52,30 @@ export function planOf(env, user) {
     trialUntil: trial ? new Date(Date.parse(user.created_at) + td * 864e5).toISOString() : null, ...P[id] };
 }
 
-// Verbrauch dieses Monats (aus ai_usage)
+const getUser = async (env, id) => { const r = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${id}`, { headers: adm(env) }).catch(() => null); return r && r.ok ? r.json().catch(() => null) : null; };
+const nameOf = u => u?.user_metadata?.full_name || u?.user_metadata?.name || (u?.email ? u.email.replace(/^(.).*?(@.*)$/, "$1…$2") : "Jemand");
+
+// Tarif inkl. Familie (Mitglied → gilt, solange die Familie der abschließenden Person aktiv ist)
+export async function resolvePlan(env, user) {
+  const m = user?.app_metadata?.plan || {}, P = plans(env);
+  if (m.src === "family" && m.owner) {
+    const o = await getUser(env, m.owner), op = o ? planOf(env, o) : null, mem = o?.app_metadata?.plan?.members || [];
+    if (op && op.id === "family" && mem.includes(user.id)) return { ...P.family, id: "family", member: true, owner: o.id, ownerName: nameOf(o), src: "family", since: op.since, periodEnd: op.periodEnd, until: op.until, pool: [o.id, ...mem] };
+    return { ...planOf(env, user), leftFamily: true, fromName: o ? nameOf(o) : "" };
+  }
+  const p = planOf(env, user);
+  if (m.src === "family_left") p.leftFamily = m.left || true;
+  if (p.id === "family") { p.owner = user.id; p.members = m.members || []; p.pool = [user.id, ...p.members]; }
+  return p;
+}
+
+// Verbrauch dieses Monats (aus ai_usage) – bei Familie für alle Konten zusammen
 export async function usageOf(env, uid) {
-  const month = new Date().toISOString().slice(0, 8) + "01";
-  const r = await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=eq.${uid}&day=gte.${month}&select=task,calls`, { headers: adm(env) }).catch(() => null);
+  const month = new Date().toISOString().slice(0, 8) + "01", ids = [].concat(uid).filter(Boolean);
+  const r = await fetch(`${env.SUPABASE_URL}/rest/v1/ai_usage?user_id=in.(${ids.join(",")})&day=gte.${month}&select=user_id,task,calls`, { headers: adm(env) }).catch(() => null);
   const rows = r && r.ok ? await r.json() : [];
-  return { ai: rows.reduce((s, x) => s + x.calls, 0), img: rows.filter(x => String(x.task).startsWith("bilder")).reduce((s, x) => s + x.calls, 0), reset: nextMonth() };
+  const by = {}; for (const x of rows) by[x.user_id] = (by[x.user_id] || 0) + x.calls;
+  return { ai: rows.reduce((s, x) => s + x.calls, 0), img: rows.filter(x => String(x.task).startsWith("bilder")).reduce((s, x) => s + x.calls, 0), by, reset: nextMonth() };
 }
 
 async function setPlan(env, uid, plan) {
@@ -65,7 +87,7 @@ async function setPlan(env, uid, plan) {
 export function planBlock(env, plan, use, hasImages) {
   if (mode(env) === "off") return null;
   const base = { code: "rate_limited", reason: "plan", plan: plan.id, reset: use.reset };
-  if (use.ai >= plan.ai) return { ...base, kind: "ai", used: use.ai, limit: plan.ai, message: `Deine ${plan.ai} KI-Aktionen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` };
+  if (use.ai >= plan.ai) return { ...base, member: !!plan.member, kind: "ai", used: use.ai, limit: plan.ai, message: plan.shared ? `Das gemeinsame Familien-Kontingent (${plan.ai} KI-Aktionen) ist für diesen Monat aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` : `Deine ${plan.ai} KI-Aktionen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Eintragen über das Formular klappt weiterhin.` };
   if (hasImages && use.img >= plan.img) return { ...base, kind: "img", used: use.img, limit: plan.img, message: `Deine ${plan.img} Ticket-Auswertungen für diesen Monat sind aufgebraucht – ab dem 1. geht es weiter. Ohne Anhang klappt es weiterhin.` };
   return null;
 }
@@ -86,13 +108,59 @@ export async function billingRoute(route, req, env, user, isAdmin, out) {
     return { kind: "up", price: pNew, credit: from === "free" || cur.trial ? 0 : credit, days, pay: pNew == null || credit == null && from !== "free" && !cur.trial ? null : Math.max(0, Math.round((pNew - (from === "free" || cur.trial ? 0 : credit)) * 100) / 100), until: new Date(addMonth(now)).toISOString() };
   };
   if (route === "/billing/status") {
-    const plan = planOf(env, user), use = await usageOf(env, user.id);
-    return out(200, { mode: md, plan, use, plans: P, prices, trialDays: +(env.TRIAL_DAYS || 0) });
+    const plan = await resolvePlan(env, user), use = await usageOf(env, plan.pool || user.id);
+    let family = null;
+    if (plan.id === "family") { const ids = plan.pool || []; const us = await Promise.all(ids.map(i => i === user.id ? user : getUser(env, i)));
+      family = { owner: plan.owner, me: user.id, seats: P.family.seats, members: us.filter(Boolean).map(u => ({ id: u.id, name: nameOf(u), owner: u.id === plan.owner, used: use.by?.[u.id] || 0 })) }; }
+    return out(200, { mode: md, plan, use, plans: P, prices, family, trialDays: +(env.TRIAL_DAYS || 0) });
+  }
+  if (route.startsWith("/billing/family/")) {
+    let b = {}; try { b = await req.json(); } catch {}
+    const op = route.split("/")[3], me = user.app_metadata?.plan || {}, nowIso = new Date().toISOString();
+    if (op === "invite") {
+      const pl = planOf(env, user); if (pl.id !== "family") return out(403, { code: "no_family" });
+      if ((me.members || []).length >= P.family.seats - 1) return out(409, { code: "full" });
+      const code = [...crypto.getRandomValues(new Uint8Array(6))].map(x => "abcdefghjkmnpqrstuvwxyz23456789"[x % 31]).join("");
+      const inv = [...(me.invites || []).filter(i => Date.parse(i.exp) > Date.now()), { c: code, exp: new Date(Date.now() + 7 * 864e5).toISOString() }].slice(-5);
+      if (!(await setPlan(env, user.id, { ...me, invites: inv }))) return out(502, { code: "save_failed" });
+      return out(200, { ok: true, code, exp: inv.at(-1).exp });
+    }
+    if (op === "peek" || op === "join") {
+      const code = String(b.code || "").toLowerCase().replace(/[^a-z0-9]/g, ""); if (!code) return out(400, { code: "bad_code" });
+      const r = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: adm(env) }).catch(() => null), all = r && r.ok ? (await r.json().catch(() => ({}))).users || [] : [];
+      const o = all.find(u => (u.app_metadata?.plan?.invites || []).some(i => i.c === code && Date.parse(i.exp) > Date.now()));
+      if (!o || planOf(env, o).id !== "family") return out(404, { code: "invalid" });
+      const om = o.app_metadata.plan, mem = om.members || [];
+      if (o.id === user.id) return out(409, { code: "own" });
+      if (mem.includes(user.id)) return out(200, { ok: true, already: true, ownerName: nameOf(o) });
+      if (mem.length >= P.family.seats - 1) return out(409, { code: "full", ownerName: nameOf(o) });
+      const mine = planOf(env, user); if (mine.id !== "free" && !mine.trial && me.src !== "family") return out(409, { code: "has_plan", plan: mine.label, ownerName: nameOf(o) });
+      if (op === "peek") return out(200, { ok: true, ownerName: nameOf(o), seatsLeft: P.family.seats - 1 - mem.length });
+      if (!(await setPlan(env, o.id, { ...om, members: [...mem, user.id], invites: (om.invites || []).filter(i => i.c !== code) }))) return out(502, { code: "save_failed" });
+      await setPlan(env, user.id, { id: "family", src: "family", owner: o.id, since: nowIso });
+      return out(200, { ok: true, ownerName: nameOf(o) });
+    }
+    if (op === "remove" || op === "leave") {
+      const ownerId = op === "leave" ? me.owner : user.id, uid = op === "leave" ? user.id : String(b.user || "");
+      if (!ownerId || !uid) return out(400, { code: "bad_request" });
+      const o = op === "leave" ? await getUser(env, ownerId) : user; if (!o) return out(404, { code: "invalid" });
+      const om = o.app_metadata?.plan || {};
+      if (!(om.members || []).includes(uid)) return out(404, { code: "not_member" });
+      await setPlan(env, o.id, { ...om, members: om.members.filter(x => x !== uid) });
+      await setPlan(env, uid, { id: "free", src: "family_left", left: nowIso, from: o.id });
+      return out(200, { ok: true });
+    }
+    return out(404, { code: "not_found" });
   }
   if (route === "/billing/simulate") {
     if (md !== "simulate" && !isAdmin) return out(403, { code: "not_simulating" });
     let b = {}; try { b = await req.json(); } catch {}
-    const want = String(b.plan || ""), cur = user?.app_metadata?.plan || {}, eff = planOf(env, user), nowIso = new Date().toISOString();
+    let cur = user?.app_metadata?.plan || {};
+    if (cur.src === "family" && cur.owner && !b.quote && b.plan !== "cancel") {          // Mitglied schließt eigenes Abo ab → verlässt die Familie
+      const o = await getUser(env, cur.owner); const om = o?.app_metadata?.plan; if (om?.members) await setPlan(env, o.id, { ...om, members: om.members.filter(x => x !== user.id) }); cur = {};
+    }
+    if (cur.src === "family" || cur.src === "family_left") cur = {};
+    const want = String(b.plan || ""), eff = planOf(env, { ...user, app_metadata: { ...(user.app_metadata || {}), plan: cur } }), nowIso = new Date().toISOString();
     if (b.quote) return out(200, { ok: true, quote: P[want] ? quote(eff, want) : null, plan: eff });
     let next;
     if (want === "cancel" || (want === "free" && eff.id !== "free")) {          // kündigen: läuft bis zum Ende der bezahlten Periode
@@ -128,6 +196,8 @@ export async function billingRoute(route, req, env, user, isAdmin, out) {
 export async function planMap(env) {
   const r = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users?per_page=1000`, { headers: adm(env) }).catch(() => null);
   const j = r && r.ok ? await r.json().catch(() => ({})) : {}, M = {};
-  for (const u of j.users || []) M[u.id] = planOf(env, u);
+  const U = j.users || [];
+  for (const u of U) M[u.id] = planOf(env, u);
+  for (const u of U) { const m = u.app_metadata?.plan; if (m?.src === "family" && m.owner && M[m.owner]?.id === "family" && (U.find(x => x.id === m.owner)?.app_metadata?.plan?.members || []).includes(u.id)) M[u.id] = M[m.owner]; }
   return M;
 }
