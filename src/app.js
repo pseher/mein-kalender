@@ -5038,8 +5038,8 @@ Google: Abgleich automatisch beim Öffnen und alle paar Minuten; Einträge ersch
 Züge und Flüge: steht eine Zugnummer (z. B. IC 2238) mit Bahnhof und Uhrzeit oder eine Flugnummer im Eintrag, beobachtet die App sie live und meldet Verspätung, Gleis- oder Gate-Wechsel.
 Updates kommen automatisch beim Öffnen. Wiederholungen: täglich bis „alle 3 Jahre“, über „anders …“ frei wählbar. Serien löschen: nur dieser, alle folgenden oder ganze Serie.`;
 // Kurze Videos: einzelne Funktionen ohne Tippen gezeigt (Beispieldaten)
-const VIDS = [{ t: "Hotelbuchung hochladen", s: "Screenshot rein – Reise, Aufgaben und Packliste entstehen von selbst", d: "40 s", src: "/videos/hotel.mp4", img: "/videos/hotel.jpg" },
-  { t: "Zugticket hochladen", s: "Hin- und Rückfahrt werden live beobachtet", d: "33 s", src: "/videos/zugticket.mp4", img: "/videos/zugticket.jpg" }];
+const VIDS = [{ t: "Hotelbuchung hochladen", s: "Screenshot rein – Reise, Aufgaben und Packliste entstehen von selbst", d: "33 s", src: "/videos/hotel.mp4", img: "/videos/hotel.jpg" },
+  { t: "Zugticket hochladen", s: "Hin- und Rückfahrt werden live beobachtet", d: "35 s", src: "/videos/zugticket.mp4", img: "/videos/zugticket.jpg" }];
 function showVid(i) {
   const v = VIDS[i]; if (!v) return;
   openSheet(v.t, v.s, `<video class="vid-play" src="${v.src}" poster="${v.img}" controls playsinline autoplay muted preload="metadata"></video>

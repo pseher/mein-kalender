@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261118065358";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261118071526";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -6416,8 +6416,8 @@ Google: Abgleich automatisch beim Öffnen und alle paar Minuten; Einträge ersch
 Züge und Flüge: steht eine Zugnummer (z. B. IC 2238) mit Bahnhof und Uhrzeit oder eine Flugnummer im Eintrag, beobachtet die App sie live und meldet Verspätung, Gleis- oder Gate-Wechsel.
 Updates kommen automatisch beim Öffnen. Wiederholungen: täglich bis „alle 3 Jahre“, über „anders …“ frei wählbar. Serien löschen: nur dieser, alle folgenden oder ganze Serie.`;
 // Kurze Videos: einzelne Funktionen ohne Tippen gezeigt (Beispieldaten)
-const VIDS = [{ t: "Hotelbuchung hochladen", s: "Screenshot rein – Reise, Aufgaben und Packliste entstehen von selbst", d: "40 s", src: "/videos/hotel.mp4", img: "/videos/hotel.jpg" },
-  { t: "Zugticket hochladen", s: "Hin- und Rückfahrt werden live beobachtet", d: "33 s", src: "/videos/zugticket.mp4", img: "/videos/zugticket.jpg" }];
+const VIDS = [{ t: "Hotelbuchung hochladen", s: "Screenshot rein – Reise, Aufgaben und Packliste entstehen von selbst", d: "33 s", src: "/videos/hotel.mp4", img: "/videos/hotel.jpg" },
+  { t: "Zugticket hochladen", s: "Hin- und Rückfahrt werden live beobachtet", d: "35 s", src: "/videos/zugticket.mp4", img: "/videos/zugticket.jpg" }];
 function showVid(i) {
   const v = VIDS[i]; if (!v) return;
   openSheet(v.t, v.s, `<video class="vid-play" src="${v.src}" poster="${v.img}" controls playsinline autoplay muted preload="metadata"></video>

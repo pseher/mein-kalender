@@ -1,13 +1,14 @@
-# Demo-Videos (Beispieldaten, simulierte KI)
+# Demo-Videos (Beispieldaten)
 
-Erzeugt die kurzen Hilfe-/Social-Media-Videos in `videos/` neu – z. B. nach einer Umbenennung der App.
+Animierte Kurzvideos (1080 × 1920) für Hilfe und Social Media: Hochladen → Mitlesen → Bildausschnitt aus dem
+Dokument fliegt als kurzer Stichpunkt in den Kalender. Alle Namen, Buchungen und Tickets sind erfunden.
 
     cd tools/demo-videos
     cp ../../fonts/roboto-latin-*.woff2 . && cp ../../icon-512.png icon.png
-    node snap.js                 # Beispiel-Hotelbestätigung und -Ticket als Bild
-    node rec.js hotel && node rec.js zug     # Abläufe in der App aufnehmen (vorher src/build-app.sh)
-    node cards.js hotel && node cards.js zug # Texte, Start- und Endkarte
-    python3 build.py hotel && python3 build.py zug
-    cp mein-kalender-hotel.mp4 ../../videos/hotel.mp4; cp mein-kalender-zug.mp4 ../../videos/zugticket.mp4
+    node snap.js                       # Beispiel-Hotelbestätigung und -Ticket als Bild (+ Lage der wichtigen Stellen)
+    ./enc.sh hotel && ./enc.sh zug     # Bilder rendern und zu neu-hotel.mp4 / neu-zug.mp4 kodieren
+    cp neu-hotel.mp4 ../../videos/hotel.mp4; cp neu-zug.mp4 ../../videos/zugticket.mp4
 
-Texte und Zeitpunkte der Einblendungen stehen in `story.json`. Alle Namen, Buchungen und Tickets sind erfunden.
+Texte, Zeitpunkte und Stichpunkte stehen oben in `anim.html` (Objekt `D`). Einzelbilder ansehen:
+`node shoot.js hotel 5,12,20` → a-hotel-5.jpg …
+Liegt `boxes.json` neu vor (nach Änderungen an hotel.html/ticket.html), die Werte in `BOX` in anim.html übernehmen.

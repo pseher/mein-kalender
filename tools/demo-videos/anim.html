@@ -1,0 +1,122 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:R;font-weight:400;src:url(roboto-latin-400-normal.woff2)}@font-face{font-family:R;font-weight:500;src:url(roboto-latin-500-normal.woff2)}@font-face{font-family:R;font-weight:700;src:url(roboto-latin-700-normal.woff2)}
+*{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#e8f3ee;font-family:R,sans-serif;color:#111}
+.abs{position:absolute}.cap{left:70px;right:70px;top:120px;height:300px;text-align:center}
+.cap .st{font:500 34px R;color:#0b7a5f;letter-spacing:.02em}.cap h1{font:700 72px/1.1 R;margin:14px 0 0}.cap p{font:400 42px/1.3 R;color:#2b302e;margin:18px 0 0}
+#phone{left:100px;top:460px;width:880px;height:1600px;border-radius:96px;background:#1d1f22;padding:20px;box-shadow:0 40px 90px rgba(20,60,50,.25)}
+#scr{position:relative;width:100%;height:100%;border-radius:78px;background:#f3f4f5;overflow:hidden}
+.hd{left:0;right:0;top:0;height:150px;padding:62px 46px 0;display:flex;justify-content:space-between;align-items:center;font:700 40px R;border-bottom:2px solid #e3e5e7;background:#f7f8f9}
+.hd i{width:16px;height:16px;border-radius:50%;background:#2fa65a;display:inline-block}
+.lay{left:0;right:0;top:150px;bottom:0;padding:34px}
+.lbl{font:500 28px R;letter-spacing:.08em;color:#4d5552;text-transform:uppercase;margin:26px 6px 14px}
+.card{background:#fff;border-radius:26px;padding:24px 28px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);border:2px solid #eceef0}
+.ev{border-left:10px solid #7b4fd1}.ev b{font:700 42px R;display:block;margin-bottom:8px}.ev div{font:400 34px/1.45 R;color:#2b302e}
+.it{display:flex;gap:22px;align-items:flex-start;font:400 34px/1.38 R}.it .e{font-size:40px;line-height:1.15}.it b{font-weight:700}
+.bdg{display:inline-block;font:500 24px R;background:#e2f3ea;color:#0b7a5f;border-radius:10px;padding:4px 12px;margin-left:8px;vertical-align:3px}
+.bdg.red{background:#fde7e4;color:#b3261e}
+.inp{background:#fff;border:3px solid #0f6e73;border-radius:24px;height:200px;padding:24px;font:400 32px/1.4 R;color:#8a918e}
+.btn{display:inline-block;margin-top:24px;background:#fff;border:2px solid #d5d9dc;border-radius:18px;padding:18px 26px;font:500 32px R}
+.att{display:flex;gap:22px;align-items:center;margin-top:26px;background:#fff;border-radius:22px;padding:16px;border:2px solid #eceef0;font:500 30px R}
+.att img{width:130px;height:180px;object-fit:cover;object-position:top;border-radius:12px;border:1px solid #ddd}
+.doc{left:0;right:0;top:150px;bottom:0;overflow:hidden;background:#fff}
+.doc img{width:100%;display:block}
+.hl{border:5px solid #0b7a5f;border-radius:14px;background:rgba(11,122,95,.12)}
+.scan{left:0;right:0;height:120px;background:linear-gradient(180deg,rgba(11,122,95,0),rgba(11,122,95,.22) 70%,rgba(11,122,95,.65));border-bottom:4px solid #0b7a5f}
+.rd{left:50%;transform:translateX(-50%);bottom:60px;background:#0f6e73;color:#fff;border-radius:40px;padding:18px 34px;font:500 32px R;white-space:nowrap}
+.snip{width:940px;left:70px;background:#fff;border-radius:30px;padding:22px 26px 26px;box-shadow:0 26px 60px rgba(20,50,40,.28)}
+.snip small{display:block;font:500 25px R;color:#5d6562;letter-spacing:.06em;text-transform:uppercase;margin:0 0 12px 4px}
+.snip .crop{background-repeat:no-repeat;border-radius:12px;border:2px solid #eceef0}
+.tap{width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:6px solid #0f6e73;background:rgba(15,110,115,.2)}
+.ntf{left:44px;right:44px;top:40px;background:#fff;border-radius:34px;padding:26px 30px;display:flex;gap:24px;align-items:center;box-shadow:0 20px 50px rgba(0,0,0,.22);font:400 31px/1.35 R}
+.ntf img{width:84px;height:84px;border-radius:20px}.ntf b{font:700 34px R;display:block}
+.full{inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 90px;background:#e8f3ee}
+.full img{width:170px;height:170px;border-radius:40px;margin-bottom:64px;box-shadow:0 14px 34px rgba(0,0,0,.15)}
+.full h1{font:700 96px/1.08 R;margin:0}.full p{font:500 52px/1.3 R;color:#0b7a5f;margin:36px 0 0}
+</style></head><body><div id="root"></div>
+<script>
+const SC=new URLSearchParams(location.search).get("sc")||"hotel";
+const BOX={"hotel":{"dates":[50,548,981,97],"addr":[50,673,981,97],"storno":[50,1163,766,58],"price":[50,1435,981,55],"pay":[50,1529,981,89],"pool":[50,1737,981,53]},"ticket":{"hin":[33,546,1014,416],"bind":[78,873,925,44],"rueck":[33,994,1014,416],"ausweis":[78,1947,925,44]}};
+const D = {
+ hotel:{ img:"hotel.jpg", box:BOX.hotel, end:33.4,
+  intro:["Hotel gebucht?","Screenshot rein – fertig."],
+  caps:[[2.8,"1 · Hochladen","Hotelbestätigung auswählen","Ein Screenshot genügt."],[8,"2 · Lesen","Mein Kalender liest mit","Du tippst kein Wort."],[11.6,"3 · Eintragen","Die Reise steht im Kalender","Datum, Check-in und Adresse."],[15.6,"4 · Mitdenken","Daran wird gedacht","Fristen, Zahlung, Packliste."]],
+  scanHL:["dates","addr","storno","price"],
+  ev:{t:"Hotel Seeblick Warnemünde",l:["Fr 11.12. – So 13.12.","Check-in ab 15:00 · Check-out 11:00","📍 Seestraße 12, Rostock-Warnemünde"],at:12.4,snip:"dates"},
+  items:[["storno","⏰","<b>Kostenlos stornieren</b> bis Mi 09.12., 18 Uhr","Erinnerung"],["pay","💶","<b>312 € im Hotel bezahlen</b> – am Fr 11.12.",""],["pool","🧳","<b>Packliste:</b> Ausweis, Badesachen (Pool & Sauna)",""],["addr","🧭","<b>Route zum Hotel</b> – mit einem Tipp",""]],
+  itemsAt:16.2, step:3.2, outro:29.6 },
+ zug:{ img:"ticket.jpg", box:BOX.ticket, end:34.6,
+  intro:["Zugticket gebucht?","Hochladen – den Rest macht der Kalender."],
+  caps:[[2.8,"1 · Hochladen","Ticket an die Reise hängen","Screenshot oder PDF."],[7.6,"2 · Lesen","Mein Kalender liest mit","Du tippst kein Wort."],[11.2,"3 · Beobachten","Hin- und Rückfahrt im Blick","Beide Züge werden live verfolgt."],[18.6,"4 · Mitdenken","Daran wird gedacht","Zugbindung und Ausweis."],[25.6,"5 · Melden","Verspätung? Gleiswechsel?","Du erfährst es sofort."]],
+  scanHL:["hin","rueck","bind","ausweis"],
+  trip:{t:"Hotel Seeblick Warnemünde",l:["Fr 11.12. – So 13.12.","📍 Seestraße 12, Rostock-Warnemünde"]},
+  items:[["hin","🚆","<b>Hinfahrt</b> Fr 11.12., 09:12 · ICE 1707 ab Berlin Hbf","live"],["rueck","🚆","<b>Rückfahrt</b> So 13.12., 16:44 · IC 2239 ab Rostock Hbf","live"],["bind","⚠️","<b>Zugbindung:</b> nur ICE 1707 und IC 2239 nutzen",""],["ausweis","🪪","<b>Ausweis einpacken</b> – Ticket nur mit Ausweis gültig",""]],
+  itemsAt:11.8, step:3.4, outro:31.2 } }[SC];
+const R=document.getElementById("root"), H=(h)=>{ const d=document.createElement("div"); d.innerHTML=h.trim(); return d.firstChild; };
+const add=(h,p=R)=>p.appendChild(H(h));
+// --- Grundgerüst ---
+const caps=D.caps.map(c=>add(`<div class="abs cap"><div class="st">${c[1]}</div><h1>${c[2]}</h1><p>${c[3]}</p></div>`));
+const phone=add(`<div id="phone" class="abs"><div id="scr"></div></div>`), scr=phone.firstChild;
+add(`<div class="abs hd"><span>Mein Kalender</span><i></i></div>`,scr);
+// Ebene 1: Hochladen
+let L1;
+if (SC==="hotel") L1=add(`<div class="abs lay"><div style="font:700 44px R;margin:10px 4px 24px">Eintragen</div><div class="inp">Schreib, was ansteht – oder füge ein Ticket an …</div>
+  <div class="btn" id="b1">📎 Ticket, Foto oder PDF</div><div class="att" id="att"><img src="${D.img}"><span>Hotelbestätigung.jpg</span></div></div>`,scr);
+else L1=add(`<div class="abs lay"><div class="card ev"><b>${D.trip.t}</b>${D.trip.l.map(x=>`<div>${x}</div>`).join("")}</div>
+  <div class="lbl">Dokumente</div><div class="att" id="att"><img src="${D.img}"><span>Zugticket.jpg</span></div><div class="btn" id="b1">📎 Datei hinzufügen</div></div>`,scr);
+// Ebene 2: Lesen
+const L2=add(`<div class="abs doc"><img src="${D.img}"><div class="abs scan"></div><div class="abs rd">🔎 Mein Kalender liest …</div></div>`,scr);
+const k=840/1080, hls=D.scanHL.map(n=>{ const [x,y,w,h]=D.box[n]; return add(`<div class="abs hl" style="left:${x*k-8}px;top:${y*k-8}px;width:${w*k+16}px;height:${h*k+16}px"></div>`,L2); });
+// Ebene 3: Kalender
+const L3=add(`<div class="abs lay"></div>`,scr);
+let evc=null;
+if (SC==="hotel") { add(`<div class="lbl">Eingetragen</div>`,L3); evc=add(`<div class="card ev"><b>${D.ev.t}</b>${D.ev.l.map(x=>`<div>${x}</div>`).join("")}</div>`,L3); }
+else { evc=add(`<div class="card ev"><b>${D.trip.t}</b><div>${D.trip.l[0]}</div></div>`,L3); }
+add(`<div class="lbl">${SC==="hotel"?"Daran wird gedacht":"Aus dem Ticket"}</div>`,L3);
+const its=D.items.map(i=>add(`<div class="card it"><span class="e">${i[1]}</span><span>${i[2]}${i[3]?` <span class="bdg">${i[3]}</span>`:""}</span></div>`,L3));
+// Ausschnitte aus dem Dokument
+const snip=(n,lbl)=>{ const [x,y,w,h]=D.box[n], s=Math.min(1.2,880/w); return add(`<div class="abs snip"><small>${lbl}</small><div class="crop" style="width:${w*s}px;height:${h*s}px;background-image:url(${D.img});background-size:${1080*s}px auto;background-position:${-x*s}px ${-y*s}px"></div></div>`); };
+const lblS=SC==="hotel"?"Aus deiner Buchung":"Aus deinem Ticket";
+const snips=D.items.map(i=>snip(i[0],lblS)); const evSnip=SC==="hotel"?snip(D.ev.snip,lblS):null;
+const veil=add(`<div class="abs" style="inset:0;background:rgba(232,243,238,.66)"></div>`,scr);
+const tap=add(`<div class="abs tap"></div>`);
+const ntf=SC==="zug"?add(`<div class="abs ntf"><img src="icon.png"><div style="flex:1"><b>ICE 1707 · +12 Min.</b>Abfahrt ca. 09:24 · Gleis 7 statt 5</div><span style="color:#777;font-size:26px;align-self:flex-start">jetzt</span></div>`,scr):null;
+const intro=add(`<div class="abs full"><img src="icon.png"><h1>${D.intro[0]}</h1><p>${D.intro[1]}</p></div>`);
+const outro=add(`<div class="abs full"><img src="icon.png"><h1>Ohne ein Wort zu tippen.</h1><p>Mein Kalender – dein Alltagsassistent</p></div>`);
+// --- Zeitsteuerung ---
+const cl=x=>Math.max(0,Math.min(1,x)), ez=x=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;};
+const win=(t,a,b,f=.45)=>Math.min(ez((t-a)/f), b==null?1:ez((b-t)/f));
+const set=(el,o,y=0,s=1)=>{ el.style.opacity=o; el.style.transform=`translateY(${y}px) scale(${s})`; el.style.visibility=o<=0.001?"hidden":"visible"; };
+const rect=el=>{ const r=el.getBoundingClientRect(); return r; };
+let VEIL=0;
+function render(t){ VEIL=0;
+  const C=D.caps; caps.forEach((c,i)=>{ const a=C[i][0], b=i+1<C.length?C[i+1][0]:D.outro; set(c,win(t,a,b,.4),(1-win(t,a,b,.4))*20); });
+  set(intro,1-ez((t-2.4)/.5)); set(outro,ez((t-D.outro)/.6));
+  const lA=SC==="hotel"?8:7.6, lB=SC==="hotel"?11.6:11.2;
+  set(L1,win(t,-1,lA,.4)); set(L2,win(t,lA,lB,.4)); set(L3,ez((t-lB)/.5));
+  // Hochladen: Tipp und Anhang
+  const tT=SC==="hotel"?4.2:4.0, b1=document.getElementById("b1"), att=document.getElementById("att");
+  if (t>tT-0.1 && t<tT+0.9) { const r=rect(b1); tap.style.left=(r.x+r.width/2)+"px"; tap.style.top=(r.y+r.height/2)+"px"; const k2=cl((t-tT)/.8); set(tap,1-k2,0,.5+k2*.8); } else set(tap,0);
+  set(att,ez((t-tT-.5)/.6),(1-ez((t-tT-.5)/.6))*40);
+  // Lesen: Scan-Balken, Hervorhebungen, langsames Schieben
+  const sa=lA+.3, se=lB-.3, sp=cl((t-sa)/(se-sa));
+  const img=L2.querySelector("img"); const pan=SC==="hotel"?-260*ez((t-sa-1)/(se-sa-1)):-420*ez((t-sa-1)/(se-sa-1));
+  img.style.transform=`translateY(${pan}px)`; hls.forEach((h,i)=>{ h.style.marginTop=pan+"px"; set(h,ez((t-sa-0.4-i*.55)/.35)); });
+  const sc=L2.querySelector(".scan"); sc.style.top=(-120+sp*1500)+"px"; set(sc,t>sa&&t<se?1:0);
+  // Eintrag (Hotel) mit Ausschnitt
+  if (evSnip) { flyTo(evSnip, evc, t, D.ev.at); } else set(evc,1);
+  // Punkte nacheinander
+  D.items.forEach((it,i)=>{ const a=D.itemsAt+i*D.step; flyTo(snips[i], its[i], t, a); });
+  if (ntf) { const a=D.outro-5.2; const k3=ez((t-a)/.6); ntf.style.transform=`translateY(${(k3-1)*260}px)`; ntf.style.opacity=k3; ntf.style.visibility=k3>0?"visible":"hidden";
+    if (t>a+.6) { const b=its[0].querySelector(".bdg"); b.textContent="+12 Min. · Gleis 7"; b.className="bdg red"; } }
+}
+function flyTo(sn, card, t, a){ VEIL=Math.max(VEIL, t<a?0:Math.min(ez((t-a)/.35), 1-ez((t-a-1.45)/.4))); // Ausschnitt erscheint groß über dem Handy, fliegt dann in die Karte
+  const appear=ez((t-a)/.45), go=ez((t-a-1.5)/.55), cr=card.getBoundingClientRect();
+  const y0=560; sn.style.top=y0+"px";
+  if (t<a) { set(sn,0); set(card,0,30); return; }
+  const tx=(cr.x+cr.width/2)-(70+470), ty=(cr.y+cr.height/2)-(y0+sn.offsetHeight/2), s=1-go*0.55;
+  sn.style.opacity=appear*(1-go); sn.style.visibility=appear*(1-go)>0.01?"visible":"hidden";
+  sn.style.transform=`translate(${tx*go}px,${ty*go+(1-appear)*30}px) scale(${s})`;
+  set(card,ez((t-a-1.6)/.5),(1-ez((t-a-1.6)/.5))*30);
+}
+const _r=render; window.render=t=>{ _r(t); set(veil,VEIL); }; window.END=D.end; window.render(0);
+</script></body></html>
