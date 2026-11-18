@@ -769,7 +769,7 @@ function showFamShare() {
     ${gState !== "ok" ? `<p class="sg-n">Dafür muss Google verbunden sein (☰ → Google Kalender).</p>` : `
     ${G.map(card).join("")}
     ${free.length ? `<div class="sg-t">${G.length ? "Weitere Gruppe" : "Gemeinsamen Kalender wählen"}</div><div class="sg">${free.map(c => `<button type="button" class="sr2 nav" data-grpadd="${esc(c.id)}"><i class="dotc" style="--c:${gColor(c.id)[0]}"></i><span>${esc(c.summary)}</span><b aria-hidden="true">+</b></button>`).join("")}</div>` : cals.length ? "" : `<p class="sg-n">Lege in Google einen eigenen Kalender an (z. B. „Familie“) und tippe dann unter ☰ → Google Kalender auf „Jetzt abgleichen“.</p>`}
-    <p class="sg-n">Wer bei einer Gruppe ausgewählt ist, wird beim Eintragen erkannt: „Mit Ina ins Inselhotel“ landet in der Gruppe, zu der Ina gehört. Ohne Namen, aber mit „wir“, „Kita“ usw. nimmt der Kalender die Standard-Gruppe. Du kannst es beim Eintragen jederzeit ändern.</p>
+    <p class="sg-n">Wer bei einer Gruppe ausgewählt ist, wird beim Eintragen erkannt: „Mit Lena ins Inselhotel“ landet in der Gruppe, zu der Lena gehört. Ohne Namen, aber mit „wir“, „Kita“ usw. nimmt der Kalender die Standard-Gruppe. Du kannst es beim Eintragen jederzeit ändern.</p>
     ${G.length ? `<details class="setgrp"><summary>So kommen die anderen dazu</summary><ol class="ct-steps">
       <li>In Google Kalender am Computer beim jeweiligen Kalender ⋮ → <b>Einstellungen und Freigabe</b> → <b>Für bestimmte Personen freigeben</b> → E-Mail, Berechtigung „<b>Änderungen an Terminen vornehmen</b>“.</li>
       <li>Den Kalender-Link schicken („Per WhatsApp einladen“). Sie melden sich bei Claude an und wählen den Kalender bei der Einrichtung aus.</li></ol>
@@ -790,7 +790,7 @@ async function setFamCal(id) { saveGroups(id ? [{ cal: id, members: [], std: tru
 let TASKS = [], tkShowDone = false, tkAll = false, tkSelMode = false, TKSEL = new Set(), tkCleaned = false;
 const MONS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
 const WDS = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
-function parseTask(txt, base) { // „Reifen wechseln bis Ende Oktober“, „Morgen tanken“, „Sonntag zu Ina fahren“ → Titel + Frist
+function parseTask(txt, base) { // „Reifen wechseln bis Ende Oktober“, „Morgen tanken“, „Sonntag zu Oma fahren“ → Titel + Frist
   const B = base instanceof Date && !isNaN(base) ? new Date(base.getFullYear(), base.getMonth(), base.getDate()) : TODAY;
   let t = String(txt || "").trim().replace(/[.!,;]+$/, ""), due = null, m;
   const MO = "januar|februar|märz|maerz|april|mai|juni|juli|august|september|oktober|november|dezember", WD = "sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag";
@@ -1170,7 +1170,7 @@ function showShareMgr() {
         : `<p class="sg-n" style="padding:12px 14px;margin:0">Noch niemand – lade jemanden ein.</p>`}</div>
     ${shrNew ? `<div class="sg shr-box">${shrNew.code ? `<p><b>Einladung für ${esc(shrNew.name)}</b> ist fertig. Code: <span class="mono">${fmtCode(shrNew.code)}</span></p>
         <div class="btnrow"><a class="btn accent" href="https://wa.me/?text=${encodeURIComponent(inv(shrNew))}" target="_blank" rel="noopener">Per WhatsApp senden</a><button type="button" class="btn ghost" id="shr-new-done">Fertig</button></div>`
-      : `<label class="sr2"><span>Name</span><input class="fin" id="shr-name" type="text" placeholder="z. B. Ina" value="${esc(shrNew.name || "")}"></label><label class="sr2 sub"><span>Meine Termine automatisch teilen<small>sonst nur die, bei denen du „Teilen mit“ wählst</small></span><input type="checkbox" class="swi" id="shr-new-auto" checked></label><div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="shr-new-go">Einladung erstellen</button><button type="button" class="btn ghost" id="shr-new-x">Abbrechen</button></div>`}</div>`
+      : `<label class="sr2"><span>Name</span><input class="fin" id="shr-name" type="text" placeholder="z. B. Lena" value="${esc(shrNew.name || "")}"></label><label class="sr2 sub"><span>Meine Termine automatisch teilen<small>sonst nur die, bei denen du „Teilen mit“ wählst</small></span><input type="checkbox" class="swi" id="shr-new-auto" checked></label><div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="shr-new-go">Einladung erstellen</button><button type="button" class="btn ghost" id="shr-new-x">Abbrechen</button></div>`}</div>`
       : `<div class="btnrow"><button type="button" class="btn accent" id="shr-new">+ Person einladen</button><button type="button" class="btn ghost" id="shr-acc">Einladung annehmen</button></div>`}
     ${APP && gWritable() && okContacts().length ? `<div class="sg"><label class="sr2"><span>Geteilte Termine auch eintragen in<small>Google-Kalender – damit sie auch in Google und auf anderen Geräten erscheinen</small></span><select class="fin" id="shr-gcal">${gCalOptions(SHR.gcal || "primary")}</select></label></div>` : ""}
     ${shrAcc && !shrAcc.from ? `<div class="sg shr-box">${shrAcc.from ? `<p><b>${esc(shrAcc.from)}</b> möchte Termine mit dir teilen.</p><div class="btnrow"><button type="button" class="btn accent" id="shr-acc-ok">Annehmen</button><button type="button" class="btn ghost" id="shr-acc-x">Ablehnen</button></div>`
@@ -1180,7 +1180,7 @@ function showShareMgr() {
     ${(() => { const H = hiddenShared(); return H.length ? `<div class="sg-t">Ausgeblendete Termine</div><div class="sg">${H.map(h => `<div class="sr2"><i class="dotc" style="--c:var(--muted)"></i><span>${esc(h.title)}<small>${esc(fmt(parseIso(h.from)))} · von ${esc(h.from_)}</small></span><button type="button" class="link" data-shunhide="${esc(h.sid)}">Einblenden</button></div>`).join("")}</div>` : ""; })()}
     <div class="sg-t">Gruppen</div>
     ${SHR.groups.length ? `<div class="sg">${SHR.groups.map(g => `<div class="sr2"><i class="dotc" style="--c:var(--trip)"></i><span>👥 ${esc(g.name)}<small>${esc(shareNames(g.members).join(", ") || "noch leer")}</small></span><button type="button" class="link" data-grpedit="${esc(g.id)}">Ändern</button><button type="button" class="ic no" data-grprm="${esc(g.id)}" aria-label="Gruppe löschen">✕</button></div>`).join("")}</div>` : ""}
-    ${shrGrp ? `<div class="sg shr-box"><label class="sr2"><span>Name</span><input class="fin" id="grp-name" type="text" placeholder="z. B. Ina & Kinder" value="${esc(shrGrp.name || "")}"></label>
+    ${shrGrp ? `<div class="sg shr-box"><label class="sr2"><span>Name</span><input class="fin" id="grp-name" type="text" placeholder="z. B. Lena & Kinder" value="${esc(shrGrp.name || "")}"></label>
       <div style="padding:0 14px 8px">${okContacts().length ? shrChips("data-grpsel", shrGrp.members) : `<p class="sg-n">Erst Personen einladen – Gruppen bestehen aus verbundenen Personen.</p>`}</div>
       <div class="btnrow" style="padding:0 14px 12px"><button type="button" class="btn accent" id="grp-save">Speichern</button><button type="button" class="btn ghost" id="grp-x">Abbrechen</button></div></div>`
       : okContacts().length > 1 ? `<button type="button" class="btn ghost small" id="grp-new">+ Gruppe</button>` : `<p class="sg-n">Gruppen gehen, sobald mindestens zwei Personen verbunden sind.</p>`}
@@ -2681,7 +2681,7 @@ function buildPushPlan() {
 // ---- Zug-Wächter: Zugnummer + Bahnhof im Termin → der Server prüft live und meldet Verspätung/Gleis/Ausfall ----
 const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})\b/i;
 const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
-const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|ina|der|die|das|den)$/i;
+const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|der|die|das|den)$/i;
 function stationOf(e) {
   const nm = String(e.note || "").match(/\b(?:ab|an|ankunft|abfahrt)\s+([\p{L}.\- ]+?\s(?:hbf|hauptbahnhof|bahnhof|bf)\b(?:\s\(tief\))?)/iu);
   const pl0 = String(e.place || "").split(",")[0].trim(), pl = /bahnhof|hbf|bhf|\bbf\b/i.test(pl0) ? pl0 : nm ? nm[1].trim() : pl0 || String(e.note || "").split(",")[0].trim();
@@ -3003,7 +3003,7 @@ function showForm(e, preset) {
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
         <div class="seg emode" id="f-pk-mode" data-v="${v.pick?.mode || "zug"}">${Object.entries({ zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus" }).map(([k, l]) => `<button type="button" data-pkmode="${k}" aria-selected="${(v.pick?.mode || "zug") === k}">${l}</button>`).join("")}</div>
-        <div class="two"><div><label for="f-pk-who">Wen?</label><input id="f-pk-who" type="text" list="f-who-l" value="${esc(v.pick?.who || "")}" placeholder="z. B. Ina" autocomplete="off"></div>
+        <div class="two"><div><label for="f-pk-who">Wen?</label><input id="f-pk-who" type="text" list="f-who-l" value="${esc(v.pick?.who || "")}" placeholder="z. B. Lena" autocomplete="off"></div>
           <div><label for="f-pk-no" id="f-pk-no-l">Zug</label><input id="f-pk-no" type="text" value="${esc(v.pick?.no || "")}" placeholder="z. B. RE 4" autocomplete="off" autocapitalize="characters"></div></div>
         <label for="f-pk-st" id="f-pk-st-l">Bahnhof</label><input id="f-pk-st" type="text" list="f-pk-stl" value="${esc(v.type === "abholen" ? v.place || "" : "")}" placeholder="z. B. Berlin Hbf" autocomplete="off">
         <datalist id="f-pk-stl">${[...new Set(EV.filter(x => x.type === "abholen" && x.place).map(x => x.place))].slice(0, 12).map(n => `<option value="${esc(n)}">`).join("")}</datalist>
@@ -3062,22 +3062,13 @@ const F_MAIN = { termin: ["att", "title", "dates", "time", "place"], trip: ["att
 const F_GRP = { att: "f-att", title: "f-title-grp", rep: "f-rep-wrap", col: "f-col-wrap", share: "f-sh-wrap", vis: "f-vis", shift: "f-shift", thx: "f-thx-wrap", trip: "f-trip-wrap", place: "f-place-grp", note: "f-note-grp", gcal: "f-gcal-wrap", pick: "f-pick-wrap" };
 let fMore = false;
 const DIENST_SUG = ["Früh", "Spät", "Nacht", "Bereitschaft", "Homeoffice"];
-const TITLE_BASE = { termin: ["Arzt", "Zahnarzt", "Friseur", "Elternabend", "Werkstatt", "Besprechung"], trip: [], urlaub: ["Urlaub", "Ferien", "Freier Tag", "Brückentag"], dienst: DIENST_SUG,
-  info: ["Müll rausstellen", "Anrufen", "Überweisen", "Paket abholen"], mina: [], anniversary: ["Hochzeitstag", "Kennenlerntag", "Jahrestag"],
-  deadline: ["Steuererklärung", "TÜV", "Kündigung", "Versicherung", "Rechnung bezahlen"], birthday: [], contact: [] };
+// Titelvorschläge: bewusst allgemein – keine eigenen Einträge und keine Namen aus dem Umfeld
+const TITLE_BASE = { termin: ["Arzt", "Zahnarzt", "Friseur", "Elternabend", "Werkstatt", "Besprechung"], trip: ["Städtereise", "Ostsee", "Wellness", "Dienstreise", "Besuch"], urlaub: ["Urlaub", "Ferien", "Freier Tag", "Brückentag"], dienst: DIENST_SUG,
+  info: ["Müll rausstellen", "Anrufen", "Überweisen", "Paket abholen"], mina: ["Wochenende bei Papa", "Wochenende bei Mama", "Ferien", "Übergabe"], anniversary: ["Hochzeitstag", "Kennenlerntag", "Jahrestag"],
+  deadline: ["Steuererklärung", "TÜV", "Kündigung", "Versicherung", "Rechnung bezahlen"], birthday: ["Mama", "Papa", "Oma", "Opa", "Freundin", "Freund"], contact: ["Mama", "Papa", "Oma", "Opa", "Freundin", "Freund"] };
 const TITLE_PH = { termin: "z. B. Zahnarzt", trip: "z. B. Ostsee, Hotel am See", urlaub: "z. B. Urlaub, Ferien", dienst: "z. B. Spät", info: "z. B. Müll rausstellen", mina: "z. B. Wochenende bei Papa",
   anniversary: "z. B. Hochzeitstag", deadline: "z. B. Steuererklärung", birthday: "Name, z. B. Oma Hilde", contact: "Name, z. B. Tante Ute" };
-function titleSug(ty) {
-  const cnt = new Map();
-  for (const x of EV) if (x.type === ty && x.title && x.title.length <= 30) cnt.set(x.title, (cnt.get(x.title) || 0) + 1);
-  const own = [...cnt].sort((a, b) => b[1] - a[1]).map(([t]) => t);
-  let L;
-  if (ty === "birthday") { const have = new Set(EV.filter(x => x.type === "birthday").map(x => (x.title || "").toLowerCase())); L = FAM().map(p => p.name).filter(n => n && !have.has(n.toLowerCase())); }
-  else if (ty === "contact") { const have = new Set(own.map(t => t.toLowerCase())); L = FAM().map(p => p.name).filter(n => n && !have.has(n.toLowerCase())); }
-  else if (ty === "trip" || ty === "mina") L = own;
-  else L = [...(TITLE_BASE[ty] || []), ...own];
-  return [...new Set(L)].slice(0, 8);
-}
+function titleSug(ty) { return [...(TITLE_BASE[ty] || [])]; }
 function formLayout(ty) {
   const main = new Set(F_MAIN[ty] || F_MAIN.termin);
   const fa = $("f-att"), fd = $("f-from")?.closest(".two"); if (fa && fd) { const at = ty === "abholen" ? $("f-pick-wrap") : fd; if (at && fa.nextElementSibling !== at) at.before(fa); }
@@ -3377,7 +3368,7 @@ function switchEntry(m) {
 function showAssistant(keepFiles) {
   if (dbState === "off") return showSignin();
   if (!keepFiles) ASST_FILES = [];
-  const ex = ["Zahnarzt Donnerstag 16 Uhr", "Ina vom Zug abholen: RE 4, Berlin Hbf, 13:55", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
+  const ex = ["Zahnarzt Donnerstag 16 Uhr", "Lena vom Zug abholen: RE 4, Berlin Hbf, 13:55", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
   openSheet("Eintragen", "Schreib einfach, was ansteht oder sich ändert", `
     <div class="asst">${entrySw("text")}
       ${ASST_DAY ? `<div class="a-day" id="a-day">📅 für <b>${fmt(ASST_DAY)}${ASST_TO ? ` – ${fmt(ASST_TO)}` : ""}${(ASST_TO || ASST_DAY).getFullYear() !== TODAY.getFullYear() ? " " + (ASST_TO || ASST_DAY).getFullYear() : ""}</b><button type="button" class="link" data-act="a-day-x" aria-label="Datum entfernen">✕</button></div>` : ""}
@@ -3673,7 +3664,6 @@ function gColor(id) {
   const name = calLabel(id).toLowerCase();
   if (id === "primary") return ["#f4b400", "#2b2100"];
   if (name === "familie") return ["#a1887f", "#fff"];
-  if (name === "ina") return ["#3f51b5", "#fff"];
   const i = Math.max(0, gCals.findIndex(c => c.id === id)); return GPAL[i % GPAL.length];
 }
 function calLabel(id) { if (id === "primary") return "Mein Kalender"; const c = gCals.find(x => x.id === id); return c ? c.summary : "Google"; }
