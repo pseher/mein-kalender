@@ -16,6 +16,12 @@ const fmt = dt => `${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}
 const fmtY = dt => `${fmt(dt)}${dt.getFullYear()}`;
 const rngTxt = (a, b, long) => sameDay(a, b) ? (long ? fmtY(a) : fmt(a)) : `${fmt(a)} – ${long ? fmtY(b) : fmt(b)}`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+// Links in Notizen: in Listen kurz („eurostar.com ↗“), im Detail anklickbar
+const LINK_RE = /https?:\/\/[^\s<>"']*[^\s<>"'.,;:!?)\]]/gi;
+const urlHost = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "Link"; } };
+const urlsIn = t => [...new Set(String(t ?? "").match(LINK_RE) || [])];
+const deUrl = t => String(t ?? "").replace(LINK_RE, u => urlHost(u) + " ↗");
+const linkify = t => { const s = String(t ?? ""); let out = "", i = 0; for (const m of s.matchAll(LINK_RE)) { out += esc(s.slice(i, m.index)) + `<a class="lnk" href="${esc(m[0])}" target="_blank" rel="noopener" title="${esc(m[0])}">${esc(urlHost(m[0]))} ↗</a>`; i = m.index + m[0].length; } return out + esc(s.slice(i)); };
 const $ = id => document.getElementById(id);
 const UI_KEYS = ["ft-show", "ft-pages", "ft-view", "ft-noplace", "ft-up", "ft-up-col", "ft-entry", "ft-umg", "ft-whoc", "ft-catc", "ft-gcat"];   // Anzeige-Einstellungen: auch im Konto speichern
 let uiSaveHook = null;
@@ -844,15 +850,15 @@ function renderTasks() {
   if (!tkCleaned && TASKS.length) { tkCleaned = true; setTimeout(tkAutoClean, 3000); }
   $("n-tasks").textContent = open.length || "";
   const MAXT = 5, more = tkAll ? 0 : Math.max(0, open.length - MAXT);
-  $("tasks-list").innerHTML = (tkAll ? open : open.slice(0, MAXT)).map(t => `<div class="tk"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") +
+  $("tasks-list").innerHTML = (tkAll ? open : open.slice(0, MAXT)).map(t => `<div class="tk"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(deUrl(t.title))}</span>${dueLbl(t.due)}</button></div>`).join("") +
     (more ? `<button type="button" class="link tk-dl" id="tk-all">+${more} weitere</button>` : tkAll && open.length > MAXT ? `<button type="button" class="link tk-dl" id="tk-all">Weniger anzeigen</button>` : "") +
-    (later.length ? `<button type="button" class="link tk-dl" id="tk-later" aria-expanded="${tkLaterOpen}">${tkLaterOpen ? "Spätere ausblenden" : `Später: ${later.length} (ab ${fmt(parseIso(later[0].due))})`}</button>${tkLaterOpen ? later.map(t => `<div class="tk tk-lt"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title)}</span>${dueLbl(t.due)}</button></div>`).join("") : ""}` : "") +
+    (later.length ? `<button type="button" class="link tk-dl" id="tk-later" aria-expanded="${tkLaterOpen}">${tkLaterOpen ? "Spätere ausblenden" : `Später: ${later.length} (ab ${fmt(parseIso(later[0].due))})`}</button>${tkLaterOpen ? later.map(t => `<div class="tk tk-lt"><input type="checkbox" class="ckb" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(deUrl(t.title))}</span>${dueLbl(t.due)}</button></div>`).join("") : ""}` : "") +
     (sug.length ? `<div class="tk-sug">${sug.map((s, i) => `<div class="tk sg2"><span><b>${esc(s.title)}</b><small>${esc(s.for)}</small></span><button type="button" class="ic ok" data-tksug="${i}" aria-label="Übernehmen">✓</button><button type="button" class="ic no" data-tkno="${i}" aria-label="Nicht nötig">✕</button></div>`).join("")}</div>` : "") +
     (done.length ? `<div class="tk-dbar"><button type="button" class="link tk-dl" id="tk-showdone">${tkShowDone ? "Erledigte ausblenden" : `${done.length} erledigt`}</button>${tkShowDone ? (tkSelMode
         ? `<button type="button" class="link tk-dl danger-t" id="tk-delsel"${TKSEL.size ? "" : " aria-disabled=\"true\""}>Ausgewählte löschen${TKSEL.size ? ` (${TKSEL.size})` : ""}</button><button type="button" class="link tk-dl" id="tk-selall">${TKSEL.size === done.length ? "Keine" : "Alle"} auswählen</button><button type="button" class="link tk-dl" id="tk-selx">Fertig</button>`
         : `<button type="button" class="link tk-dl" id="tk-sel">Auswählen</button><button type="button" class="link tk-dl danger-t" id="tk-delall">Alle löschen</button>`) : ""}</div>${tkShowDone ? done.map(t => tkSelMode
-        ? `<label class="tk dn sel"><input type="checkbox" class="ckb" data-tksel="${esc(t.id)}"${TKSEL.has(t.id) ? " checked" : ""} aria-label="${esc(t.title)} auswählen"><span>${esc(t.title)}</span></label>`
-        : `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(t.title)}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") + `<p class="note tk-keep">Erledigte Aufgaben werden nach ${TK_KEEP} Tagen automatisch gelöscht.</p>` : ""}` : "");
+        ? `<label class="tk dn sel"><input type="checkbox" class="ckb" data-tksel="${esc(t.id)}"${TKSEL.has(t.id) ? " checked" : ""} aria-label="${esc(t.title)} auswählen"><span>${esc(deUrl(t.title))}</span></label>`
+        : `<div class="tk dn"><input type="checkbox" class="ckb" data-tkundo="${esc(t.id)}" checked aria-label="Wieder offen"><span>${esc(deUrl(t.title))}</span><button type="button" class="ic no" data-tkdel="${esc(t.id)}" aria-label="Löschen">🗑</button></div>`).join("") + `<p class="note tk-keep">Erledigte Aufgaben werden nach ${TK_KEEP} Tagen automatisch gelöscht.</p>` : ""}` : "");
   window.__tkSug = sug;
 }
 // Aufgabe eintragen: Text frei, Frist im eigenen Feld. Ein Datum im Text wird nur vorgeschlagen (sichtbar im Feld), der Text bleibt wie getippt.
@@ -869,7 +875,7 @@ function showTaskEdit(id) {
   const t = TASKS.find(x => x.id === id); if (!t) return;
   const d = parseIso(t.due);
   openSheet("Aufgabe", "Ändern, Frist setzen oder löschen", `<div class="form">
-    <label for="tk-e-title">Aufgabe</label><textarea class="in" id="tk-e-title" rows="${Math.min(6, Math.max(2, Math.ceil(t.title.length / 34)))}">${esc(t.title)}</textarea>
+    <label for="tk-e-title">Aufgabe</label><textarea class="in" id="tk-e-title" rows="${Math.min(6, Math.max(2, Math.ceil(t.title.length / 34)))}">${esc(t.title)}</textarea>${urlsIn(t.title).length ? `<div class="btnrow" style="margin:2px 0 6px">${urlsIn(t.title).map(u => `<a class="btn ghost small" href="${esc(u)}" target="_blank" rel="noopener">🔗 ${esc(urlHost(u))} öffnen</a>`).join("")}</div>` : ""}
     <label for="tk-e-due">Frist</label><input id="tk-e-due" type="date" value="${esc(t.due || "")}">
     <div class="shift"><span>Schnell:</span><button type="button" class="btn ghost small" data-tkq="0">Heute</button><button type="button" class="btn ghost small" data-tkq="1">Morgen</button><button type="button" class="btn ghost small" data-tkq="7">+1 Woche</button><button type="button" class="btn ghost small" data-tkq="">Keine</button></div></div>
     <div class="btnrow"><button type="button" class="btn" data-tksave="${esc(id)}">Speichern</button><button type="button" class="btn ghost" data-tkdone2="${esc(id)}">✓ Erledigt</button><button type="button" class="btn danger push" data-tkdel="${esc(id)}">Löschen</button></div>`, "task");
@@ -1357,7 +1363,7 @@ function renderWeek() {
     const tk = canWrite ? TASKS.filter(t => !t.done && t.state !== "no" && t.due === k) : [];
     return `<div class="wd${isWE(dt) ? " we" : ""}${sameDay(dt, TODAY) ? " is-today" : ""}">
       <button type="button" class="wd-h" data-day="${d.k}"><b>${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}.</b>${sameDay(dt, TODAY) ? `<span class="wd-today">heute</span>` : ""}${dayChips(d)}</button>
-      <div class="wd-ev fl">${oc.map(weekRow).join("")}${tk.map(t => `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(t.id)}">${esc(t.title)}<small> · Aufgabe</small></button></div>`).join("")}</div></div>`;
+      <div class="wd-ev fl">${oc.map(weekRow).join("")}${tk.map(t => `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(t.id)}" aria-label="${esc(t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(t.id)}">${esc(deUrl(t.title))}<small> · Aufgabe</small></button></div>`).join("")}</div></div>`;
   }).join("");
 }
 function setWeek(dt) { weekStart = monday(dt); ensureGoogle(); if (weekStart < monday(START)) weekStart = monday(START); renderWeek(); }
@@ -1433,8 +1439,8 @@ function renderFocus() {
   const all = [...ev, ...tk, ...rm], byTime = x => x.k === "ev" ? (x.o.ev.time || "00:00") : x.k === "tk" ? "99" : "98";
   // eine feste Zeile für alles: [Uhrzeit] [Markierung] [Titel] – Termine, Aufgaben und Erinnerungen stehen bündig untereinander
   const row = x => x.k === "ev" ? `<button type="button" class="fr" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="fr-t">${x.o.ev.time ? esc(x.o.ev.time) : ""}</span><span class="fr-m"><span class="fr-dot" style="background:${colorOf(x.o.ev)}"></span></span><span class="fr-x">${esc(evName(x.o.ev))}${trainBadge(x.o)}${placeHint(x.o)}${ageTxt(x.o) ? `<small> · ${esc(ageTxt(x.o))}</small>` : ""}</span></button>`
-    : x.k === "tk" ? `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(x.t.id)}">${esc(x.t.title)}<small> · Aufgabe</small></button></div>`
-    : `<button type="button" class="fr" data-rem="${x.i}"><span class="fr-t">${x.imp && x.r.n > 1 ? `in ${x.r.n} T.` : ""}</span><span class="fr-m" aria-hidden="true">🔔</span><span class="fr-x">${esc(x.r.t)}${x.r.sub ? `<small> · ${esc(x.r.sub)}</small>` : ""}</span></button>`;
+    : x.k === "tk" ? `<div class="fr"><span class="fr-t"></span><span class="fr-m"><input type="checkbox" class="ckb fr-ck" data-tkdone="${esc(x.t.id)}" aria-label="${esc(x.t.title)} erledigt"></span><button type="button" class="fr-x fr-btn" data-tkedit="${esc(x.t.id)}">${esc(deUrl(x.t.title))}<small> · Aufgabe</small></button></div>`
+    : `<button type="button" class="fr" data-rem="${x.i}"><span class="fr-t">${x.imp && x.r.n > 1 ? `in ${x.r.n} T.` : ""}</span><span class="fr-m" aria-hidden="true">🔔</span><span class="fr-x">${esc(x.r.t)}${x.r.sub ? `<small> · ${esc(deUrl(x.r.sub))}</small>` : ""}</span></button>`;
   const day = (d, lbl) => { const L = all.filter(x => x.d && sameDay(x.d, d)).sort((a, b) => byTime(a).localeCompare(byTime(b))); return L.length ? `<div class="fx-day">${lbl}</div>${L.map(row).join("")}` : ""; };
   const impL = all.filter(x => x.imp).sort((a, b) => a.r.n - b.r.n);
   const html = day(TODAY, "Heute") + day(end, "Morgen") + (impL.length ? `<div class="fx-day">Wichtig – bald erledigen</div>${impL.map(row).join("")}` : "");
@@ -1523,8 +1529,8 @@ function countdowns() {
 function showNext3() {
   const N = next3(), days = [0, 1, 2].map(i => addDays(TODAY, i));
   const row = x => x.k === "ev" ? `<button type="button" class="n3r" data-occ="${esc(x.o.ev.id)}|${iso(x.o.a)}"><span class="what"><span class="ev-dot" style="background:${x.c}"></span>${x.o.ev.time && !x.run ? `<b>${esc(x.o.ev.time)}</b> ` : ""}${esc(x.t)}${x.run ? `<small class="note"> · ${esc(x.run)}</small>` : ""}</span></button>`
-    : x.k === "tk" ? `<button type="button" class="n3r" data-tkedit="${esc(x.id)}"><span class="what"><span aria-hidden="true">☐</span> ${esc(x.t)}${x.late ? `<small class="note" style="color:var(--holiday)"> · seit ${x.late} T. fällig</small>` : ""}</span></button>`
-    : `<button type="button" class="n3r" data-rem="${x.i}"><span class="what"><span class="ev-dot" style="background:${x.c}"></span>🔔 ${esc(x.t)}<small class="note"> · ${esc(x.sub)}</small></span></button>`;
+    : x.k === "tk" ? `<button type="button" class="n3r" data-tkedit="${esc(x.id)}"><span class="what"><span aria-hidden="true">☐</span> ${esc(deUrl(x.t))}${x.late ? `<small class="note" style="color:var(--holiday)"> · seit ${x.late} T. fällig</small>` : ""}</span></button>`
+    : `<button type="button" class="n3r" data-rem="${x.i}"><span class="what"><span class="ev-dot" style="background:${x.c}"></span>🔔 ${esc(x.t)}<small class="note"> · ${esc(deUrl(x.sub))}</small></span></button>`;
   openSheet("Die nächsten 3 Tage", `${fmt(TODAY)} – ${fmt(days[2])} · Termine, Aufgaben, Erinnerungen`, days.map((d, i) => { const L = N.all.filter(x => sameDay(x.d, d));
     return `<h3 class="pkh">${["Heute", "Morgen", "Übermorgen"][i]} · ${fmt(d)}</h3>${L.length ? `<div class="n3">${L.map(row).join("")}</div>` : `<p class="note" style="margin:4px 2px 0">Nichts geplant.</p>`}`; }).join(""), "n3");
 }
@@ -1728,7 +1734,7 @@ function renderSoon() {
     if (a === "route" && placeOf(r.o.ev)) return `<a ${at} href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(placeOf(r.o.ev))}" target="_blank" rel="noopener">${ic}</a>`;
     return `<button type="button" ${at} data-remact="${i}|${esc(a)}">${ic}</button>`; };
   const isDone = a => /^(done:|gift:|season:|giftkids:|contacted)/.test(a);
-  $("soon-list").innerHTML = list.map((r, i) => `<div class="sr"><button type="button" class="nx" data-rem="${i}"><span class="when">${inDaysShort(r.n)}</span><span class="what"><span class="ev-dot" style="background:${r.color}"></span>${esc(r.t)}<small class="note"> · ${esc(r.sub)}</small></span><span></span></button>
+  $("soon-list").innerHTML = list.map((r, i) => `<div class="sr"><button type="button" class="nx" data-rem="${i}"><span class="when">${inDaysShort(r.n)}</span><span class="what"><span class="ev-dot" style="background:${r.color}"></span>${esc(r.t)}<small class="note"> · ${esc(deUrl(r.sub))}</small></span><span></span></button>
     <div class="sr-acts">${r.acts.filter(([, a]) => canWrite || a === "ideas" || a === "pack").filter(([, a]) => a !== "ideas" || sample).filter(([, a]) => !isDone(a)).map(([l, a]) => act(r, i, l, a)).join("")}</div></div>`).join("") +
     (REMS.length > MAX ? `<button type="button" class="link more-btn" id="soon-more">${soonAll ? "Weniger anzeigen" : `+ ${REMS.length - MAX} weitere`}</button>` : "");
 }
@@ -1740,7 +1746,8 @@ function showRem(i) {
     : a === "route" && placeOf(r.o.ev) ? `<a class="btn ghost small" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(placeOf(r.o.ev))}" target="_blank" rel="noopener">${ACT_ICON[l]} ${esc(l)}</a>`
     : `<button type="button" class="btn ${/^(done:|gift:|season:|giftkids:|contacted)/.test(a) ? "accent" : "ghost"} small" data-remact="${i}|${esc(a)}" data-close="1">${ACT_ICON[l] || ""} ${esc(l)}</button>`;
   const open = r.o && r.o.ev.type !== "contact" ? `<button type="button" class="btn ghost small" data-occ="${esc(r.o.ev.id)}|${iso(r.o.a)}">Termin ansehen</button>` : r.o ? `<button type="button" class="btn ghost small" data-remact="${i}|edit">✎ Bearbeiten</button>` : "";
-  openSheet(r.t, `${inDays(r.n)}${r.sub ? " · " + r.sub : ""}`, `<div class="btnrow" style="margin-top:12px">${acts.map(btn).join("")}${open}</div>`, "rem", { i });
+  const links = urlsIn(r.sub).map(u => `<a class="btn ghost small" href="${esc(u)}" target="_blank" rel="noopener">🔗 ${esc(urlHost(u))} öffnen</a>`).join("");
+  openSheet(r.t, `${inDays(r.n)}${r.sub ? " · " + deUrl(r.sub) : ""}`, `<div class="btnrow" style="margin-top:12px">${acts.map(btn).join("")}${open}${links}</div>`, "rem", { i });
 }
 async function remAction(i, act) {
   const r = REMS[i]; if (!r) return;
@@ -2876,14 +2883,14 @@ function showEvent(o) {
   if (o.ev.type === "google") return showGoogleEvent(o);
   const e = o.ev, cf = conflicts(o), items = [];
   if (e.shared) { const it = [`<li><i style="background:var(--both)"></i><div><b>Geteilt von ${esc(e.shared.from || "jemandem")}</b><div class="note">Änderungen sieht ihr beide</div></div></li>`];
-    if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b><div class="note">${esc(e.note)}</div></div></li>`);
+    if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div></div></li>`);
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
   const item = (title, sub) => items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
   item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o));
   if (e.who) item(`👤 für ${e.who}`, "");
-  if (e.note) item("Notiz", e.note);
+  if (e.note) items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div></div></li>`);
   if (e.place) item("Ort", e.place);
   if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) item("Reise", hs.join(" · ")); }
   if (tripParts(o).length) item("Dazu gehört", partsList(o));
