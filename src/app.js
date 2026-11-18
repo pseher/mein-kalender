@@ -1126,8 +1126,11 @@ async function showAdmin(reload) {
     <p class="note">Stand ${new Date(D.at).toLocaleString("de-DE")} · Preise: ${Object.entries(AI_PRICE).filter(([m]) => m === D.models.quick || m === D.models.default).map(([m, p]) => `${m} ${p[0]}/${p[1]} $ je 1 Mio.`).join(" · ")}.</p>`;
   // Nutzer: Einrichtungsstand, Bleiben, Funktionen, Hilfe-Fragen
   const devOf = id => devs.filter(x => x.u === id), yes = b => b ? "✅" : "–";
+  // Version erst „alt“, wenn sie älter als 2 Tage ist – bei mehreren Updates am Tag wäre sonst sofort jedes Gerät „alt“
+  const bTime = b => { const m = String(b).match(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)/); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : 0; };
+  const verTxt = b => { if (!b) return "–"; if (b === curB) return "✅ aktuell"; const d = (Date.now() - bTime(b)) / 864e5; return d < 2 ? "✅ aktuell" : `⚠️ alt (${Math.floor(d)} Tage)`; };
   const setupRows = D.users.slice().sort((a, b) => (b.last || "").localeCompare(a.last || "")).map(u => { const ds = devOf(u.id), b = ds.map(x => x.b).filter(Boolean).sort().at(-1) || "";
-    return tr([uName(u.id), `#${D.evn?.[u.id] || 0}`, `#${ds.length}`, yes(ds.some(x => x.sa)), yes(ds.some(x => x.g === "ok")), yes((D.pushBy?.[u.id] || 0) > 0), b ? (b === curB ? "✅ aktuell" : "⚠️ alt") : "–", `#${u.last ? dShort(u.last) : "–"}`]); });
+    return tr([uName(u.id), `#${D.evn?.[u.id] || 0}`, `#${ds.length}`, yes(ds.some(x => x.sa)), yes(ds.some(x => x.g === "ok")), yes((D.pushBy?.[u.id] || 0) > 0), verTxt(b), `#${u.last ? dShort(u.last) : "–"}`]); });
   const actDays = new Map(); D.use.forEach(r => (actDays.get(r.u) || actDays.set(r.u, new Set()).get(r.u)).add(r.d)); ai.forEach(r => (actDays.get(r.user_id) || actDays.set(r.user_id, new Set()).get(r.user_id)).add(r.day));
   const ret = n => { const C = D.users.filter(u => u.created && iso(addDays(parseIso(u.created.slice(0, 10)), n)) <= today); const k = C.filter(u => [...(actDays.get(u.id) || [])].some(d => d >= iso(addDays(parseIso(u.created.slice(0, 10)), n)))).length; return `${k} von ${C.length} (${pct(k, C.length)})`; };
   const PL = { free: "Kostenlos", plus: "Plus", family: "Familie" };
@@ -1137,7 +1140,7 @@ async function showAdmin(reload) {
   T.nutzer = `<h3>Tarife</h3><p class="note">Abrechnung: <b>${esc(D.billing === "off" ? "aus (keine Tarif-Grenzen)" : D.billing === "live" ? "live" : "Simulation – Abschluss ohne Zahlung")}</b> · umstellen in Cloudflare über die Variable BILLING_MODE (off / simulate / live).</p>
     ${tbl(["Nutzer", "Tarif", "#KI diesen Monat", "setzen auf"], planRows)}
     <h3>Einrichtungsstand je Nutzer</h3>${tbl(["Nutzer", "#Einträge", "#Geräte", "App", "Google", "Push", "Version", "#zuletzt"], setupRows)}
-    <p class="note">App = als App installiert · Google = auf mindestens einem Gerät verbunden · Version = neueste genutzte App-Version. Geräte melden sich seit diesem Update.</p>
+    <p class="note">App = als App installiert · Google = auf mindestens einem Gerät verbunden · Version = neueste genutzte App-Version; „alt“ erst, wenn sie älter als 2 Tage ist. Geräte melden sich seit diesem Update.</p>
     <h3>Bleiben die Nutzer?</h3><p>noch aktiv nach 1 Tag: <b>${ret(1)}</b> · nach 7 Tagen: <b>${ret(7)}</b> · nach 30 Tagen: <b>${ret(30)}</b></p>
     <h3>Häufigste Hilfe-Fragen</h3>${(D.helpq || []).length ? `<ul class="adm-l">${D.helpq.slice(0, 40).map(h => `<li>„${esc(h.q)}“ <span class="note">${dShort(h.at)} · ${short(h.u)}</span></li>`).join("")}</ul>` : `<p class="note">noch keine Fragen gestellt</p>`}
     <h3>Genutzte Funktionen (30 Tage)</h3>${tbl(["Funktion", "#Anzahl", "#Nutzer", "#Anteil Nutzer"], [...byF].sort((a, b) => b[1].u.size - a[1].u.size || b[1].n - a[1].n).map(([k, x]) => tr([esc(k.replace(/_/g, " ")), x.n, x.u.size, `#${Math.round(x.u.size / actU * 100)} %`])))}`;
@@ -1149,7 +1152,7 @@ async function showAdmin(reload) {
   const errs = devs.filter(x => x.le).sort((a, b) => String(b.leAt || "").localeCompare(String(a.leAt || ""))).slice(0, 15);
   T.system = `<h3>Dienste</h3><ul class="adm-l">${lamps.map(([l, n, t]) => `<li>${l} <b>${esc(n)}</b> <span class="note">${esc(t)}</span></li>`).join("")}</ul><p class="note">Worker-Version ${esc(D.version || "?")}</p>
     <h3>Benachrichtigungen (30 Tage)</h3>${tbl(["", "#Anzahl"], [tr(["verschickt", num(sS("sent"))]), tr(["fehlgeschlagen", num(sS("fail"))]), tr(["abgelaufene Geräte (entfernt)", num(sS("gone"))]), tr(["Läufe des 5-Minuten-Takts", num(sS("runs"))])])}
-    <h3>App-Versionen auf den Geräten</h3>${tbl(["Version", "#Geräte", ""], [...vers].sort((a, b) => b[0].localeCompare(a[0])).map(([b, n]) => tr([esc(b.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d).*/, "$3.$2.$1 $4:$5 UTC")), n, b === curB ? "✅ aktuell" : "⚠️ alt"])), "noch keine Geräte gemeldet")}
+    <h3>App-Versionen auf den Geräten</h3>${tbl(["Version", "#Geräte", ""], [...vers].sort((a, b) => b[0].localeCompare(a[0])).map(([b, n]) => tr([esc(b.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d).*/, "$3.$2.$1 $4:$5 UTC")), n, verTxt(b)])), "noch keine Geräte gemeldet")}
     <h3>Fehler aus der App</h3><p>${aErr} Fehler in 30 Tagen</p>${errs.length ? `<ul class="adm-l">${errs.map(x => `<li><code>${esc(x.le)}</code> <span class="note">${x.leAt ? dShort(x.leAt) : ""} · ${short(x.u)} · ${esc(x.m || "")}</span></li>`).join("")}</ul>` : ""}`;
   const TABS = [["ueb", "📊 Übersicht"], ["ki", "🤖 KI & Kosten"], ["nutzer", "👥 Nutzer"], ["waechter", "🚆 Wächter"], ["system", `⚙️ System${bad ? " ⚠️" : ""}`]];
   if (!T[ADM_TAB]) ADM_TAB = "ueb";
