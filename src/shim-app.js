@@ -76,6 +76,11 @@ window.MK_APP = true;
   window.mkAdminMe = () => wPost("/admin/me").catch(() => null);
   // Tarife: Status, simulierter Abschluss/Kündigung, Betreiber setzt Tarif
   const wPostB = async (route, data) => { const s = await freshSession(); if (!s) return null; const r = await fetch(CFG.workerUrl + route, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify(data || {}) }); return r.json().catch(() => null); };
+  // Dokumente in Cloudflare R2: PUT/GET/DELETE /files/<id>, GET /files = Belegung
+  window.mkFile = async (method, id, blob, type) => { const s = await freshSession(); if (!s) throw Object.assign(new Error("not_signed_in"), { status: 401 });
+    const r = await fetch(CFG.workerUrl + "/files" + (id ? "/" + id : ""), { method, headers: { Authorization: "Bearer " + s.access_token, ...(blob ? { "Content-Type": type || blob.type || "application/octet-stream" } : {}) }, body: blob || undefined });
+    if (method === "GET" && id) { if (!r.ok) throw Object.assign(new Error("file"), { status: r.status }); return r.blob(); }
+    const j = await r.json().catch(() => ({})); return { status: r.status, ...j }; };
   window.mkBilling = (op, data) => wPostB("/billing/" + op, data).catch(() => null);
   window.mkAdminPlan = (user, plan) => wPostB("/admin/plan", { user, plan }).catch(() => null);
   window.mkAdminStats = () => wPost("/admin/stats");

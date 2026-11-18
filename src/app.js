@@ -184,6 +184,14 @@ const repLabel = k => REPEAT[k] || (repSpec(k) ? `alle ${repSpec(k).n} ${REP_U[r
 const repStep = (a0, sp, i) => { const k = i * sp.n; if (sp.u === "d") return addDays(a0, k); if (sp.u === "w") return addDays(a0, 7 * k);
   const y = a0.getFullYear() + (sp.u === "y" ? k : 0), m = a0.getMonth() + (sp.u === "m" ? k : 0); return new Date(y, m, Math.min(a0.getDate(), new Date(y, m + 1, 0).getDate())); };
 const REMIND_DEF = { birthday: 20, anniversary: 7, deadline: 14 };
+// Fristen & Papierkram: Art → Symbol, Vorschlagstitel, Vorwarnzeit (Tage), läuft automatisch weiter (Jahre)
+const FK = { vertrag: { i: "📄", t: "Vertrag kündigen", lead: 28, renew: 1 }, ausweis: { i: "🪪", t: "Personalausweis läuft ab", lead: 90, renew: 0 },
+  pass: { i: "🛂", t: "Reisepass läuft ab", lead: 180, renew: 0 }, garantie: { i: "🧾", t: "Garantie endet", lead: 14, renew: 0 },
+  rueckgabe: { i: "↩️", t: "Rückgabe bis", lead: 3, renew: 0 }, tuev: { i: "🚗", t: "TÜV / HU", lead: 28, renew: 2 },
+  versicherung: { i: "🛡️", t: "Versicherung kündigen / wechseln", lead: 28, renew: 1 }, steuer: { i: "🧮", t: "Steuererklärung", lead: 28, renew: 1 } };
+const FK_CHIP = [["ausweis", "Ausweis"], ["pass", "Reisepass"], ["vertrag", "Vertrag"], ["garantie", "Garantie"], ["tuev", "TÜV"], ["versicherung", "Versicherung"], ["steuer", "Steuer"]];
+const fkIcon = e => FK[e?.fk]?.i || "⏰";
+const FK_AI = `type "deadline" (Frist): from = to = das Fristdatum – bei einem Vertrag der LETZTE TAG ZUM KÜNDIGEN (Laufzeitende minus Kündigungsfrist), bei Ausweis/Reisepass das Ablaufdatum, bei Garantie das Garantieende, bei Rückgabe der letzte Rückgabetag, beim TÜV der Monat der nächsten HU (1. des Monats). title kurz, z. B. „Handyvertrag Telekom kündigen“, „Personalausweis läuft ab“, „Garantie Waschmaschine“. "fk": "vertrag" | "ausweis" | "pass" | "garantie" | "rueckgabe" | "tuev" | "versicherung" | "steuer" | "". "renew": 1, wenn sich Vertrag/Versicherung ohne Kündigung jährlich verlängert; 2 beim TÜV; sonst 0. "remindDays": Vertrag/Versicherung/TÜV 28, Ausweis 90, Reisepass 180, Garantie 14, Rückgabe 3. "nostore": true bei Personalausweis, Reisepass, Führerschein oder Bankkarte – dann wird das Bild NICHT gespeichert, nur das Datum. Nie Ausweis-, Karten- oder Kontonummern in title oder note schreiben. Ist ein Datum nicht sicher lesbar, schreib in note „Datum bitte prüfen“ statt zu raten.`;
 let EV = [], MERK = [], OCC = [], OIDX = new Map();   // MERK: Merklisten zu Google-Terminen (Google-Termin bleibt sichtbar)
 const APP = !!window.MK_APP;   // true = eigene App (Supabase), false = claude.ai-Artefakt
 let db = null, canWrite = false, sample = null, downloads = null, dbState = "loading";
@@ -209,8 +217,8 @@ function normalize(id, v) {
     note: String(v.note || ""), gcal: String(v.gcal || ""), gEventId: String(v.gEventId || ""),
     remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
-    startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks,
-    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && f.n).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n, at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
+    startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks, fk: FK[v.fk] ? v.fk : "", renew: [1, 2].includes(+v.renew) ? +v.renew : 0,
+    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
@@ -1684,7 +1692,8 @@ function buildReminders() {
       const yrs = e.startYear ? y - e.startYear : 0, round = yrs && yrs % 5 === 0, lead = round && e.remindDays === 7 ? 21 : e.remindDays;
       if (lead > 0 && n <= lead && !e.done.includes("a" + y)) add({ n, o, color: "var(--c-anniv)", t: `${e.title}${yrs ? ` · ${yrs} Jahre${round ? "!" : ""}` : ""}`, sub: fmt(o.a), acts: [["Ideen", "ideas"], ["Erledigt", "done:a" + y]] });
     }
-    if (e.type === "deadline" && n >= -3 && n <= e.remindDays && !e.done.includes("d" + iso(o.a))) add({ n, o, color: "var(--c-deadline)", t: `Frist: ${e.title}`, sub: `${n < 0 ? "überfällig seit " : "fällig "}${fmt(o.a)}${e.note ? " · " + e.note : ""}`, acts: [["Erledigt", "done:d" + iso(o.a)]] });
+    if (e.type === "deadline" && n >= -3 && n <= e.remindDays && !e.done.includes("d" + iso(o.a))) add({ n, o, color: "var(--c-deadline)", t: `${fkIcon(e)} Frist: ${e.title}`, sub: `${n < 0 ? "überfällig seit " : "fällig "}${fmt(o.a)}${e.note ? " · " + e.note : ""}`,
+      acts: e.renew && (!e.repeat || e.repeat === "none") ? [[e.fk === "vertrag" || e.fk === "versicherung" ? "Gekündigt" : "Erledigt", "done:d" + iso(o.a)], ["Läuft weiter", "renew"]] : [["Erledigt", "done:d" + iso(o.a)]] });
     if (isTrip(o) && n >= 0 && n <= 92) {
       const k = `trip-${vacKey(o)}-${iso(o.a)}`, cc = tripCountry(e), C = COUNTRIES[cc];
       const step = (key, when, t, sub) => { if (!REMP.dismissed.includes(key + k)) add({ n, o, color: "var(--trip)", t, sub, acts: [["Erledigt", "season:" + key + k]] }); };
@@ -1725,7 +1734,7 @@ function buildReminders() {
   return R.filter(r => !(r.o?.ev.type === "birthday" && !r.t.startsWith("Geburtstag unterwegs") && r.n > 0 && unterwegs.has(r.o.ev.id + iso(r.o.a)))).sort((a, b) => a.n - b.n);
 }
 let REMS = [];
-const ACT_ICON = { "Ideen": "💡", "Erledigt": "✓", "Gratuliert": "✓", "Gemeldet": "✓", "Ja, alles da": "✓", "Packliste": "🎒", "Route": "🧭", "Wunsch erfragen": "💬", "Nachricht": "💬", "Planen": "🎁", "Öffnen": "›", "Kein Bedarf": "✕", "Später": "⏰", "Bearbeiten": "✎" };
+const ACT_ICON = { "Ideen": "💡", "Erledigt": "✓", "Gekündigt": "✓", "Läuft weiter": "↻", "Gratuliert": "✓", "Gemeldet": "✓", "Ja, alles da": "✓", "Packliste": "🎒", "Route": "🧭", "Wunsch erfragen": "💬", "Nachricht": "💬", "Planen": "🎁", "Öffnen": "›", "Kein Bedarf": "✕", "Später": "⏰", "Bearbeiten": "✎" };
 let soonAll = false;
 const inDaysShort = n => n === 0 ? "Heute" : n === 1 ? "Morgen" : n < 0 ? `vor ${-n} T.` : `in ${n} T.`;
 function renderSoon() {
@@ -1763,6 +1772,8 @@ async function remAction(i, act) {
   if (act === "route") { const p = placeOf(e); if (p) window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p)}`, "_blank", "noopener"); return; }
   if (act === "edit") return showForm(e);
   if (act.startsWith("gift:")) { const y = act.slice(5); return upd({ giftDone: [...new Set([...e.giftDone, y])] }, `${e.title}: erledigt`, { giftDone: e.giftDone }); }
+  if (act === "renew") { const y = +e.renew || 1, sh = d => { const x = parseIso(d); if (!x) return d; x.setFullYear(x.getFullYear() + y); return iso(x); };
+    return upd({ from: sh(e.from), to: sh(e.to || e.from) }, `Verlängert – nächste Frist ${fmt(parseIso(sh(e.from)))}`, { from: e.from, to: e.to }); }
   if (act.startsWith("done:")) { const k = act.slice(5); return upd({ done: [...new Set([...e.done, k])] }, "Erledigt", { done: e.done }); }
   if (act === "contacted") return upd({ from: iso(TODAY), to: iso(TODAY) }, `${e.title}: gemeldet`, { from: e.from, to: e.to });
   if (act.startsWith("season:")) { const k = act.slice(7), prev = [...REMP.dismissed]; REMP.dismissed = [...new Set([...prev, k])].slice(-60);
@@ -1975,10 +1986,15 @@ async function docUpload(e, fs) {
       if (!pdf && blob.size > FILE_MAX) blob = await shrinkImg(file, 1100, 0.72, true).catch(() => blob);
       if (blob.size > FILE_MAX) { toast(`„${file.name}“ ist zu groß (max. 5 MB)`); continue; }
       if (pdf) { const n = await pdfTooLong(file); if (n) { toast(`„${file.name}“ hat ${n} Seiten – bitte nur die wichtigen Seiten hochladen (max. ${PDF_MAX_PAGES})`); continue; } }
-      const s = fb64(await blob.arrayBuffer()), n = Math.ceil(s.length / CHUNK), id = "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      for (let i = 0; i < n; i++) { if (n > 2) say(`Speichere „${file.name}“ … ${Math.round(i / n * 100)} %`); await COLL("files").doc(`${id}_${i}`).set({ d: s.slice(i * CHUNK, (i + 1) * CHUNK), ev: e.id }); }
+      const id = "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ftype = pdf ? "application/pdf" : (blob.type || "image/jpeg");
+      // zuerst in den Dateispeicher (Cloudflare R2); nur wenn der (noch) nicht eingerichtet ist: wie bisher in die Datenbank
+      const r2 = window.mkFile ? await window.mkFile("PUT", id, blob, ftype).catch(() => null) : null;
+      if (r2?.status === 413) { toast(r2.code === "quota" ? `Dein Speicher ist voll (${mb(r2.used)} von ${mb(r2.limit)}). Alte Dokumente löschen – oder im größeren Tarif mehr Platz.` : `„${file.name}“ ist zu groß`); continue; }
+      let n = 0;
+      if (!r2?.ok) { const s = fb64(await blob.arrayBuffer()); n = Math.ceil(s.length / CHUNK);
+        for (let i = 0; i < n; i++) { if (n > 2) say(`Speichere „${file.name}“ … ${Math.round(i / n * 100)} %`); await COLL("files").doc(`${id}_${i}`).set({ d: s.slice(i * CHUNK, (i + 1) * CHUNK), ev: e.id }); } }
       let name = file.name || (pdf ? "Dokument.pdf" : "Bild.jpg"); if (!pdf && blob !== file) name = name.replace(/\.[^.]+$/, "") + ".jpg";
-      const meta = { id, name, type: pdf ? "application/pdf" : (blob.type || "image/jpeg"), size: blob.size, n, at: new Date().toISOString() };
+      const meta = { id, name, type: ftype, size: blob.size, n, ...(r2?.ok ? { r2: 1 } : {}), at: new Date().toISOString() };
       const cur = EV.find(x => x.id === e.id) || e; cur.files = [...(cur.files || []), meta]; e = cur;
       await COLL("events").doc(e.id).update({ files: cur.files }); FILECACHE.set(id, blob); ok++;
       COLL("docs").doc(id).set({ ...meta, ev: e.id, evTitle: e.title, evDate: e.from || iso(e.a) }).catch(() => {});
@@ -1988,8 +2004,10 @@ async function docUpload(e, fs) {
   toast(ok > 1 ? `${ok} Dokumente gespeichert` : "Dokument gespeichert");
   if (sample && canWrite) docAnalyze(e); else { const o = findOcc(e.id, iso(e.a)); if (o && sheetMode === "event") showEvent(o); }
 }
+const mb = b => `${(Math.max(0, +b || 0) / 1e6).toLocaleString("de-DE", { maximumFractionDigits: (+b || 0) < 1e7 ? 1 : 0 })} MB`;
 async function fileBlob(f) {
   if (FILECACHE.has(f.id)) return FILECACHE.get(f.id);
+  if (f.r2) { const b0 = await window.mkFile("GET", f.id); const b = b0.type ? b0 : new Blob([b0], { type: f.type }); FILECACHE.set(f.id, b); return b; }
   const parts = await Promise.all(Array.from({ length: f.n }, (_, i) => COLL("files").doc(`${f.id}_${i}`).get()));
   if (parts.some(d => !d.exists)) throw new Error("missing");
   const b = new Blob([funb64(parts.map(d => d.data().d).join(""))], { type: f.type }); FILECACHE.set(f.id, b); return b;
@@ -2038,7 +2056,8 @@ async function docsRemove(fids) {
   for (const e of EV.filter(e => !e.shared && (e.files || []).some(f => S.has(f.id)))) { e.files = e.files.filter(f => !S.has(f.id)); await COLL("events").doc(e.id).update({ files: e.files }); }
   for (const fid of fids) { const f = DOCS.find(x => x.id === fid) || EV.flatMap(e => e.files || []).find(x => x.id === fid);
     await COLL("docs").doc(fid).delete().catch(() => {});
-    if (f) for (let i = 0; i < f.n; i++) COLL("files").doc(`${f.id}_${i}`).delete().catch(() => {});
+    if (f?.r2) window.mkFile?.("DELETE", f.id).catch(() => {});
+    else if (f) for (let i = 0; i < f.n; i++) COLL("files").doc(`${f.id}_${i}`).delete().catch(() => {});
     FILECACHE.delete(fid); }
 }
 async function docDelete(id, fid) {
@@ -2055,10 +2074,49 @@ function docSync() { // Dokumente aus Terminen ins Archiv übernehmen und Titel/
   if (!canWrite) return;
   EV.filter(e => !e.shared && (e.files || []).length).forEach(e => e.files.forEach(f => {
     const d = DOCS.find(x => x.id === f.id), want = { ev: e.id, evTitle: e.title, evDate: e.from || iso(e.a) };
-    if (DOCSYNC.has(f.id) || (d && d.evTitle === want.evTitle && d.evDate === want.evDate && d.ev === want.ev)) return;
-    DOCSYNC.add(f.id); COLL("docs").doc(f.id).set({ name: f.name, type: f.type, size: f.size, n: f.n, at: f.at || "", ...want }).catch(() => {}).finally(() => DOCSYNC.delete(f.id)); }));
+    if (DOCSYNC.has(f.id) || (d && d.evTitle === want.evTitle && d.evDate === want.evDate && d.ev === want.ev && !!d.r2 === !!f.r2)) return;
+    DOCSYNC.add(f.id); COLL("docs").doc(f.id).set({ name: f.name, type: f.type, size: f.size, n: f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: f.at || "", ...want }).catch(() => {}).finally(() => DOCSYNC.delete(f.id)); }));
+}
+// Meine Fristen: nächste offene Fälligkeit je Frist (auch kürzlich überfällige), sortiert
+function frList() {
+  const seen = new Set(), L = [], open = o => dayDiff(TODAY, o.a) >= -60 && !(o.ev.done || []).includes("d" + iso(o.a));
+  // einmalige Fristen direkt (auch weit in der Zukunft, z. B. Reisepass in 8 Jahren), wiederkehrende aus den berechneten Terminen
+  EV.filter(e => e.type === "deadline" && !e.shadow && e.a && (!e.repeat || e.repeat === "none")).forEach(e => { const o = { ev: e, a: e.a, b: e.b || e.a }; if (open(o)) { seen.add(e.id); L.push(o); } });
+  OCC.filter(o => o.ev.type === "deadline" && !o.ev.shadow && !seen.has(o.ev.id) && open(o)).sort((a, b) => a.a - b.a).forEach(o => { if (seen.has(o.ev.id)) return; seen.add(o.ev.id); L.push(o); });
+  return L.sort((a, b) => a.a - b.a);
+}
+function showFristen() {
+  const L = frList(), row = o => { const n = dayDiff(TODAY, o.a), e = o.ev;
+    return `<button type="button" class="fr-row${n < 0 ? " late" : n <= (+e.remindDays || 14) ? " soon" : ""}" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="fr-i">${fkIcon(e)}</span><span class="fr-t"><b>${esc(e.title)}</b><small>${fmtY(o.a)}${e.renew ? " · läuft danach weiter" : ""}</small></span><span class="fr-n">${n < 0 ? `seit ${-n} T.` : n === 0 ? "heute" : n < 60 ? `in ${n} T.` : n < 730 ? `in ${Math.round(n / 30)} Mon.` : `in ${Math.round(n / 365)} J.`}</span></button>`; };
+  openSheet("Meine Fristen", "Was als Nächstes abläuft – du wirst rechtzeitig erinnert", `
+    ${L.length ? `<div class="fr-l">${L.map(row).join("")}</div>` : `<p class="note" style="margin-top:10px">Noch keine Fristen. Fotografier einfach einen Vertrag, deinen Ausweis oder einen Kassenbon – oder trag eine Frist von Hand ein.</p>`}
+    <div class="btnrow" style="margin-top:14px"><button type="button" class="btn accent small" id="fr-new">+ Frist eintragen</button><button type="button" class="btn ghost small" id="mi-account">‹ Konto</button></div>
+    <p class="note" style="margin-top:10px">Tipp: Beim Ausweis oder Reisepass übernimmt die App nur das Ablaufdatum – das Foto wird nicht gespeichert.</p>`, "frist");
+}
+// Speicherbelegung (Cloudflare R2) – wird beim Öffnen der Dokumente kurz abgefragt
+let STORE = null;
+async function storeLoad() { const r = window.mkFile ? await window.mkFile("GET", "").catch(() => null) : null; STORE = r?.limit ? r : null; if (STORE && sheetMode === "docs" && !$("sheet").hidden) { const m = $("doc-store"); if (m) m.outerHTML = storeHtml(); } }
+const storeHtml = () => { if (!STORE) return `<div id="doc-store" hidden></div>`; const p = Math.min(100, Math.round(STORE.used / STORE.limit * 100));
+  return `<div id="doc-store" class="store"><div class="store-t"><span>Belegt: <b>${mb(STORE.used)}</b> von ${mb(STORE.limit)}</span><span>${p} %</span></div><div class="store-b"><i style="width:${Math.max(2, p)}%;${p >= 90 ? "background:var(--danger,#c62828)" : ""}"></i></div>${p >= 80 ? `<p class="note">Fast voll – lösch alte Dokumente oder hol dir mehr Platz im Tarif Plus.</p>` : ""}</div>`; };
+// Ältere Dokumente (in der Datenbank gespeichert) nach und nach in den Dateispeicher umziehen
+let MIGR = false;
+async function docsMigrate() {
+  if (MIGR || !APP || !canWrite || !window.mkFile) return; MIGR = true;
+  const old = EV.filter(e => !e.shared).flatMap(e => (e.files || []).filter(f => !f.r2 && f.n > 0).map(f => ({ e, f }))).slice(0, 8);
+  for (const { e, f } of old) {
+    try {
+      const b = await fileBlob(f), r = await window.mkFile("PUT", f.id, b, f.type || b.type);
+      if (r?.status === 501 || !r?.ok) break;                     // Speicher noch nicht eingerichtet oder voll → später erneut
+      const cur = EV.find(x => x.id === e.id); if (!cur) continue;
+      cur.files = (cur.files || []).map(x => x.id === f.id ? { ...x, r2: 1, n: 0 } : x);
+      await COLL("events").doc(cur.id).update({ files: cur.files });
+      await COLL("docs").doc(f.id).update({ r2: 1, n: 0 }).catch(() => {});
+      for (let i = 0; i < f.n; i++) COLL("files").doc(`${f.id}_${i}`).delete().catch(() => {});
+    } catch { break; }
+  }
 }
 function showDocs() {
+  storeLoad();
   const q = docQ.trim().toLowerCase();
   const all = DOCS.map(d => ({ d, L: docLbl(d) })).sort((a, b) => b.L.sort - a.L.sort || String(b.d.at).localeCompare(String(a.d.at)));
   const list = all.filter(x => !q || `${x.d.name} ${x.L.title} ${x.L.date}`.toLowerCase().includes(q));
@@ -2066,7 +2124,7 @@ function showDocs() {
   const row = ({ d, L }) => `<div class="doc-row"><label class="doc-ck"><input type="checkbox" data-docsel="${esc(d.id)}"${DOCSEL.has(d.id) ? " checked" : ""} aria-label="Auswählen"></label>
     <button type="button" class="doc" data-doc="|${esc(d.id)}"><span>${isPdfF(d) ? "📄" : "🖼️"}</span><span class="doc-n"><b>${esc(L.title)}</b>${L.date ? ` · ${esc(L.date)}` : ""}<small class="doc-s">${esc(d.name)} · ${fSize(d.size)}</small></span></button></div>`;
   const act = list.filter(x => !x.L.gone), gone = list.filter(x => x.L.gone);
-  openSheet("Meine Dokumente", "Tickets, Buchungen und PDFs aus deinen Terminen – auch von gelöschten. Nur für dich.", `
+  openSheet("Meine Dokumente", "Tickets, Buchungen und PDFs aus deinen Terminen – auch von gelöschten. Nur für dich.", `${storeHtml()}
     ${DOCS.length > 4 ? `<input type="search" class="search" id="doc-q" placeholder="Suchen: Termin, Datum oder Dateiname" value="${esc(docQ)}" style="margin-top:8px">` : ""}
     ${!DOCS.length ? `<p class="note" style="margin-top:10px">Noch keine Dokumente. Du hängst sie in einem Termin über „📎 Datei hinzufügen“ an.</p>` : ""}
     ${act.length ? `<h3 class="pkh">Zu Terminen</h3><div class="docs-l">${act.map(row).join("")}</div>` : ""}
@@ -2595,7 +2653,7 @@ function goToday() {
   if (view === "week") setWeek(TODAY);
   if (view === "list") { $("q").value = ""; $("l-past").checked = false; renderList(); }
 }
-const findOcc = (id, a) => OCC.find(o => o.ev.id === id && iso(o.a) === a) || OCC.find(o => o.ev.id === id) || gSeen.get(id);
+const findOcc = (id, a) => OCC.find(o => o.ev.id === id && iso(o.a) === a) || OCC.find(o => o.ev.id === id) || gSeen.get(id) || (e => e && e.a ? { ev: e, a: e.a, b: e.b || e.a } : null)(EV.find(x => x.id === id));   // auch weit in der Zukunft (z. B. Reisepass)
 
 // =================== Sheets ===================
 const sheet = $("sheet");
@@ -2827,7 +2885,8 @@ async function showAccount() {
   let me = {}; try { me = await (await claude.use("user"))?.me?.() || {}; } catch {}
   openSheet("Konto", "", `<div class="acc">
     <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">${(() => { const a = window.mkAuthInfo?.() || {}; return a.google && a.pw ? "angemeldet mit Google oder E-Mail und Passwort" : a.google ? "angemeldet mit Google" : "angemeldet mit E-Mail"; })()}</span></div>
-    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-docs">📁 Meine Dokumente${DOCS.length ? ` <em>${DOCS.length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Tickets, Buchungen und PDFs – alles, was du an Termine gehängt hast. Nur du siehst sie.</p>` : ""}
+    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-docs">📁 Meine Dokumente${DOCS.length ? ` <em>${DOCS.length}</em>` : ""}
+    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-fr">⏰ Meine Fristen${frList().length ? ` <em>${frList().length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Verträge, Ausweis, Garantie, TÜV – alles mit Ablaufdatum.</p>` : ""}</button><p class="note" style="margin-top:-4px">Tickets, Buchungen und PDFs – alles, was du an Termine gehängt hast. Nur du siehst sie.</p>` : ""}
     <button type="button" class="btn ghost big" id="acc-pw">${(window.mkAuthInfo?.() || {}).pw ? "Passwort ändern" : "Passwort festlegen"}</button>
     <button type="button" class="btn ghost big" id="app-logout">Abmelden</button>
     <p class="note">Deine Daten bleiben gespeichert – nach der nächsten Anmeldung ist alles wieder da.</p>
@@ -2979,13 +3038,14 @@ async function formFromDocs(files, link) {
     if (!att.texts.length && !att.imgs.length && !lk.texts.length) { await say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
     await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""}${lk.texts.length ? " vom Link" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Anreise …`); await say("✍️ Ich fülle die Felder aus …");
     const cur = $("f-type")?.value || "termin", ctx = cur === "abholen" ? `\nDer Nutzer füllt gerade das Formular „Abholen & Bringen“ aus: lege type "abholen" mit pick an (wen abholen/bringen, Zug-/Flugnummer, Bahnhof/Flughafen, Ankunfts- bzw. Abfahrtszeit dort). Ist kein Name erkennbar, lass pick.who leer.`
-      : cur === "urlaub" ? `\nDer Nutzer füllt gerade das Formular „Urlaub & Ferien“ aus: type "urlaub", title = Ziel bzw. Unterkunft, from/to = Urlaubszeitraum, time = erste Abfahrt/Abflug, Hin- und Rückreise (Zug/Flug, Zeiten) kurz in note.` : "";
+      : cur === "urlaub" ? `\nDer Nutzer füllt gerade das Formular „Urlaub & Ferien“ aus: type "urlaub", title = Ziel bzw. Unterkunft, from/to = Urlaubszeitraum, time = erste Abfahrt/Abflug, Hin- und Rückreise (Zug/Flug, Zeiten) kurz in note.`
+      : cur === "deadline" ? `\nDer Nutzer trägt gerade eine Frist ein (Vertrag, Ausweis, Garantie, TÜV …): ${FK_AI}` : "";
     const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}${ctx}
-Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen", "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": ""} oder null}
+Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen" | "deadline", "fk": "", "renew": 0, "remindDays": 0, "nostore": false, "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": ""} oder null}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
     const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
-    const ty = cur === "abholen" || cur === "urlaub" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin"].includes(r.type) ? r.type : "";
+    const ty = cur === "abholen" || cur === "urlaub" || cur === "deadline" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin", "deadline"].includes(r.type) ? r.type : "";
     if (ty && ty !== cur) { $("f-type").value = ty; syncFormFields(); }
     if (ty === "abholen") {
       const pk = r.pick || {}, tap = (a, v) => document.querySelector(`[${a}="${v}"]`)?.click();
@@ -2995,10 +3055,14 @@ ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "defa
       if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
       pickPreview(); await say(`✓ Ausgefüllt aus ${FORM_FILES.map(f => f.name).join(", ") || "dem Link"}${att.long.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Das Ticket wird beim Speichern angehängt." : ""}`); return;
     }
-    set("f-title", r.title); set("f-from", r.from); set("f-to", parseIso(r.to) ? r.to : r.from); set("f-place", r.place);
+    if (ty === "deadline") { if (FK[r.fk]) document.querySelector(`[data-ffk="${r.fk}"]`)?.click(); if ($("f-renew")) $("f-renew").checked = [1, 2].includes(+r.renew);
+      if (+r.remindDays > 0) set("f-rem", +r.remindDays);
+      if (r.nostore || ["ausweis", "pass"].includes(r.fk)) { FORM_FILES = []; files.length = 0; } }
+    set("f-title", r.title); set("f-from", r.from); set("f-to", ty === "deadline" ? r.from : parseIso(r.to) ? r.to : r.from); set("f-place", r.place);
     if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
     if (r.time) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; set("f-time", r.time); set("f-end", r.endTime); }
     if (MODES[r.mode]) { const m = document.querySelector(`[name=fmode][value="${r.mode}"]`); if (m) m.checked = true; }
+    if (ty === "deadline" && (r.nostore || ["ausweis", "pass"].includes(r.fk))) { await say("✓ Ablaufdatum übernommen – bitte kurz prüfen. Das Foto des Ausweises wird nicht gespeichert."); return; }
     await say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"}${att.long?.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
   } catch (err) { await say(err?.code === "rate_limited" ? RL(err) : "Das Auslesen hat nicht geklappt."); }
 }
@@ -3052,6 +3116,7 @@ function showForm(e, preset) {
         <div id="f-by-wrap"><label for="f-by">Geburtsjahr</label><input id="f-by" type="number" inputmode="numeric" min="1900" max="2028" placeholder="fürs Alter" value="${esc(v.birthYear || "")}"></div>
         <div id="f-sy-wrap"><label for="f-sy">Seit Jahr</label><input id="f-sy" type="number" inputmode="numeric" min="1900" max="2028" placeholder="z. B. 2015" value="${esc(v.startYear || "")}"></div>
         <div id="f-ew-wrap"><label for="f-ew">Erinnern alle … Wochen</label><input id="f-ew" type="number" inputmode="numeric" min="1" max="104" value="${esc(v.everyWeeks || 8)}"></div>
+        <div id="f-renew-wrap" hidden><input type="hidden" id="f-fk" value="${esc(v.fk || "")}"><label class="ck" style="margin-top:22px"><input type="checkbox" id="f-renew"${v.renew ? " checked" : ""}> Läuft danach weiter</label></div>
         <div id="f-rem-wrap"><label for="f-rem">Erinnerung (Tage vorher)</label><input id="f-rem" type="number" inputmode="numeric" min="0" max="120" placeholder="Standard" value="${esc(rd)}"></div>
       </div>
       <label class="tog setrow" id="f-thx-wrap" style="margin-top:6px"><input type="checkbox" id="f-thx"${v.thanks ? " checked" : ""}> Am Tag danach an „Danke sagen“ erinnern</label>
@@ -3099,7 +3164,9 @@ function formLayout(ty) {
   $("f-pick-wrap").hidden = ty !== "abholen"; $("f-title-grp").classList.toggle("f-off", ty === "abholen");
   if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
   const sug = $("f-tsug"); if (sug) { const L = titleSug(ty);
-    sug.innerHTML = L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = !L.length; }
+    sug.innerHTML = ty === "deadline" ? FK_CHIP.map(([k, l]) => `<button type="button" class="tkq" data-ffk="${k}"${$("f-fk")?.value === k ? ' aria-pressed="true"' : ""}>${FK[k].i} ${esc(l)}</button>`).join("")
+      : L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = ty !== "deadline" && !L.length; sug.classList.toggle("fk2", ty === "deadline"); }
+  if ($("f-renew-wrap")) $("f-renew-wrap").hidden = ty !== "deadline";
   const tt = $("f-att-t"); if (tt) tt.textContent = ty === "abholen" ? "Ticket / Screenshot" : ty === "urlaub" ? "Buchung / Tickets" : "Ticket / Buchung";
   if (!$("f-title").value && TITLE_PH[ty]) $("f-title").placeholder = TITLE_PH[ty];
   const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
@@ -3158,6 +3225,7 @@ function formVals0() {
   return { type, title: g("f-title"), from: g("f-from"), to: contact ? g("f-from") : (g("f-to") || g("f-from")), time: contact ? "" : g("f-time"), endTime: contact ? "" : g("f-end"),
     repeat: contact ? "none" : repVal(), until: ["d", "w", "m"].includes(repSpec(repVal())?.u) ? g("f-until") : "", birthYear: type === "birthday" && +g("f-by") ? +g("f-by") : 0, note: g("f-note"),
     remindDays: ["birthday", "anniversary", "deadline"].includes(type) && g("f-rem") !== "" ? Math.max(0, +g("f-rem") || 0) : (REMIND_DEF[type] ?? 0), giftDone: editing ? editing.giftDone : [],
+    fk: type === "deadline" ? g("f-fk") : "", renew: type === "deadline" && $("f-renew")?.checked ? (FK[g("f-fk")]?.renew || editing?.renew || 1) : 0,
     done: editing ? editing.done : [], startYear: type === "anniversary" ? +g("f-sy") || 0 : 0, everyWeeks: contact ? Math.max(1, +g("f-ew") || 8) : 8,
     thanks: ["termin", "trip"].includes(type) && $("f-thx").checked, packlist: editing ? editing.packlist : [],
     who: contact || type === "birthday" ? "" : g("f-who"), color: (() => { const w = contact || type === "birthday" ? "" : g("f-who"), c = document.querySelector('[data-fcol][aria-checked="true"]')?.dataset.fcol || ""; if (w) { const M = whoCols(); if (c) M[whoKey(w)] = c; else delete M[whoKey(w)]; store.set("ft-whoc", JSON.stringify(M)); return ""; } return c; })(),
@@ -3198,7 +3266,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
-  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow });
+  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0 });
 let gWarn = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
@@ -3478,6 +3546,7 @@ Felder für neue/geänderte eigene Termine:
 - place: Ort für die Navigation. Bei einem Hotel, Restaurant oder bekannten Ort die vollständige Adresse (Name, Straße Nr., PLZ Ort), aber NUR wenn du sie sicher kennst – sonst Name und Ort wie genannt (z. B. "Inselhotel, Potsdam"). Nichts erfinden. Ohne Ortsangabe ""
 - flight: true bei Reisen mit Flug (Flugnummer, Flughafen, Airline), sonst false
 - kids: true, wenn Kinder${kidsNames().length ? ` (${kidsNames().join(", ")})` : ""} mitreisen, sonst false
+- bei type "deadline" zusätzlich fk, renew, remindDays, nostore: ${FK_AI}
 - calendar: siehe unten
 ${TRAIN_RULE}
 
@@ -3530,7 +3599,7 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
         if (famGroups().length && ev.type !== "birthday" && gWritable()) { const pick = famPick(ev.title + " " + (ev.note || "")) || famPick($("a-in")?.value || ""); if (pick) ev.gcal = pick; }
         if (SHR_ON() && ev.type !== "birthday") ev.shareTo = [...new Set([...shrPick(ev.title + " " + ($("a-in")?.value || "")), ...autoLs()])]; }
       if (validate(ev)) return null;
-      return { op: a.op, id: a.id, event: ev };
+      return { op: a.op, id: a.id, event: ev, nostore: ev.type === "deadline" && (!!a.event?.nostore || ["ausweis", "pass"].includes(ev.fk)) };
     }).filter(Boolean);
     out.innerHTML = `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
       ${canWrite ? `<button type="button" class="btn accent wide" id="a-apply">Übernehmen</button>` : `<p class="note">Speichern kann nur der Besitzer der Seite.</p>`}` : "");
@@ -3572,7 +3641,8 @@ async function applyAssistant() {
     }
     if (gs.length) { mcp.invalidate(GSERVER, "list_events").catch(() => {}); gResync(); }
     const undoOwn = own.length ? await applyChanges(own) : null;
-    const files = ASST_FILES; ASST_FILES = [];
+    let files = ASST_FILES; ASST_FILES = [];
+    if (picked.some(a => a.nostore)) { files = []; setTimeout(() => toast("Nur das Ablaufdatum übernommen – das Foto des Ausweises wurde nicht gespeichert."), 1800); }
     closeSheet();
     const newId = LAST_ADDED.find(x => ["trip", "termin"].includes(x.v.type)) || LAST_ADDED[0];
     if (files.length && newId) setTimeout(() => docUpload({ ...newId.v, id: newId.id, files: [], a: parseIso(newId.v.from), b: parseIso(newId.v.to || newId.v.from) }, files), 400);
@@ -4544,6 +4614,9 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-admplan]"))) { const [u, pl] = el.dataset.admplan.split("|"); window.mkAdminPlan?.(u, pl).then(r => { toast(r?.ok ? "Tarif gesetzt" : "Ging nicht"); showAdmin(true); }); return; }
   if ((el = q("[data-admtab]"))) { ADM_TAB = el.dataset.admtab; showAdmin(); return; }
   if ((el = q("[data-qcol]"))) { const v = el.dataset.qcol, cid = v.slice(v.lastIndexOf("|") + 1), eid = v.slice(0, v.lastIndexOf("|")); if (eid.startsWith("g:")) quickGColor(eid, cid); else quickColor(eid, cid); return; }
+  if ((el = q("[data-ffk]"))) { const k = el.dataset.ffk, d = FK[k], t = $("f-title"); $("f-fk").value = k;
+    if (!t.value.trim() || Object.values(FK).some(x => x.t === t.value.trim())) { t.value = d.t; t.dispatchEvent(new Event("input", { bubbles: true })); }
+    $("f-rem").value = d.lead; $("f-renew").checked = !!d.renew; document.querySelectorAll("[data-ffk]").forEach(b => b.setAttribute("aria-pressed", String(b === el))); return; }
   if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
   if ((el = q("#f-more"))) { fMore = !fMore; syncFormFields(); return; }
   if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
@@ -4664,6 +4737,8 @@ document.addEventListener("click", ev => {
     case "menu-btn": toggleMenu(); break;
     case "mi-google": showGoogleSheet(); break;
     case "g-btn": showGoogleSheet(); break;
+    case "acc-fr": showFristen(); break;
+    case "fr-new": closeSheet(); showForm({ type: "deadline", title: "", from: iso(TODAY), to: iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: "", remindDays: "" }); break;
     case "mi-docs": case "acc-docs": DOCSEL = new Set(); docQ = ""; docDelArm = false; showDocs(); break;
     case "mi-fam": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "mi-share2": showFamShare(); break;
@@ -4962,10 +5037,10 @@ renderAll();
 
     TASKS.filter(t => t.done && t.doneAt && Date.now() - Date.parse(t.doneAt) > 30 * 864e5).forEach(t => COLL("tasks").doc(t.id).delete().catch(() => {})); // Erledigtes nach 30 Tagen aufräumen
   }, () => {});
-  COLL("docs").onSnapshot(snap => { DOCS = snap.docs.map(d => ({ ...JSON.parse(JSON.stringify(d.data() || {})), id: d.id })).filter(d => d.n > 0).map(d => ({ ...d, name: String(d.name || "Dokument"), size: +d.size || 0, n: +d.n }));
+  COLL("docs").onSnapshot(snap => { DOCS = snap.docs.map(d => ({ ...JSON.parse(JSON.stringify(d.data() || {})), id: d.id })).filter(d => d.n > 0 || d.r2).map(d => ({ ...d, name: String(d.name || "Dokument"), size: +d.size || 0, n: +d.n || 0 }));
     docSync(); if (sheetMode === "docs" && !$("sheet").hidden) showDocs(); }, () => {});
   COLL("events").onSnapshot(snap => {
-    clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); } shrQueue();
+    clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); setTimeout(docsMigrate, 40e3); } shrQueue();
     if (!window.__us) { window.__us = 1; use("app_start"); adminCheck().catch(() => {}); setTimeout(() => { trainStatusLoad(true); trainStatusLoop(); }, 1500); }
     const all = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); MERK = all.filter(e => e.mOnly); EV = all.filter(e => !e.mOnly); docSync();
     if (sheetMode === "event" && !$("sheet").hidden && sheetCtx?.id?.startsWith?.("g:")) { const b = document.querySelector("[data-gmerk]"); if (b) { const o = findOcc(sheetCtx.id, sheetCtx.a); if (o) b.textContent = merkBtn(o); } }

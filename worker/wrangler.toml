@@ -15,6 +15,13 @@ MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente au
 #   Fehlt ein Wert, gilt die Zahl in Klammern. Hier bewusst NICHT eintragen – sonst überschreibt jedes Bereitstellen die Werte aus dem Dashboard.
 GOOGLE_CLIENT_ID = "15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"
 
+# Dokumente (Tickets, Buchungen) in Cloudflare R2 – erst einkommentieren, wenn der Bucket im Dashboard angelegt ist
+# (R2 → Bucket erstellen → Name „mein-kalender-dokumente“, Standort/Jurisdiction: EU). Ohne Bindung speichert die App wie bisher in der Datenbank.
+# [[r2_buckets]]
+# binding = "DOCS"
+# bucket_name = "mein-kalender-dokumente"
+# jurisdiction = "eu"
+
 [triggers]
 crons = ["*/5 * * * *"]                               # alle 5 Minuten: fällige Benachrichtigungen verschicken
 

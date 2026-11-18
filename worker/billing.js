@@ -20,9 +20,9 @@
 // Der Tarif liegt in den app_metadata des Supabase-Kontos – die kann nur der Server ändern, nicht die App.
 
 export const PLAN_BASE = {
-  free:   { label: "Kostenlos", ai: 30,  img: 5,  flight: false, family: false },
-  plus:   { label: "Plus",      ai: 300, img: 50, flight: true,  family: false },
-  family: { label: "Familie",   ai: 500, img: 60, flight: true,  family: true, seats: 4, shared: true },   // Kontingent gilt gemeinsam für alle 4
+  free:   { label: "Kostenlos", ai: 30,  img: 5,  mb: 100,  flight: false, family: false },
+  plus:   { label: "Plus",      ai: 300, img: 50, mb: 2000, flight: true,  family: false },
+  family: { label: "Familie",   ai: 500, img: 60, mb: 2000, flight: true,  family: true, seats: 4, shared: true },   // Kontingent gilt gemeinsam für alle 4
 };
 
 export function plans(env) {
