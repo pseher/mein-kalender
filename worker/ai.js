@@ -14,9 +14,9 @@ import { flightCheck } from "./flight.js";
 import { filesRoute, deleteUserFiles } from "./files.js";
 import { billingRoute, planOf, resolvePlan, usageOf, planBlock, noteFamilyLimit, mode as billMode } from "./billing.js";
 
-const VERSION = "2026-11-18a";
+const VERSION = "2026-11-18b";
 const PRICE = { "claude-sonnet-5-5": [2, 10], "claude-haiku-4-5-20251001": [1, 5], "claude-haiku-4-5": [1, 5], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-5-5": [5, 25] };   // $ je 1 Mio. Tokens (Ein-, Ausgabe) – wie im Dashboard
-const MAX_PROMPT = 24000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
+const MAX_PROMPT = 40000, MAX_IMAGES = 5, MAX_IMAGE_B64 = 2_000_000;
 
 export default {
   // Zeitplan (wrangler.toml → [triggers]): fällige Benachrichtigungen verschicken

@@ -3510,6 +3510,15 @@ async function lookupEvents(fromS, toS, query, signal) {
   out.sort((x, y) => String(x.von || "").localeCompare(String(y.von || "")));
   return out.slice(0, 150);
 }
+// Für den Freitext nur aktuelle Einträge mitschicken (sonst wird die Anfrage bei vielen Terminen zu lang)
+function asstEvList() {
+  const keep = e => !e.shadow && (e.repeat && e.repeat !== "none" || !e.b || dayDiff(TODAY, e.b) >= -45);
+  const cmp = e => { const c = evCompact(e); if (c.note && c.note.length > 160) c.note = c.note.slice(0, 160) + " …"; return c; };
+  let L = EV.filter(keep), cut = L.length < EV.length, json = JSON.stringify(L.map(cmp));
+  if (json.length > 12000) { L = L.sort((x, y) => Math.abs(dayDiff(TODAY, x.a)) - Math.abs(dayDiff(TODAY, y.a)));   // die zeitlich nächsten zuerst
+    while (json.length > 12000 && L.length > 20) { L = L.slice(0, Math.floor(L.length * 0.85)); json = JSON.stringify(L.map(cmp)); cut = true; } }
+  return { json, cut };
+}
 async function runAssistant() {
   use("freitext");
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
@@ -3568,8 +3577,8 @@ Kopierte Nachrichten:
 
 Google-Kalender für neue Termine (Feld "calendar" in event): "Mein Kalender" für eigene Termine${gCals.filter(c => selectedCals().includes(c.id)).length ? `, sonst einer von: ${gCals.filter(c => selectedCals().includes(c.id)).map(c => `"${c.summary}"`).join(", ")}, wenn er offensichtlich passt` : ""}; "" wenn der Termin nur hier stehen soll (z. B. reine Hinweise).
 
-Eigene Termine (JSON):
-${JSON.stringify(EV.map(evCompact))}
+Eigene Termine (JSON${asstEvList().cut ? `, nur aktuelle und kommende – ältere findest du mit find_events` : ""}):
+${asstEvList().json}
 ${context}
 Antworte am Ende NUR mit JSON in genau dieser Form:
 {"reply": "1–3 kurze Sätze auf Deutsch: was du verstanden hast, oder die Antwort auf die Frage mit den gefundenen Terminen (Titel, Datum, Uhrzeit, Kalender)", "actions": [
@@ -3612,7 +3621,7 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
     out.innerHTML = `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
       ${canWrite ? `<button type="button" class="btn accent wide" id="a-apply">Übernehmen</button>` : `<p class="note">Speichern kann nur der Besitzer der Seite.</p>`}` : "");
   } catch (e) {
-    out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
+    out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : e?.code === "too_long" ? "Das war zu viel auf einmal. Versuch es mit weniger Text oder einem Dokument." : e?.code === "bad_image" ? "Das Bild konnte nicht gelesen werden – versuch einen Screenshot oder ein anderes Foto." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
   }
   go.disabled = false; go.textContent = "Umwandeln";
 }
