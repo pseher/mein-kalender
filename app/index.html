@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261118083840";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261118084833";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -504,7 +504,9 @@ button { font: inherit; color: inherit; }
 .tchip { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 1px solid var(--line); border-top: 3px solid var(--c); background: var(--bg); color: var(--fg); border-radius: 10px; padding: 6px 2px 5px; font: inherit; font-size: 12.5px; line-height: 1.15; cursor: pointer; min-width: 0; }
 .tchip .ti { font-size: 19px; line-height: 1; } .tchip .tl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tchip[aria-checked="true"] { background: var(--c); border-color: var(--c); color: #fff; font-weight: 700; }
-.f-off { display: none !important; } .f-more { display: block; margin: 10px 0 4px; } .tsug { display: flex; flex-wrap: nowrap; gap: 6px; margin: 6px -4px 4px; padding: 0 4px 2px; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); } .tsug::-webkit-scrollbar { display: none; } .tsug > * { flex: none; } #f-pick-wrap .seg.emode { margin-bottom: 8px; } #f-pk-prev { margin: 6px 0 2px; font-weight: 600; color: var(--fg); }
+.f-off { display: none !important; } .f-more { display: block; margin: 10px 0 4px; } /* Titelvorschläge: nur so viele, wie in eine Zeile passen – der Rest bleibt unsichtbar (kein Scrollen) */
+.tsug { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; max-height: 40px; overflow: hidden; min-width: 0; } .tsug > * { flex: none; }
+#f-title-grp, .f-att, .f-att-g { min-width: 0; max-width: 100%; } #f-pick-wrap .seg.emode { margin-bottom: 8px; } #f-pk-prev { margin: 6px 0 2px; font-weight: 600; color: var(--fg); }
 .trb { display: inline-block; font-size: 13px; font-weight: 600; padding: 1px 7px; border-radius: 999px; margin-left: 4px; background: var(--soft); vertical-align: 1px; white-space: nowrap; } .trb.warn { color: #9a6700; } .trb.bad { color: var(--holiday); }
 .trd { background: var(--soft); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; line-height: 1.45; }
 .rep-c { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; } #f .rep-c input { width: 84px; flex: 0 0 84px; } #f .rep-c select { flex: 1 1 auto; width: auto; min-width: 0; }
@@ -4382,7 +4384,7 @@ function showForm(e, preset) {
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><div class="f-att-h"><b>✨ Automatisch ausfüllen</b><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "Datei, Link oder Mail – die Felder füllen sich selbst."}</span></div>
         <div class="f-att-g"><label class="f-att-b"><i>📎</i><span id="f-att-t">Ticket / Buchung</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
         <button type="button" class="f-att-b" id="f-link-btn"><i>🔗</i><span>Link</span></button>
-        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail-Text</span></button></div>
+        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail</span></button></div>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>

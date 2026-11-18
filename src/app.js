@@ -2998,7 +2998,7 @@ function showForm(e, preset) {
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><div class="f-att-h"><b>✨ Automatisch ausfüllen</b><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "Datei, Link oder Mail – die Felder füllen sich selbst."}</span></div>
         <div class="f-att-g"><label class="f-att-b"><i>📎</i><span id="f-att-t">Ticket / Buchung</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
         <button type="button" class="f-att-b" id="f-link-btn"><i>🔗</i><span>Link</span></button>
-        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail-Text</span></button></div>
+        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail</span></button></div>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
