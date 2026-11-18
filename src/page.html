@@ -186,7 +186,7 @@ button { font: inherit; color: inherit; }
 .tchip .ti { font-size: 19px; line-height: 1; } .tchip .tl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tchip[aria-checked="true"] { background: var(--c); border-color: var(--c); color: #fff; font-weight: 700; }
 .f-off { display: none !important; } .f-more { display: block; margin: 10px 0 4px; } /* Titelvorschläge: nur so viele, wie in eine Zeile passen – der Rest bleibt unsichtbar (kein Scrollen) */
-.tsug { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; max-height: 40px; overflow: hidden; min-width: 0; } .tsug > * { flex: none; }
+.tsug { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; overflow: hidden; min-width: 0; } .tsug > [hidden] { display: none !important; } .tsug > * { flex: none; }
 #f-title-grp, .f-att, .f-att-g { min-width: 0; max-width: 100%; } #f-pick-wrap .seg.emode { margin-bottom: 8px; } #f-pk-prev { margin: 6px 0 2px; font-weight: 600; color: var(--fg); }
 .trb { display: inline-block; font-size: 13px; font-weight: 600; padding: 1px 7px; border-radius: 999px; margin-left: 4px; background: var(--soft); vertical-align: 1px; white-space: nowrap; } .trb.warn { color: #9a6700; } .trb.bad { color: var(--holiday); }
 .trd { background: var(--soft); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; line-height: 1.45; }
@@ -926,9 +926,12 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
 .fr-i { font-size: 22px; } .fr-t { flex: 1; min-width: 0; } .fr-t b { display: block; } .fr-t small { color: var(--muted); font-size: 13px; }
 .fr-n { font-size: 13.5px; font-weight: 600; color: var(--muted); white-space: nowrap; } .fr-row.soon .fr-n { color: var(--c-deadline); } .fr-row.late .fr-n { color: var(--danger, #c62828); }
 .tsug .tkq[aria-pressed=true], .tsug .tkq[aria-pressed=true]:hover { background: var(--both) !important; color: #fff !important; border-color: var(--both) !important; }
-.tsug.fk2 { max-height: 84px; }   /* Arten von Fristen: zwei Zeilen */
+.tsug.fk2 { max-height: none; }   /* Arten von Fristen: zwei Zeilen (per sugClamp) */
 .sheet .fr-row, .fr-row { justify-content: flex-start; text-align: left; } .fr-row .fr-t, .fr-row .fr-t b { text-align: left; color: var(--fg); } .fr-row .fr-t small { display: block; }
 :root { --accent: var(--both); }   /* Akzentfarbe überall verfügbar (vorher nur im Einrichtungs-Assistenten) */
+#f-renew-wrap label.ck { display: flex; align-items: center; gap: 8px; margin-top: 26px; text-transform: none; letter-spacing: normal; font-size: 15px; font-weight: 500; color: var(--fg); }
+#f-renew-wrap input[type=checkbox] { width: 20px; height: 20px; margin: 0; }
+.cam { white-space: nowrap; }
 </style>
 
 <div class="wrap" lang="de">

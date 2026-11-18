@@ -1969,7 +1969,7 @@ function docsBox(e) {
   const fs = e.files || []; if (!fs.length && !canWrite) return "";
   return `<div class="docs"><div class="docs-h"><b>Dokumente</b><span class="note">Tickets, Buchungen, PDFs · nur für dich</span></div>
     ${fs.length ? `<div class="docs-l">${fs.map(f => `<button type="button" class="doc" data-doc="${esc(e.id)}|${esc(f.id)}"><span>${isPdfF(f) ? "📄" : "🖼️"}</span><span class="doc-n">${esc(f.name)}</span><small>${fSize(f.size)}</small></button>`).join("")}</div>` : ""}
-    <div class="btnrow" style="margin-top:8px">${canWrite ? `<label class="btn ghost small">📎 Datei hinzufügen<input type="file" hidden multiple accept="application/pdf,image/*" data-docadd="${esc(e.id)}"></label>` : ""}
+    <div class="btnrow" style="margin-top:8px">${canWrite ? `<label class="btn ghost small">📎 Datei hinzufügen<input type="file" hidden multiple accept="application/pdf,image/*" data-docadd="${esc(e.id)}"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" data-docadd="${esc(e.id)}"></label>` : ""}
     ${fs.length && sample && canWrite ? `<button type="button" class="btn ghost small" data-docai="${esc(e.id)}">✨ Auswerten</button>` : ""}</div>
     <div class="note" id="doc-msg"></div></div>`;
 }
@@ -3083,7 +3083,7 @@ function showForm(e, preset) {
       <div class="rep-c" id="f-repc-wrap"${!REPEAT[v.repeat] && repSpec(v.repeat) ? "" : " hidden"}><span>alle</span><input id="f-repn" type="number" inputmode="numeric" min="1" max="99" value="${repSpec(v.repeat)?.n || 2}"><select id="f-repu">${Object.entries(REP_U).map(([u, [, pl]]) => `<option value="${u}"${(repSpec(v.repeat)?.u || "w") === u ? " selected" : ""}>${pl}</option>`).join("")}</select></div>
       <div id="f-until-wrap" class="f-until"><label for="f-until">Wiederholung endet am <small>(optional)</small></label><input id="f-until" type="date" value="${esc(v.until)}"></div>
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><div class="f-att-h"><b>✨ Automatisch ausfüllen</b><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "Datei, Link oder Mail – die Felder füllen sich selbst."}</span></div>
-        <div class="f-att-g"><label class="f-att-b"><i>📎</i><span id="f-att-t">Ticket / Buchung</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
+        <div class="f-att-g"><label class="f-att-b" title="Brief, Vertrag oder Ticket abfotografieren"><i>📷</i><span>Foto</span><input type="file" hidden accept="image/*" capture="environment" id="f-cam"></label><label class="f-att-b"><i>📎</i><span id="f-att-t">Datei</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
         <button type="button" class="f-att-b" id="f-link-btn"><i>🔗</i><span>Link</span></button>
         <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail</span></button></div>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
@@ -3156,6 +3156,8 @@ const TITLE_BASE = { termin: ["Arzt", "Zahnarzt", "Friseur", "Elternabend", "Wer
   deadline: ["Steuererklärung", "TÜV", "Kündigung", "Versicherung", "Rechnung bezahlen"], birthday: ["Mama", "Papa", "Oma", "Opa", "Freundin", "Freund"], contact: ["Mama", "Papa", "Oma", "Opa", "Freundin", "Freund"] };
 const TITLE_PH = { termin: "z. B. Zahnarzt", trip: "z. B. Ostsee, Hotel am See", urlaub: "z. B. Urlaub, Ferien", dienst: "z. B. Spät", info: "z. B. Müll rausstellen", mina: "z. B. Wochenende bei Papa",
   anniversary: "z. B. Hochzeitstag", deadline: "z. B. Steuererklärung", birthday: "Name, z. B. Oma Hilde", contact: "Name, z. B. Tante Ute" };
+function sugClamp(el, rows) { requestAnimationFrame(() => { const kids = [...el.children]; kids.forEach(k => k.hidden = false);
+  const tops = [...new Set(kids.map(k => k.offsetTop))].sort((a, b) => a - b), lim = tops[rows - 1] ?? Infinity; kids.forEach(k => { if (k.offsetTop > lim) k.hidden = true; }); }); }
 function titleSug(ty) { return [...(TITLE_BASE[ty] || [])]; }
 function formLayout(ty) {
   const main = new Set(F_MAIN[ty] || F_MAIN.termin);
@@ -3165,9 +3167,9 @@ function formLayout(ty) {
   if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
   const sug = $("f-tsug"); if (sug) { const L = titleSug(ty);
     sug.innerHTML = ty === "deadline" ? FK_CHIP.map(([k, l]) => `<button type="button" class="tkq" data-ffk="${k}"${$("f-fk")?.value === k ? ' aria-pressed="true"' : ""}>${FK[k].i} ${esc(l)}</button>`).join("")
-      : L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = ty !== "deadline" && !L.length; sug.classList.toggle("fk2", ty === "deadline"); }
+      : L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = ty !== "deadline" && !L.length; sug.classList.toggle("fk2", ty === "deadline"); sugClamp(sug, ty === "deadline" ? 2 : 1); }
   if ($("f-renew-wrap")) $("f-renew-wrap").hidden = ty !== "deadline";
-  const tt = $("f-att-t"); if (tt) tt.textContent = ty === "abholen" ? "Ticket / Screenshot" : ty === "urlaub" ? "Buchung / Tickets" : "Ticket / Buchung";
+  const tt = $("f-att-t"); if (tt) tt.textContent = "Datei";
   if (!$("f-title").value && TITLE_PH[ty]) $("f-title").placeholder = TITLE_PH[ty];
   const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
   if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : "Mehr Optionen (Wiederholung, Farbe, Notiz, Google …) ▾"; }
@@ -3182,7 +3184,7 @@ function syncFormFields() {
   $("f-rem-wrap").hidden = !["birthday", "anniversary", "deadline"].includes(ty);
   $("f-rem").placeholder = `Standard ${REMIND_DEF[ty] ?? ""}`;
   $("f-extra").hidden = !["birthday", "anniversary", "deadline", "contact"].includes(ty);
-  $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact; { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; } $("f-shift").hidden = contact;
+  $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact || ty === "deadline";   /* Frist: nur ein Datum */ { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; } $("f-shift").hidden = contact;
   $("f-repc-wrap").hidden = contact || r.value !== "custom";
   $("f-who-wrap").hidden = contact || ty === "birthday" || !!$("f-who-wrap").dataset.off;
   { const a = document.querySelector('[data-fcol=""]'), c = catColor(ty), lbl = `Wie ${TYPES[ty]?.label || "die Art"} (☰ → Anzeigen → Farben)`; if (a) { a.style.background = c; a.style.color = c.startsWith("#") ? lumInk(c) : "#fff"; a.style.borderColor = "transparent"; a.title = lbl; a.setAttribute("aria-label", lbl); } }
@@ -3222,7 +3224,7 @@ function formVals0() {
     $("f-rep").value = "yearly"; $("f-by").value = y && y >= 1900 ? y : "";
   }
   const contact = type === "contact";
-  return { type, title: g("f-title"), from: g("f-from"), to: contact ? g("f-from") : (g("f-to") || g("f-from")), time: contact ? "" : g("f-time"), endTime: contact ? "" : g("f-end"),
+  return { type, title: g("f-title"), from: g("f-from"), to: contact || type === "deadline" ? g("f-from") : (g("f-to") || g("f-from")), time: contact ? "" : g("f-time"), endTime: contact ? "" : g("f-end"),
     repeat: contact ? "none" : repVal(), until: ["d", "w", "m"].includes(repSpec(repVal())?.u) ? g("f-until") : "", birthYear: type === "birthday" && +g("f-by") ? +g("f-by") : 0, note: g("f-note"),
     remindDays: ["birthday", "anniversary", "deadline"].includes(type) && g("f-rem") !== "" ? Math.max(0, +g("f-rem") || 0) : (REMIND_DEF[type] ?? 0), giftDone: editing ? editing.giftDone : [],
     fk: type === "deadline" ? g("f-fk") : "", renew: type === "deadline" && $("f-renew")?.checked ? (FK[g("f-fk")]?.renew || editing?.renew || 1) : 0,
@@ -3464,7 +3466,7 @@ function showAssistant(keepFiles) {
     <div class="asst">${entrySw("text")}
       ${ASST_DAY ? `<div class="a-day" id="a-day">📅 für <b>${fmt(ASST_DAY)}${ASST_TO ? ` – ${fmt(ASST_TO)}` : ""}${(ASST_TO || ASST_DAY).getFullYear() !== TODAY.getFullYear() ? " " + (ASST_TO || ASST_DAY).getFullYear() : ""}</b><button type="button" class="link" data-act="a-day-x" aria-label="Datum entfernen">✕</button></div>` : ""}
       <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
-      ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
+      ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" id="a-cam"></label><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
       <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button></div>
       <div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
@@ -4834,8 +4836,10 @@ document.addEventListener("change", ev => {
   if (ev.target.id === "set-trip") { REMP.tripDays = Math.max(0, Math.min(60, +ev.target.value || 0)); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderSoon(); renderUp(); return; }
   if (ev.target.id === "st-vac") { REMP.vacation = Math.max(0, +ev.target.value || 0); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderStats(); return; }
   if (ev.target.dataset?.notify) { const set = new Set(notifyCals()); ev.target.checked ? set.add(ev.target.dataset.notify) : set.delete(ev.target.dataset.notify); saveNotify({ cals: [...set] }).then(scanOthers); return; }
+  if (ev.target.id === "a-cam") { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) { ASST_FILES = [...ASST_FILES, ...fs].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", "); if (!($("a-in")?.value || "").trim()) runAssistant?.(); } return; }
   if (ev.target.id === "a-files") { ASST_FILES = [...ev.target.files].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", ") || "daraus wird der Eintrag erstellt"; if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
-  if (ev.target.id === "f-files") { formPickFiles([...ev.target.files]); return; }
+  if (ev.target.id === "f-files") { formPickFiles([...ev.target.files]); ev.target.value = ""; return; }
+  if (ev.target.id === "f-cam") { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) formPickFiles([...FORM_FILES, ...fs].slice(0, 6)); return; }   // mehrere Seiten nacheinander fotografieren
   if (ev.target.id === "f-type" && ["birthday", "anniversary"].includes(ev.target.value) && $("f-rep")) $("f-rep").value = "yearly";
   if (ev.target.dataset?.stshow) { const c = ev.target.dataset.stshow, on = ev.target.checked;
     if (c === PA || c === PB) { SHOW[c === PA ? "be" : "st"] = on; store.set("ft-show", JSON.stringify(SHOW)); } else XHIDE = on ? XHIDE.filter(x => x !== c) : [...XHIDE.filter(x => x !== c), c];
