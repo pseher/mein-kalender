@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261118052249";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261118053903";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -3314,8 +3314,12 @@ const isPdfF = f => f.type === "application/pdf";
 const fSize = n => n > 1e6 ? (n / 1e6).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB";
 function fb64(buf) { let s = ""; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function funb64(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
-async function shrinkImg(file, max = 2000, q = 0.85) {
-  const bmp = await createImageBitmap(file), k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+// keep=true (Ablage): nur die kürzere Seite begrenzen – lange Screenshots (z. B. 1080 × 16000) bleiben lesbar;
+// zusätzlich höchstens 12 Megapixel und 16000 px Seitenlänge (Grenzen der Handy-Browser)
+async function shrinkImg(file, max = 2000, q = 0.85, keep = false) {
+  const bmp = await createImageBitmap(file), W = bmp.width, H = bmp.height;
+  const k = keep ? Math.min(1, max / Math.min(W, H), Math.sqrt(12e6 / (W * H)), 16000 / Math.max(W, H)) : Math.min(1, max / Math.max(W, H));
+  if (keep && k >= 1 && file.size < 4e6 && /^image\/(jpeg|png|webp)$/.test(file.type)) return file;
   const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);
   return await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(0), "image/jpeg", q));
@@ -3337,7 +3341,8 @@ async function docUpload(e, fs) {
       const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
       if (!pdf && !/^image\//.test(file.type)) { toast(`„${file.name}“: nur PDFs und Bilder`); continue; }
       say(`Speichere „${file.name}“ …`);
-      const blob = pdf ? file : await shrinkImg(file).catch(() => file);
+      let blob = pdf ? file : await shrinkImg(file, 1600, 0.88, true).catch(() => file);
+      if (!pdf && blob.size > FILE_MAX) blob = await shrinkImg(file, 1100, 0.72, true).catch(() => blob);
       if (blob.size > FILE_MAX) { toast(`„${file.name}“ ist zu groß (max. 5 MB)`); continue; }
       if (pdf) { const n = await pdfTooLong(file); if (n) { toast(`„${file.name}“ hat ${n} Seiten – bitte nur die wichtigen Seiten hochladen (max. ${PDF_MAX_PAGES})`); continue; } }
       const s = fb64(await blob.arrayBuffer()), n = Math.ceil(s.length / CHUNK), id = "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
