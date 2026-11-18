@@ -2080,14 +2080,33 @@ function showDocs() {
 let DAI = null;
 // ---- Tickets/Buchungen/Links für die KI aufbereiten (vor dem Anlegen eines Eintrags) ----
 const URL_RE = /https?:\/\/[^\s<>"']+/g;
+// Bilder für die KI: höchstens ~1600 px; lange Screenshots (z. B. 900 × 13000) in lesbare Abschnitte teilen –
+// die KI-Schnittstelle nimmt keine Bilder über 8000 px Seitenlänge an und würde sie sonst stark verkleinern
+async function aiImgParts(blob, slots) {
+  if (slots <= 0) return [];
+  let bmp; try { bmp = await createImageBitmap(blob); } catch { return [blob]; }
+  const W = bmp.width, H = bmp.height;
+  if (H / W <= 2.2) { if (blob.size <= 1.3e6 && Math.max(W, H) <= 2000) return [blob]; return [await shrinkImg(blob, 1600, 0.82).catch(() => blob)]; }
+  let tw = Math.min(W, 1000), th = H * tw / W, n = Math.min(slots, Math.max(1, Math.ceil(th / 1500)));
+  while (th / n > 7600) { tw = Math.round(tw * 0.85); th = H * tw / W; }
+  const ov = n > 1 ? 60 : 0, ch = Math.ceil(th / n), out = [];
+  for (let i = 0; i < n; i++) {
+    const y0 = Math.max(0, i * ch - ov), y1 = Math.min(th, (i + 1) * ch), c = document.createElement("canvas");
+    c.width = tw; c.height = Math.round(y1 - y0); const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(bmp, 0, y0 * W / tw, W, (y1 - y0) * W / tw, 0, 0, tw, c.height);
+    out.push(await new Promise(r => c.toBlob(r, "image/jpeg", 0.82)));
+  }
+  return out.filter(Boolean);
+}
 async function filesForAI(files, maxImg) {
   const imgs = [], texts = [], long = [];
-  for (const f of files.slice(0, 6)) {
+  const FL = files.slice(0, 6);
+  for (const [fi, f] of FL.entries()) {
     const pdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
     if (pdf) { const { pages, total } = await pdfPages(f, PDF_AI_PAGES, 1.4).catch(() => ({ pages: [] })); if (total > PDF_AI_PAGES) long.push(`„${f.name}“: ${PDF_AI_PAGES} von ${total} Seiten gelesen`);
       for (const [i, p] of pages.entries()) { if (p.text.length > 120) texts.push(`--- ${f.name}, Seite ${i + 1} ---\n${p.text.slice(0, 5000)}`);
         if ((p.text.length <= 120 || i === 0) && imgs.length < maxImg) imgs.push(await new Promise(r => p.c.toBlob(r, "image/jpeg", 0.8))); } }
-    else if (/^image\//.test(f.type) && imgs.length < maxImg) imgs.push(f.size > 3e6 ? await shrinkImg(f, 1600, 0.8) : f);
+    else if (/^image\//.test(f.type) && imgs.length < maxImg) imgs.push(...await aiImgParts(f, Math.max(1, maxImg - imgs.length - (FL.length - fi - 1))));
   }
   return { imgs, texts, long };
 }
@@ -2115,18 +2134,19 @@ async function docAnalyze(e) {
   const say = t => { const m = $("dai-msg"); if (m) m.textContent = t; };
   try {
     const lim = await sample.limits().catch(() => null), maxImg = lim?.images?.maxCount || 0, imgs = [], texts = [];
-    for (const f of fs.slice(-6)) {
+    const FL = fs.slice(-6);
+    for (const [fi, f] of FL.entries()) {
       const b = await fileBlob(f).catch(() => null); if (!b) continue;
       if (isPdfF(f)) { const { pages } = await pdfPages(b, 3, 1.4).catch(() => ({ pages: [] }));
         for (const [i, p] of pages.entries()) {
           if (p.text.length > 120) texts.push(`--- ${f.name}, Seite ${i + 1} ---\n${p.text.slice(0, 5000)}`);
           if ((p.text.length <= 120 || i === 0) && imgs.length < maxImg) imgs.push(await new Promise(r => p.c.toBlob(r, "image/jpeg", 0.8)));
         } }
-      else if (imgs.length < maxImg) imgs.push(b.size > 3e6 ? await shrinkImg(b, 1600, 0.8) : b);
+      else if (imgs.length < maxImg) imgs.push(...await aiImgParts(b, Math.max(1, maxImg - imgs.length - (FL.length - fi - 1))));
     }
     if (!texts.length && !imgs.length) throw 0;
     say("Ich prüfe, was sich daraus für Packliste und Orga ergibt …");
-    const r = await (window.MK_TASK = "dokumente", sample.json)(`Hier sind Dokumente (Tickets, Buchungen, Bestätigungen o. Ä.) zu einem Kalendereintrag. ${imgs.length ? `Die ${imgs.length} Bilder sind Fotos/Seiten dieser Dokumente.` : ""}
+    const r = await (window.MK_TASK = "dokumente", sample.json)(`Hier sind Dokumente (Tickets, Buchungen, Bestätigungen o. Ä.) zu einem Kalendereintrag. ${imgs.length ? `Die ${imgs.length} Bilder sind Fotos/Seiten dieser Dokumente (lange Screenshots sind in Abschnitte von oben nach unten geteilt).` : ""}
 Eintrag: "${e.title}" (${TYPES[e.type].label}), ${rngTxt(e.a, e.b, true)}${timeTxt(e) ? ", " + timeTxt(e) + " Uhr" : ""}. ${placeOf(e) ? "Ort: " + placeOf(e) + "." : ""} Heute ist ${fmtY(TODAY)}.
 ${texts.join("\n\n").slice(0, 14000)}
 Lies die Dokumente genau. Antworte NUR mit JSON:
