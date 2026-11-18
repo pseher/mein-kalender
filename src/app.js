@@ -2995,8 +2995,10 @@ function showForm(e, preset) {
       <select id="f-rep">${Object.entries(REPEAT).map(([k, t]) => `<option value="${k}"${v.repeat === k ? " selected" : ""}>${t}</option>`).join("")}<option value="custom"${!REPEAT[v.repeat] && repSpec(v.repeat) ? " selected" : ""}>anders …</option></select></div></div>
       <div class="rep-c" id="f-repc-wrap"${!REPEAT[v.repeat] && repSpec(v.repeat) ? "" : " hidden"}><span>alle</span><input id="f-repn" type="number" inputmode="numeric" min="1" max="99" value="${repSpec(v.repeat)?.n || 2}"><select id="f-repu">${Object.entries(REP_U).map(([u, [, pl]]) => `<option value="${u}"${(repSpec(v.repeat)?.u || "w") === u ? " selected" : ""}>${pl}</option>`).join("")}</select></div>
       <div id="f-until-wrap" class="f-until"><label for="f-until">Wiederholung endet am <small>(optional)</small></label><input id="f-until" type="date" value="${esc(v.until)}"></div>
-      ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><label class="btn ghost small"><span id="f-att-t">📎 Ticket / Buchung anhängen</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label><button type="button" class="link" id="f-link-btn">🔗 Link einfügen</button><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "füllt die Felder automatisch aus"}</span>
-        <button type="button" class="link" id="f-mail-btn">📧 Mail-Text einfügen</button>
+      ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><div class="f-att-h"><b>✨ Automatisch ausfüllen</b><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "Die Felder füllen sich von selbst."}</span></div>
+        <div class="f-att-g"><label class="f-att-b"><i>📎</i><span id="f-att-t">Ticket / Buchung</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
+        <button type="button" class="f-att-b" id="f-link-btn"><i>🔗</i><span>Link</span></button>
+        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail-Text</span></button></div>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
@@ -3084,7 +3086,7 @@ function formLayout(ty) {
   if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
   const sug = $("f-tsug"); if (sug) { const L = titleSug(ty);
     sug.innerHTML = L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = !L.length; }
-  const tt = $("f-att-t"); if (tt) tt.textContent = ty === "abholen" ? "📎 Ticket / Screenshot hochladen" : ty === "urlaub" ? "📎 Buchung / Tickets anhängen" : "📎 Ticket / Buchung anhängen";
+  const tt = $("f-att-t"); if (tt) tt.textContent = ty === "abholen" ? "Ticket / Screenshot" : ty === "urlaub" ? "Buchung / Tickets" : "Ticket / Buchung";
   if (!$("f-title").value && TITLE_PH[ty]) $("f-title").placeholder = TITLE_PH[ty];
   const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
   if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : "Mehr Optionen (Wiederholung, Farbe, Notiz, Google …) ▾"; }
