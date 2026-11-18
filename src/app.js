@@ -2831,6 +2831,8 @@ async function doDeleteAccount() {
   catch (e) { btn.disabled = false; btn.textContent = "Endgültig löschen"; $("delacc-err").textContent = "Das hat nicht geklappt – bitte später noch einmal versuchen oder an kontakt@herdzeit.de schreiben." + (e?.message ? ` (${e.message})` : ""); }
 }
 function openSheet(title, sub, html, mode, ctx) {
+  // Zurück-Taste/-Geste des Handys schließt das Fenster statt die App (ein Verlaufseintrag pro offenem Fenster)
+  if (sheet.hidden && APP && !history.state?.mkSheet) try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {}
   $("sheet-title").textContent = title; $("sheet-sub").textContent = sub;
   $("sheet-body").innerHTML = html; sheetMode = mode; sheetCtx = ctx || null;
   sheet.hidden = false; $("add-btn").hidden = true; document.documentElement.classList.add("sheet-open"); fitSheet();
@@ -4788,7 +4790,10 @@ document.addEventListener("keydown", ev => {
 // in „Heute“ ausgewählter Tag (Wochenleiste) wird beim Eintragen übernommen, solange diese Seite zu sehen ist
 const onP0 = () => { const r = $("p0")?.getBoundingClientRect(); return !!r && r.width > 0 && r.right > innerWidth * 0.4 && r.left < innerWidth * 0.6; };
 $("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSel) : undefined));
-$("sheet-close").addEventListener("click", closeSheet);
+// Aus einem Dokument (oder dessen Auswertung) zurück: in die Dokumentenliste bzw. zum Termin – nicht ganz schließen
+function sheetBack() { const b = !sheet.hidden && $("sheet-body")?.querySelector("[data-docsback],[data-docback]"); if (b && (sheetMode === "doc" || sheetMode === "dai")) { b.click(); return true; } return false; }
+$("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
+addEventListener("popstate", () => { if (sheet.hidden) return; if (sheetBack()) { try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } closeSheet(); });
 $("move-cancel").addEventListener("click", stopMove);
 $("m-prev").addEventListener("click", () => stepCal(-1));
 $("m-next").addEventListener("click", () => stepCal(1));
