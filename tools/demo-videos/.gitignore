@@ -1,0 +1,8 @@
+frames-*/
+*.mp4
+*.png
+*.jpg
+*.woff2
+*-list.txt
+*-cat.txt
+_c.html

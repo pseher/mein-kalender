@@ -1,5 +1,5 @@
 // Mein Kalender – Service Worker: App startet auch ohne Netz, Updates kommen trotzdem sofort
-const V = "mk-20261118054306";
+const V = "mk-20261118065358";
 const SHELL = ["/app/", "/app/supabase.js", "/app/591.supabase.js", "/icon-192.png", "/icon-512.png", "/app/manifest.webmanifest"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -8,6 +8,7 @@ self.addEventListener("fetch", e => {
   if (r.method !== "GET") return;
   const own = u.origin === location.origin, fonts = /fonts\.(googleapis|gstatic)\.com$/.test(u.hostname);
   if (!own && !fonts) return;                                   // Supabase, Google, KI: nie zwischenspeichern
+  if (own && u.pathname.startsWith("/videos/")) return;          // Videos direkt aus dem Netz (Teilabrufe beim Abspielen)
   if (own && (u.pathname === "/app/version.json" || u.pathname.endsWith(".webmanifest"))) return;   // Versionsprüfung und App-Manifest immer frisch aus dem Netz (sonst sieht Android Änderungen wie die Drehbarkeit nie)
   if (r.mode === "navigate") {                                  // Seite: erst Netz (immer aktuell), sonst gespeicherte Version
     e.respondWith(fetch(r).then(res => { const c = res.clone(); caches.open(V).then(x => x.put("/app/", c)); return res; }).catch(() => caches.match("/app/")));

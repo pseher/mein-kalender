@@ -4544,6 +4544,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
   if ((el = q("[data-docsback]"))) { showDocs(); return; }
+  if ((el = q("[data-vid]"))) { showVid(+el.dataset.vid); return; }
+  if ((el = q("[data-vidshare]"))) { const v = VIDS[+el.dataset.vidshare]; navigator.share?.({ title: v.t, text: v.s, url: location.origin + v.src }).catch(() => {}); return; }
   if ((el = q("#docs-all"))) { const q2 = docQ.trim().toLowerCase(), ids = DOCS.filter(d => { const L = docLbl(d); return !q2 || `${d.name} ${L.title} ${L.date}`.toLowerCase().includes(q2); }).map(d => d.id);
     if (ids.every(id => DOCSEL.has(id))) ids.forEach(id => DOCSEL.delete(id)); else ids.forEach(id => DOCSEL.add(id)); docDelArm = false; showDocs(); return; }
   if ((el = q("#docs-del"))) { if (!docDelArm) { docDelArm = true; showDocs(); return; } const ids = [...DOCSEL]; docDelArm = false; el.disabled = true;
@@ -4791,7 +4793,7 @@ document.addEventListener("keydown", ev => {
 const onP0 = () => { const r = $("p0")?.getBoundingClientRect(); return !!r && r.width > 0 && r.right > innerWidth * 0.4 && r.left < innerWidth * 0.6; };
 $("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSel) : undefined));
 // Aus einem Dokument (oder dessen Auswertung) zurück: in die Dokumentenliste bzw. zum Termin – nicht ganz schließen
-function sheetBack() { const b = !sheet.hidden && $("sheet-body")?.querySelector("[data-docsback],[data-docback]"); if (b && (sheetMode === "doc" || sheetMode === "dai")) { b.click(); return true; } return false; }
+function sheetBack() { const b = !sheet.hidden && $("sheet-body")?.querySelector(sheetMode === "vid" ? "#mi-help" : "[data-docsback],[data-docback]"); if (b && ["doc", "dai", "vid"].includes(sheetMode)) { b.click(); return true; } return false; }
 $("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
 addEventListener("popstate", () => { if (sheet.hidden) return; if (sheetBack()) { try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } closeSheet(); });
 $("move-cancel").addEventListener("click", stopMove);
@@ -5035,10 +5037,21 @@ Ansichten oben: Monat, 2 Wochen, Woche, Liste, Jahr. Tage antippen oder mehrere 
 Google: Abgleich automatisch beim Öffnen und alle paar Minuten; Einträge erscheinen auch im Google Kalender und darüber in anderen Kalender-Apps (z. B. Business Kalender). Google muss pro Gerät einmal verbunden werden (Punkt am „G“ oben: grün = verbunden).
 Züge und Flüge: steht eine Zugnummer (z. B. IC 2238) mit Bahnhof und Uhrzeit oder eine Flugnummer im Eintrag, beobachtet die App sie live und meldet Verspätung, Gleis- oder Gate-Wechsel.
 Updates kommen automatisch beim Öffnen. Wiederholungen: täglich bis „alle 3 Jahre“, über „anders …“ frei wählbar. Serien löschen: nur dieser, alle folgenden oder ganze Serie.`;
+// Kurze Videos: einzelne Funktionen ohne Tippen gezeigt (Beispieldaten)
+const VIDS = [{ t: "Hotelbuchung hochladen", s: "Screenshot rein – Reise, Aufgaben und Packliste entstehen von selbst", d: "40 s", src: "/videos/hotel.mp4", img: "/videos/hotel.jpg" },
+  { t: "Zugticket hochladen", s: "Hin- und Rückfahrt werden live beobachtet", d: "33 s", src: "/videos/zugticket.mp4", img: "/videos/zugticket.jpg" }];
+function showVid(i) {
+  const v = VIDS[i]; if (!v) return;
+  openSheet(v.t, v.s, `<video class="vid-play" src="${v.src}" poster="${v.img}" controls playsinline autoplay muted preload="metadata"></video>
+    <p class="note">Beispieldaten – so sieht es mit deinen eigenen Buchungen aus.</p>
+    <div class="btnrow" style="margin-top:10px"><button type="button" class="btn ghost small" id="mi-help">‹ Hilfe</button>${navigator.share ? `<button type="button" class="btn ghost small" data-vidshare="${i}">Video teilen</button>` : ""}</div>`, "vid");
+}
 function showHelp(open) {
   closeMenu?.(); use("hilfe");
   openSheet("Hilfe", "Wie geht …?", `<div class="help">
     ${sample ? `<div class="help-ask"><textarea class="in" id="help-in" rows="2" placeholder="Deine Frage, z. B. „Wie trage ich meine Bahnfahrt ein?“"></textarea><button type="button" class="btn accent" id="help-go">Fragen</button><span class="note">Fragen werden gespeichert, damit wir die Hilfe verbessern können – bitte keine persönlichen Angaben.</span></div><div id="help-out" role="status"></div>` : ""}
+    <div class="sg-t">Kurz gezeigt</div>
+    <div class="vids">${VIDS.map((v, i) => `<button type="button" class="vid" data-vid="${i}"><img src="${v.img}" alt="" loading="lazy"><span><b>${esc(v.t)}</b><small>${esc(v.s)} · ${v.d}</small></span></button>`).join("")}</div>
     <div class="sg-t">Häufige Fragen</div>
     ${HELP.map(([q, a], i) => `<details class="help-q"${open === i ? " open" : ""}><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("")}
   </div>`, "help");

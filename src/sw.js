@@ -8,6 +8,7 @@ self.addEventListener("fetch", e => {
   if (r.method !== "GET") return;
   const own = u.origin === location.origin, fonts = /fonts\.(googleapis|gstatic)\.com$/.test(u.hostname);
   if (!own && !fonts) return;                                   // Supabase, Google, KI: nie zwischenspeichern
+  if (own && u.pathname.startsWith("/videos/")) return;          // Videos direkt aus dem Netz (Teilabrufe beim Abspielen)
   if (own && (u.pathname === "/app/version.json" || u.pathname.endsWith(".webmanifest"))) return;   // Versionsprüfung und App-Manifest immer frisch aus dem Netz (sonst sieht Android Änderungen wie die Drehbarkeit nie)
   if (r.mode === "navigate") {                                  // Seite: erst Netz (immer aktuell), sonst gespeicherte Version
     e.respondWith(fetch(r).then(res => { const c = res.clone(); caches.open(V).then(x => x.put("/app/", c)); return res; }).catch(() => caches.match("/app/")));
