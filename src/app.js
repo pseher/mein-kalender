@@ -2058,14 +2058,15 @@ function showDocs() {
   const row = ({ d, L }) => `<div class="doc-row"><label class="doc-ck"><input type="checkbox" data-docsel="${esc(d.id)}"${DOCSEL.has(d.id) ? " checked" : ""} aria-label="Auswählen"></label>
     <button type="button" class="doc" data-doc="|${esc(d.id)}"><span>${isPdfF(d) ? "📄" : "🖼️"}</span><span class="doc-n"><b>${esc(L.title)}</b>${L.date ? ` · ${esc(L.date)}` : ""}<small class="doc-s">${esc(d.name)} · ${fSize(d.size)}</small></span></button></div>`;
   const act = list.filter(x => !x.L.gone), gone = list.filter(x => x.L.gone);
-  openSheet("Dokumente", "Tickets, Buchungen und PDFs aus deinen Terminen – auch von gelöschten. Nur für dich.", `
+  openSheet("Meine Dokumente", "Tickets, Buchungen und PDFs aus deinen Terminen – auch von gelöschten. Nur für dich.", `
     ${DOCS.length > 4 ? `<input type="search" class="search" id="doc-q" placeholder="Suchen: Termin, Datum oder Dateiname" value="${esc(docQ)}" style="margin-top:8px">` : ""}
     ${!DOCS.length ? `<p class="note" style="margin-top:10px">Noch keine Dokumente. Du hängst sie in einem Termin über „📎 Datei hinzufügen“ an.</p>` : ""}
     ${act.length ? `<h3 class="pkh">Zu Terminen</h3><div class="docs-l">${act.map(row).join("")}</div>` : ""}
     ${gone.length ? `<h3 class="pkh">Von gelöschten Terminen</h3><div class="docs-l">${gone.map(row).join("")}</div>` : ""}
     ${DOCS.length && !list.length ? `<p class="note" style="margin-top:10px">Nichts gefunden.</p>` : ""}
     ${list.length && canWrite ? `<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost small" id="docs-all">${list.every(x => DOCSEL.has(x.d.id)) ? "Auswahl aufheben" : "Alle auswählen"}</button>
-      ${DOCSEL.size ? `<button type="button" class="btn danger small push" id="docs-del">${docDelArm ? `Wirklich ${DOCSEL.size} löschen?` : `${DOCSEL.size} löschen`}</button>` : ""}</div>` : ""}`, "docs");
+      ${DOCSEL.size ? `<button type="button" class="btn danger small push" id="docs-del">${docDelArm ? `Wirklich ${DOCSEL.size} löschen?` : `${DOCSEL.size} löschen`}</button>` : ""}</div>` : ""}
+    ${APP ? `<div class="btnrow" style="margin-top:14px"><button type="button" class="btn ghost small" id="mi-account">‹ Konto</button></div>` : ""}`, "docs");
 }
 // ---- Auswerten: Packpunkte, Orga-Aufgaben, Zeiten, Adresse aus den Dokumenten ----
 let DAI = null;
@@ -2798,6 +2799,7 @@ async function showAccount() {
   let me = {}; try { me = await (await claude.use("user"))?.me?.() || {}; } catch {}
   openSheet("Konto", "", `<div class="acc">
     <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">${(() => { const a = window.mkAuthInfo?.() || {}; return a.google && a.pw ? "angemeldet mit Google oder E-Mail und Passwort" : a.google ? "angemeldet mit Google" : "angemeldet mit E-Mail"; })()}</span></div>
+    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-docs">📁 Meine Dokumente${DOCS.length ? ` <em>${DOCS.length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Tickets, Buchungen und PDFs – alles, was du an Termine gehängt hast. Nur du siehst sie.</p>` : ""}
     <button type="button" class="btn ghost big" id="acc-pw">${(window.mkAuthInfo?.() || {}).pw ? "Passwort ändern" : "Passwort festlegen"}</button>
     <button type="button" class="btn ghost big" id="app-logout">Abmelden</button>
     <p class="note">Deine Daten bleiben gespeichert – nach der nächsten Anmeldung ist alles wieder da.</p>
@@ -4423,7 +4425,7 @@ function wzClick(id, el) {
 const THEMES = [["auto", "◐", "Auto"], ["light", "☀", "Hell"], ["dark", "☾", "Dunkel"]];
 let themeIdx = Math.max(0, THEMES.findIndex(x => x[0] === store.get("ft27-theme")));
 function toggleMenu() { const m = $("menu"); if (!m) return; const open = m.hidden; m.hidden = !open; $("menu-btn").setAttribute("aria-expanded", String(open));
-  if (open) { $("mi-google").hidden = true; $("mi-fam").hidden = true; $("mi-docs").hidden = !canWrite; $("mi-docs-n").textContent = DOCS.length || ""; renderMenuDot(); } }
+  if (open) { $("mi-google").hidden = true; $("mi-fam").hidden = true; $("mi-docs").hidden = true; /* Dokumente liegen jetzt unter „Konto“ */ $("mi-docs-n").textContent = DOCS.length || ""; renderMenuDot(); } }
 function closeMenu() { const m = $("menu"); if (m && !m.hidden) { m.hidden = true; $("menu-btn")?.setAttribute("aria-expanded", "false"); } }
 function applyTheme() {
   const [k, ico, lbl] = THEMES[themeIdx], root = document.documentElement;
@@ -4638,7 +4640,7 @@ document.addEventListener("click", ev => {
     case "menu-btn": toggleMenu(); break;
     case "mi-google": showGoogleSheet(); break;
     case "g-btn": showGoogleSheet(); break;
-    case "mi-docs": DOCSEL = new Set(); docQ = ""; docDelArm = false; showDocs(); break;
+    case "mi-docs": case "acc-docs": DOCSEL = new Set(); docQ = ""; docDelArm = false; showDocs(); break;
     case "mi-fam": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "mi-share2": showFamShare(); break;
     case "mi-contacts": CT = []; ctImgCheck().then(showContacts); break;
