@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119082453";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119092639";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -3605,8 +3605,16 @@ async function linksForAI(text, say) {
       else fails.push(u); } catch { fails.push(u); } }
   return { texts, fails };
 }
+// Umsteigebahnhof fehlt im Screenshot (z. B. „ICE 553 → S7 → Bus X10“, nur Start und Ziel sichtbar)
+const UMST_HINT = `UMSTIEG: Hat die Verbindung mehrere Abschnitte (z. B. ICE → S-Bahn → Bus) und steht der Bahnhof, an dem pick.no ankommt (abholen) bzw. abfährt (bringen), NICHT im Dokument, dann setze place und time auf den wahrscheinlichsten Umsteigebahnhof von pick.no und gib in pick.umst 2–5 Bahnhöfe an, an denen pick.no auf diesem Weg hält und ein Umstieg zur nächsten Linie passt – mit geschätzter Ankunfts- (abholen) bzw. Abfahrtszeit (bringen) dort, der wahrscheinlichste zuerst: "umst": [{"st": "Berlin Hbf", "time": "HH:MM"}]. Steht der Bahnhof im Dokument oder gibt es keinen Umstieg, lass pick.umst weg.`;
+const umstClean = u => (Array.isArray(u) ? u : []).map(x => ({ st: String(x?.st || "").trim().slice(0, 60), time: /^\d{1,2}:\d{2}$/.test(String(x?.time || "").trim()) ? String(x.time).trim().padStart(5, "0") : "" })).filter((x, i, A) => x.st && A.findIndex(y => y.st === x.st) === i).slice(0, 5);
+function umstHtml(L, cur, attr, dir, no) {
+  if (L.length < 2) return "";
+  return `<div class="kask"><b>${dir === "dep" ? `Wo fährt ${esc(no || "der Zug")} ab?` : `Wo kommt ${esc(no || "der Zug")} an?`}</b><div class="kask-o">${L.map((u, j) => `<button type="button" class="tkq" ${attr}="${j}"${u.st === cur ? ' aria-pressed="true"' : ""}>${esc(u.st)}${u.time ? ` · ca. ${esc(u.time)}` : ""}</button>`).join("")}</div><p class="note" style="margin:6px 0 0">Der Umsteigebahnhof steht nicht im Screenshot – das sind die wahrscheinlichsten. Zeiten geschätzt; der Zug-Wächter meldet am Reisetag die genaue Zeit und das Gleis.</p></div>`;
+}
 const TRAIN_RULE = `ZÜGE (wichtig, damit die App den Zug live beobachten kann): Zugnummer immer mit Gattung in den Titel schreiben ("RE 4", "ICE 1101", "IC 1934"), place = der Bahnhof, um den es geht, als "Stadt Hbf" bzw. Bahnhofsname (z. B. "Berlin Hbf", "Magdeburg Hbf"), time = die Zeit an genau diesem Bahnhof.
 - Jemanden ABHOLEN (abholen, kommt an, holen): type "abholen", pick = {"dir":"arr","mode":"zug"|"flug"|"bus","who":"<Name>","no":"<Zug/Flug>"}, title "<Name> abholen · <Zug>", from = Ankunftstag, time = ANKUNFTSzeit, place = ANKUNFTSbahnhof, note = "Ankunft <Bahnhof> <Zeit> aus <Herkunft>" (+ Gleis/Wagen falls bekannt).
+- ${UMST_HINT}
 - Jemanden zum Zug BRINGEN (bringen, abliefern, verabschieden): type "abholen", pick = {"dir":"dep",…}, title "<Name> zum Zug bringen · <Zug>", time = ABFAHRTSzeit, place = ABFAHRTSbahnhof, note = "Abfahrt <Bahnhof> <Zeit> nach <Ziel>".
 - Eigene Zugfahrt ohne Übernachtung: type "termin", title "<Zug> <Von> → <Nach>", time = Abfahrt, endTime = Ankunft, place = Abfahrtsbahnhof. Mit Übernachtung: Reise wie unten, note beginnt mit "<Zug> ab <Abfahrtsbahnhof> <Zeit>".
 - Mehrere Teilstrecken mit Umstieg: der ERSTE Zug in den Titel, alle Teilstrecken kurz in note.
@@ -4447,7 +4455,7 @@ let formVis = "me", formVisManual = false, formShManual = false;
 function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; document.querySelectorAll("#f-vis [data-vis]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.vis === v)));
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
 let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
-let FORM_FILES = [], FORM_TYPE_SET = false, FORM_DIR_SET = false;
+let FORM_FILES = [], FORM_TYPE_SET = false, FORM_DIR_SET = false, FORM_UMST = [];
 // Vor dem Auslesen kurz fragen, wofür das Dokument ist – sonst landet eine Zugverbindung gern als „Termin“
 const KIND_OPTS = [["trip", "🧳 Reise"], ["urlaub", "🏖️ Urlaub"], ["arr", "🙋 Abholen"], ["dep", "👋 Bringen"], ["termin", "📅 Termin"], ["deadline", "⏰ Frist"], ["auto", "✨ Selbst erkennen"]];
 const DIR_OPTS = [["arr", "🙋 Abholen – jemand kommt an"], ["dep", "👋 Bringen – jemand fährt ab"]];
@@ -4496,7 +4504,8 @@ async function formFromDocs(files, link) {
       : cur === "urlaub" ? `\nDer Nutzer füllt gerade das Formular „Urlaub & Ferien“ aus: type "urlaub", title = Ziel bzw. Unterkunft, from/to = Urlaubszeitraum, time = erste Abfahrt/Abflug, Hin- und Rückreise (Zug/Flug, Zeiten) kurz in note.`
       : cur === "deadline" ? `\nDer Nutzer trägt gerade eine Frist ein (Vertrag, Ausweis, Garantie, TÜV …): ${FK_AI}` : "");
     const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}${ctx}
-Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen" | "deadline", "fk": "", "renew": 0, "remindDays": 0, "nostore": false, "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": ""} oder null}
+Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen" | "deadline", "fk": "", "renew": 0, "remindDays": 0, "nostore": false, "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": "", "umst": []} oder null}
+${UMST_HINT}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
     const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
@@ -4507,6 +4516,7 @@ ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "defa
       if (!FORM_DIR_SET && ["arr", "dep"].includes(pk.dir)) tap("data-pkdir", pk.dir);
       const md = ["zug", "flug", "bus"].includes(pk.mode) ? pk.mode : r.flight || r.mode === "flug" ? "flug" : ""; if (md) tap("data-pkmode", md);
       set("f-pk-who", pk.who); set("f-pk-no", pk.no); set("f-pk-st", r.place); set("f-from", r.from); set("f-time", r.time);
+      FORM_UMST = umstClean(pk.umst); const fa = $("f-ask"); if (fa && FORM_UMST.length >= 2) { fa.innerHTML = umstHtml(FORM_UMST, r.place, "data-fumst", $("f-pk-dir")?.dataset.v || pk.dir, pk.no); fa.hidden = false; }
       if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
       pickPreview(); await say(`✓ Ausgefüllt aus ${FORM_FILES.map(f => f.name).join(", ") || "dem Link"}${att.long.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Das Ticket wird beim Speichern angehängt." : ""}`); return;
     }
@@ -5068,14 +5078,16 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
         if (famGroups().length && ev.type !== "birthday" && gWritable()) { const pick = famPick(ev.title + " " + (ev.note || "")) || famPick($("a-in")?.value || ""); if (pick) ev.gcal = pick; }
         if (SHR_ON() && ev.type !== "birthday") ev.shareTo = [...new Set([...shrPick(ev.title + " " + ($("a-in")?.value || "")), ...autoLs()])]; }
       if (validate(ev)) return null;
-      return { op: a.op, id: a.id, event: ev, nostore: ev.type === "deadline" && (!!a.event?.nostore || ["ausweis", "pass"].includes(ev.fk)) };
+      return { op: a.op, id: a.id, event: ev, nostore: ev.type === "deadline" && (!!a.event?.nostore || ["ausweis", "pass"].includes(ev.fk)), umst: ev.type === "abholen" ? umstClean(a.event?.pick?.umst) : [] };
     }).filter(Boolean);
     // Nach dem Lesen: reine Verbindung (Zug, Flug, Bus) erkannt? Dann fragen, wofür sie ist
     const CONN = /\b(ICE|IC|EC|ECE|RE|RB|IRE|S\s?\d|U\s?\d|FLX|Bus|NJ|TGV|LH|EW|FR|U2|OS|LX|TK|KL|AF|BA)\s?\d{1,5}\b|Gleis|Bahnhof|Hbf|Flughafen|Abflug|Ankunft/i;
     const conn = ASST_FILES.length && !kindUsed && asstActions.filter(a => a.op === "add").length >= 1 && asstActions.every(a => a.op !== "add" || (["termin", "trip", "urlaub", "abholen"].includes(a.event.type) && (a.event.pick?.no || ["zug", "flug", "bus"].includes(a.event.mode) || CONN.test(a.event.title + " " + (a.event.note || "") + " " + (a.event.place || "")))));
     const cur = asstActions.find(a => a.op === "add")?.event, curK = cur ? (cur.type === "abholen" ? (cur.pick?.dir === "dep" ? "dep" : "arr") : cur.type) : "";
     const askBox = conn ? `<div class="kask"><b>Das ist eine Verbindung – wofür ist sie?</b><div class="kask-o">${KIND_OPTS.filter(([k]) => !["deadline", "auto"].includes(k)).map(([k, l]) => `<button type="button" class="tkq" data-akind="${k}"${k === curK ? ' aria-pressed="true"' : ""}>${esc(l)}</button>`).join("")}</div><p class="note" style="margin:6px 0 0">Markiert ist mein Vorschlag. Tipp auf etwas anderes, dann lese ich es passend neu.</p></div>` : "";
-    out.innerHTML = askBox + `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
+    const ui = asstActions.findIndex(a => a.umst?.length >= 2), ua = asstActions[ui];
+    const umBox = ua ? `<div data-umi="${ui}">${umstHtml(ua.umst, ua.event.place, "data-aumst", ua.event.pick?.dir, ua.event.pick?.no)}</div>` : "";
+    out.innerHTML = askBox + umBox + `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
       ${canWrite ? `<button type="button" class="btn accent wide" id="a-apply">Übernehmen</button>` : `<p class="note">Speichern kann nur der Besitzer der Seite.</p>`}` : "");
   } catch (e) {
     out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : e?.code === "too_long" ? "Das war zu viel auf einmal. Versuch es mit weniger Text oder einem Dokument." : e?.code === "bad_image" ? "Das Bild konnte nicht gelesen werden – versuch einen Screenshot oder ein anderes Foto." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
@@ -6070,6 +6082,11 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-kind]"))) { KIND_RES?.(el.dataset.kind); return; }
+  if ((el = q("[data-aumst]"))) { const box = el.closest("[data-umi]"), a = asstActions[+box?.dataset.umi], u = a?.umst?.[+el.dataset.aumst]; if (!u) return;
+    a.event.place = u.st; if (u.time) a.event.time = u.time; box.querySelectorAll("[data-aumst]").forEach(b => b.setAttribute("aria-pressed", String(b === el)));
+    const L = $("a-out")?.querySelector(".acts-list"); if (L) L.innerHTML = asstActions.map((x, i) => actHtml(x, i)).join(""); return; }
+  if ((el = q("[data-fumst]"))) { const u = FORM_UMST[+el.dataset.fumst]; if (!u) return; const st = $("f-pk-st"), tm = $("f-time"); if (st) st.value = u.st; if (tm && u.time) tm.value = u.time;
+    el.parentElement.querySelectorAll("[data-fumst]").forEach(b => b.setAttribute("aria-pressed", String(b === el))); try { pickPreview(); } catch {} return; }
   if ((el = q("[data-akind]"))) { if (el.getAttribute("aria-pressed") === "true") return; ASST_KIND = el.dataset.akind; runAssistant(); return; }
   if ((el = q("[data-ftype]"))) { FORM_TYPE_SET = true; const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if (q("[data-pkdir]")) FORM_DIR_SET = true;
