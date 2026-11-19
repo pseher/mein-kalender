@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119201557";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119203130";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -748,6 +748,10 @@ td.mid { text-align: center; }
 .tk .ckb { width: 24px; height: 24px; margin: 8px; flex: none; }
 .sheet-title, .sheet .body b, .sheet h3, .ev-title, .act b, .reply, .doc-gt b { overflow-wrap: anywhere; }
 .f-time-x { grid-column: 1 / -1; justify-self: start; font-size: 13px; padding: 6px 0; }
+/* Speichern/Übernehmen immer im Daumenbereich */
+#f > .btnrow:last-of-type, #a-apply { position: sticky; bottom: 0; z-index: 3; }
+#f > .btnrow:last-of-type { background: var(--surface); margin: 12px -2px 0; padding: 10px 2px calc(10px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 12px -10px rgba(0,0,0,.25); }
+#a-apply { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 .btn.small { padding: 6px 10px; font-size: 13px; min-height: 38px; }
 .btn:disabled { opacity: .55; cursor: default; }
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -4390,8 +4394,11 @@ document.addEventListener("focusin", ev => {
   const t = ev.target; if (!t.closest || !t.closest("#sheet") || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
   setTimeout(() => { fitSheet(); t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 350);
 });
-let POP_CLOSING = false;
+let POP_CLOSING = false, DRAFT_SAVED = false;
 function closeSheet() { try { if (MIC) micStop(); } catch {}
+  if (!DRAFT_SAVED && !sheet.hidden && (formDirty() || asstDirty())) { const isF = sheetMode === "form", dv = isF ? { ...formVals(), place: ($("f-place")?.value || "").trim() } : null, at = { txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "", day: ASST_DAY, to: ASST_TO };
+    setTimeout(() => toast(isF ? "Eingabe verworfen" : "Text verworfen", () => { if (isF) { showForm({ ...dv, id: undefined }); fTimeOpen = !!dv.time; syncFormFields(); qMark(); } else { ASST_DAY = at.day; ASST_TO = at.to; showAssistant(true); $("a-in").value = at.txt; $("a-out").innerHTML = at.html; } }, "Wiederherstellen"), 0); }
+  DRAFT_SAVED = false;
   if (!POP_CLOSING && APP && !sheet.hidden && history.state?.mkSheet) { POP_SKIP = true; try { history.back(); } catch { POP_SKIP = false; } }
   sheet.hidden = true; sheetMode = null; sheetCtx = null; document.documentElement.classList.remove("sheet-open"); setTimeout(renderHints, 0);
   if (selDay) { selDay = null; document.querySelectorAll(".d.sel, .mc.sel").forEach(x => x.classList.remove("sel")); }
@@ -4505,7 +4512,7 @@ async function formPickFiles(fs) {
   FORM_FILES = ok; if (ok.length) formFromDocs(ok, ""); else if ($("f-att-l")) $("f-att-l").textContent = "";
 }
 let sayT = 0; const sayWait = async () => { const w = 1200 - (Date.now() - sayT); if (w > 0) await new Promise(r => setTimeout(r, w)); sayT = Date.now(); };
-async function formFromDocs(files, link) {
+async function formFromDocs(files, link, mail) {
   const l = $("f-att-l"), say = async t => { await sayWait(); if ($("f-att-l")) $("f-att-l").textContent = t; };
   const clickT = k => document.querySelector(`[data-ftype="${k}"]`)?.click(), clickD = d => { document.querySelector(`[data-pkdir="${d}"]`)?.click(); FORM_DIR_SET = true; };
   if (!FORM_TYPE_SET) { if (l) l.textContent = "Kurz noch: Wofür ist das?";
@@ -4513,9 +4520,9 @@ async function formFromDocs(files, link) {
   else if ($("f-type")?.value === "abholen" && !FORM_DIR_SET) { if (l) l.textContent = "Kurz noch:";
     clickD(await askKind($("f-ask"), "Holst du jemanden ab oder bringst du jemanden hin?", DIR_OPTS)); }
   try {
-    await say(files.length ? `📄 Ich lese ${files.length === 1 ? "„" + files[0].name + "“" : files.length + " Dokumente"} …` : "🔗 Ich öffne den Link …");
+    await say(files.length ? `📄 Ich lese ${files.length === 1 ? "„" + files[0].name + "“" : files.length + " Dokumente"} …` : mail ? "📧 Ich lese die Mail …" : "🔗 Ich öffne den Link …");
     const lim = await sample.limits().catch(() => null), att = files.length ? await filesForAI(files, lim?.images?.maxCount || 0) : { imgs: [], texts: [], long: [] };
-    const lk = link ? await linksForAI(link, say) : { texts: [], fails: [] };
+    const lk = link ? await linksForAI(link, say) : mail ? { texts: ["Text einer Mail/Nachricht:\n" + mail.slice(0, 15000)], fails: [] } : { texts: [], fails: [] };
     if (!att.texts.length && !att.imgs.length && !lk.texts.length) { await say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
     await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""}${lk.texts.length ? " vom Link" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Anreise …`); await say("✍️ Ich fülle die Felder aus …");
     const cur = $("f-type")?.value || "termin", pdir = $("f-pk-dir")?.dataset.v || "arr", ctx = (FORM_TYPE_SET ? `\nWICHTIG – vom Nutzer festgelegt: ${KIND_HINT[cur === "abholen" ? pdir : cur] || ""}` : "") + (cur === "abholen" ? `\nDer Nutzer füllt gerade das Formular „Abholen & Bringen“ aus: lege type "abholen" mit pick an (wen abholen/bringen, Zug-/Flugnummer, Bahnhof/Flughafen, Ankunfts- bzw. Abfahrtszeit dort). Ist kein Name erkennbar, lass pick.who leer.`
@@ -4581,6 +4588,7 @@ function showForm(e, preset) {
         <div class="f-att-g"><label class="f-att-b" title="Brief, Vertrag oder Ticket abfotografieren"><i>📷</i><span>Foto</span><input type="file" hidden accept="image/*" capture="environment" id="f-cam"></label><label class="f-att-b"><i>📎</i><span id="f-att-t">Datei</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
         <button type="button" class="f-att-b" id="f-link-btn"><i>🔗</i><span>Link</span></button>
         <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail</span></button></div><div id="f-ask" hidden></div>
+        <div id="f-mail-wrap" hidden class="f-link f-mail"><textarea id="f-mail" rows="4" class="in" placeholder="Text der Mail oder Nachricht hier einfügen (lange tippen → Einfügen)"></textarea><button type="button" class="btn ghost small" id="f-mail-go">Auslesen</button></div>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
@@ -4701,7 +4709,8 @@ function syncFormFields() {
 const QTIMES = ["09:00", "12:00", "15:00", "18:00", "19:30"];
 function qDates() { const sa = addDays(TODAY, ((6 - TODAY.getDay() + 7) % 7) || 7), so = addDays(sa, 1), mo = addDays(TODAY, ((8 - TODAY.getDay()) % 7) || 7);
   return [[iso(TODAY), "Heute"], [iso(addDays(TODAY, 1)), "Morgen"], [iso(sa), `Sa ${p2(sa.getDate())}.${p2(sa.getMonth() + 1)}.`], [iso(so), `So ${p2(so.getDate())}.${p2(so.getMonth() + 1)}.`], [iso(mo), `Nächste Woche`]]; }
-function qMark() { const f = $("f-from")?.value, t = $("f-time")?.value; document.querySelectorAll("[data-qd]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.qd === f)));
+function qMark() { const fd = parseIso($("f-from")?.value || ""); if (sheetMode === "form" && !editing && !ADJ && fd && $("f-type")?.value !== "birthday") $("sheet-sub").textContent = `für ${fmt(fd)}${fd.getFullYear() !== TODAY.getFullYear() ? " " + fd.getFullYear() : ""}`;
+  const f = $("f-from")?.value, t = $("f-time")?.value; document.querySelectorAll("[data-qd]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.qd === f)));
   document.querySelectorAll("[data-qt]").forEach(b => b.setAttribute("aria-pressed", String(fTimeOpen && b.dataset.qt === t))); }
 function timeOpen(val) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; const t = $("f-time"); if (t && val) t.value = val; qMark(); }
 let PK_PRE = false;
@@ -4735,7 +4744,8 @@ function formVals0() {
     if ($("f-rep").value !== "yearly") { $("f-rep").value = "yearly"; $("f-rep").dataset.auto = "1"; } $("f-by").value = y && y >= 1900 ? y : "";
   }
   const contact = type === "contact";
-  return { type, title: g("f-title"), from: g("f-from"), to: contact || type === "deadline" ? g("f-from") : (g("f-to") || g("f-from")), time: contact ? "" : g("f-time"), endTime: contact ? "" : g("f-end"),
+  const noT = contact || type === "birthday" || type === "anniversary";
+  return { type, title: g("f-title"), from: g("f-from"), to: contact || type === "deadline" ? g("f-from") : (g("f-to") || g("f-from")), time: noT ? "" : g("f-time"), endTime: noT || type === "abholen" ? "" : g("f-end"),
     repeat: contact ? "none" : repVal(), until: ["d", "w", "m"].includes(repSpec(repVal())?.u) ? g("f-until") : "", birthYear: type === "birthday" && +g("f-by") ? +g("f-by") : 0, note: g("f-note"),
     remindDays: ["birthday", "anniversary", "deadline"].includes(type) && g("f-rem") !== "" ? Math.max(0, +g("f-rem") || 0) : (REMIND_DEF[type] ?? 0), giftDone: editing ? editing.giftDone : [],
     fk: type === "deadline" ? g("f-fk") : "", renew: type === "deadline" && $("f-renew")?.checked ? (FK[g("f-fk")]?.renew || editing?.renew || 1) : 0,
@@ -4765,12 +4775,12 @@ async function saveForm() {
     if (fld && !fld.closest("[hidden]")) { fld.scrollIntoView({ block: "center", behavior: "smooth" }); try { fld.focus({ preventScroll: true }); } catch {} } return; }
   if (ADJ) { const a = asstActions[ADJ.i]; if (a) { a.event = { ...a.event, ...v }; } asstBack(); return; }
   use(editing ? "bearbeiten" : "formular_neu"); if (v.color) use("farbe_eintrag"); if (v.repeat && v.repeat !== "none") use("wiederholung_" + v.repeat);
-  if (editing && editing.shared) { try { await recvSave(editing, v); closeSheet(); toast(`Gespeichert – ${editing.shared.from} sieht die Änderung`); } catch (err) { toast("Speichern hat nicht geklappt"); } return; }
+  if (editing && editing.shared) { try { await recvSave(editing, v); DRAFT_SAVED = true; closeSheet(); toast(`Gespeichert – ${editing.shared.from} sieht die Änderung`); } catch (err) { toast("Speichern hat nicht geklappt"); } return; }
   const btn = $("f-save"); btn.disabled = true; btn.textContent = "Speichert …";
   try {
     const was = editing; const undo = await applyChanges([was ? { op: "update", id: was.id, event: v } : { op: "add", event: v }]);
     const files = FORM_FILES; FORM_FILES = []; const added = !was && LAST_ADDED[0];
-    closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? (v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter Konto → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`) : was ? "Gespeichert" : "Eingetragen", undo);
+    DRAFT_SAVED = true; closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? (v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter Konto → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`) : was ? "Gespeichert" : "Eingetragen", undo);
     if (files.length && added) setTimeout(() => docUpload({ ...added.v, id: added.id, files: [], a: parseIso(added.v.from), b: parseIso(added.v.to || added.v.from) }, files), 400);
     if (v.type === "birthday" && canWrite) { const k = famKey(v.title), inFam = FAM().some(p => famKey(p.name) === k || p.key === k); const b = parseIso(v.from);
       if (v.fam && !inFam) { FAMED = FAM().map(p => ({ ...p })); FAMED.push({ name: v.title, role: (FAMKW.find(([re]) => re.test(v.title)) || [])[1] || "andere", birthday: v.birthYear ? `${v.birthYear}-${v.from.slice(5)}` : `--${v.from.slice(5)}`, key: k }); famSave(); }
@@ -4967,14 +4977,19 @@ async function useFlush() { const q = USE_Q; USE_Q = {}; if (!Object.keys(q).len
 window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
 function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
 let ENTRY_TXT = "";   // längerer Freitext (Mail, WhatsApp) bleibt beim Hin- und Herwechseln erhalten
-function switchEntry(m) {
-  store.set("ft-entry", m);
-  if (m === "form") ENTRY_TXT = ($("a-in")?.value || "").trim();
+let FORM_DRAFT = null, ASST_SNAP = null;
+function formDirty() { return sheetMode === "form" && !editing && ["f-title", "f-place", "f-note", "f-pk-who", "f-pk-no"].some(id => ($(id)?.value || "").trim() && !$(id)?.dataset.pre); }
+function asstDirty() { return sheetMode === "asst" && (!!($("a-in")?.value || "").trim() || !!$("a-out")?.querySelector(".acts-list")); }
+function switchEntry(m, keepPref) {
+  if (!keepPref) store.set("ft-entry", m);
+  if (m === "form") { ENTRY_TXT = ($("a-in")?.value || "").trim(); ASST_SNAP = asstDirty() ? { txt: $("a-in").value, html: $("a-out")?.innerHTML || "" } : null; }
+  if (m === "form" && FORM_DRAFT && (!ENTRY_TXT || ENTRY_TXT === FORM_DRAFT.__txt)) { const d = FORM_DRAFT; FORM_DRAFT = null; showForm({ ...d, id: undefined }); fTimeOpen = !!d.time; syncFormFields(); qMark(); return; }
   if (m === "form") { const t = ($("a-in")?.value || "").trim().replace(/^vom\s+\d{1,2}\.\d{1,2}\.?\s*(bis\s+\d{1,2}\.\d{1,2}\.?)?\s*:?\s*/i, ""), A = ASST_DAY, B = ASST_TO;
     showForm(null, A ? iso(A) : iso(TODAY)); if (A && B && B > A) { const f = $("f-to"); if (f) { f.value = iso(B); f.dispatchEvent(new Event("change", { bubbles: true })); } }
     if (t && t.length <= 60 && !/\n/.test(t)) { const f = $("f-title"); if (f) { f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); } } }
-  else { const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), e = parseIso($("f-to")?.value || ""); const pick = d && (!sameDay(d, TODAY) || (e && e > d));
-    ASST_DAY = pick ? d : null; ASST_TO = pick && e && e > d ? e : null; const keep = ENTRY_TXT && (!t || ENTRY_TXT.includes(t)) ? ENTRY_TXT : ""; ENTRY_TXT = ""; showAssistant(true); const i = $("a-in"); if (i && (keep || t)) i.value = keep || t; }
+  else { FORM_DRAFT = formDirty() ? { ...formVals(), place: ($("f-place")?.value || "").trim() } : null; const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), e = parseIso($("f-to")?.value || ""); const pick = d && (!sameDay(d, TODAY) || (e && e > d));
+    ASST_DAY = pick ? d : null; ASST_TO = pick && e && e > d ? e : null; const keep = ENTRY_TXT && (!t || ENTRY_TXT.includes(t)) ? ENTRY_TXT : ""; ENTRY_TXT = ""; showAssistant(true); const i = $("a-in"), val = keep || t; if (i && val) i.value = val; if (FORM_DRAFT) FORM_DRAFT.__txt = (i?.value || "").trim();
+    if (ASST_SNAP && i && ASST_SNAP.txt.trim() === i.value.trim() && $("a-out")) $("a-out").innerHTML = ASST_SNAP.html; ASST_SNAP = null; }
 }
 // ---- Spracheingabe: sprechen statt tippen – danach wird automatisch umgewandelt (auch mehrere Termine auf einmal) ----
 const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
@@ -5204,7 +5219,7 @@ async function applyAssistant() {
     const undoOwn = own.length ? await applyChanges(own) : null;
     let files = ASST_FILES; ASST_FILES = [];
     if (picked.some(a => a.nostore)) { files = []; setTimeout(() => toast("Nur das Ablaufdatum übernommen – das Foto des Ausweises wurde nicht gespeichert."), 1800); }
-    closeSheet();
+    DRAFT_SAVED = true; closeSheet();
     const newId = LAST_ADDED.find(x => ["trip", "termin"].includes(x.v.type)) || LAST_ADDED[0];
     if (files.length && newId) setTimeout(() => docUpload({ ...newId.v, id: newId.id, files: [], a: parseIso(newId.v.from), b: parseIso(newId.v.to || newId.v.from) }, files), 400);
     toast(picked.length === 1 ? "Übernommen" : `${picked.length} Änderungen übernommen`, async () => { for (const u of gUndo.reverse()) await u(); if (undoOwn) await undoOwn(); else toast("Rückgängig gemacht"); mcp?.invalidate(GSERVER, "list_events").catch(() => {}); });
@@ -6094,8 +6109,8 @@ function applyTheme() {
 
 // =================== Ereignisse ===================
 let toastT;
-function toast(t, undo) {
-  const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${undo ? `<button type="button" id="toast-undo">Rückgängig</button>` : ""}`; el.hidden = false;
+function toast(t, undo, lbl) {
+  const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${undo ? `<button type="button" id="toast-undo">${esc(lbl || "Rückgängig")}</button>` : ""}`; el.hidden = false;
   if (undo) $("toast-undo").onclick = async () => { el.hidden = true; try { await undo(); } catch { toast("Rückgängig hat nicht geklappt"); } };
   clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 9000 : 3000);
 }
@@ -6205,7 +6220,7 @@ document.addEventListener("click", ev => {
   if ((el = q("#f-time-add"))) { const t = $("f-time"), f = parseIso($("f-from")?.value || "");
     // Termin heute: nächste volle Stunde vorschlagen
     timeOpen(!t?.value && f && +f === +TODAY && $("f-type")?.value === "termin" ? `${p2(Math.min(23, new Date().getHours() + 1))}:00` : ""); t?.focus(); return; }
-  if ((el = q("[data-qd]"))) { const f = $("f-from"), t = $("f-to"), a = parseIso(f.value), b = parseIso(t.value), n = parseIso(el.dataset.qd); const dur = a && b && b >= a ? dayDiff(a, b) : 0;
+  if ((el = q("[data-qd]"))) { const f = $("f-from"), t = $("f-to"), a = parseIso(f.value), b = parseIso(t.value), n = parseIso(el.dataset.qd); const dur = a && b && b >= a && ["trip", "urlaub"].includes($("f-type")?.value) ? dayDiff(a, b) : 0;
     f.value = el.dataset.qd; f.dataset.prev = ""; t.value = iso(addDays(n, dur)); f.dispatchEvent(new Event("change", { bubbles: true })); qMark(); return; }
   if ((el = q("#f-time-x"))) { fTimeOpen = false; $("f-time").value = ""; $("f-end").value = ""; $("f-time-wrap").hidden = true; $("f-time-add").hidden = false; qMark(); return; }
   if ((el = q("[data-qt]"))) { timeOpen(el.dataset.qt); $("f-time").dispatchEvent(new Event("change", { bubbles: true })); return; }
@@ -6247,14 +6262,15 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-ex]"))) { $("a-in").value = el.dataset.ex; $("a-in").focus(); return; }
   if ((el = q("[data-adjust]"))) { const i = +el.dataset.adjust, a = asstActions[i]; if (!a) return;
     asstActions.forEach((x, j) => { const c = document.querySelector(`[data-acal="${j}"]`); if (c && x.event) x.event.gcal = c.value; x.off = !document.querySelector(`[data-act="${j}"]`)?.checked; });
-    const snap = { i, txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "" }; showForm(a.op === "update" ? { ...EV.find(e => e.id === a.id), ...a.event, id: a.id } : { ...a.event, gcal: a.event.gcal }); ADJ = snap; $("sheet-sub").textContent = "Vorschlag anpassen – danach geht es zurück zur Liste"; if ($("f-save")) $("f-save").textContent = "Fertig"; return; }
+    const snap = { i, txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "" }; showForm(a.op === "update" ? { ...EV.find(e => e.id === a.id), ...a.event, id: a.id } : { ...a.event, gcal: a.event.gcal }); ADJ = snap; document.querySelector("#f .emode[role=tablist]")?.remove(); $("sheet-sub").textContent = "Vorschlag anpassen – danach geht es zurück zur Liste"; if ($("f-save")) $("f-save").textContent = "Fertig"; return; }
   switch (t.id) {
     case "gf-cancel": gEditing ? showEvent(gEditing) : closeSheet(); break;
     case "f-cancel": if (ADJ) { asstBack(); break; } sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
     case "f-dup": { const v = formVals(); v.gEventId = ""; showForm(v); toast("Kopie: Daten anpassen und speichern"); break; }
     case "a-go": runAssistant(); break;
     case "a-mic": micToggle(); break;
-    case "f-mail-btn": switchEntry("text"); setTimeout(() => { const i = $("a-in"); if (i) { i.placeholder = "Hier den Text der Buchungsbestätigung einfügen (lange tippen → Einfügen) – ich trage dann alles ein."; i.focus(); } }, 50); break;
+    case "f-mail-btn": { const w = $("f-mail-wrap"); if (!w) break; w.hidden = !w.hidden; $("f-link-wrap").hidden = true; if (!w.hidden) $("f-mail").focus(); break; }
+    case "f-mail-go": { const t = ($("f-mail")?.value || "").trim(); if (t.length < 10) { $("f-att-l").textContent = "Bitte zuerst den Text der Mail einfügen"; break; } formFromDocs([], "", t); break; }
     case "mi-help": showHelp(); break;
     case "mi-plan": showPlans(); break;
     case "card-quota-go": $("quota-card").hidden = true; $("quota-card").dataset.on = ""; if (["plus", "family"].includes(BILL?.plan?.id) && !BILL.plan.member) showAddon(); else showPlans(); break;
@@ -6478,7 +6494,7 @@ $("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSe
 function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body");
   const b = B?.querySelector(sheetMode === "vid" ? "#mi-help" : "[data-docsback],[data-docback]"); if (b && ["doc", "dai", "vid"].includes(sheetMode)) { b.click(); return true; }
   // Unterseiten: Zurück-Geste führt eine Ebene zurück statt alles zu schließen
-  const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay) ? $("f-cancel") : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
+  const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay) ? $("f-cancel") : null) || (sheetMode === "asst" && selDay && !asstDirty() ? { click: () => showDay(selDay) } : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
   if (up) { up.click(); return true; } return false; }
 $("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
 let POP_SKIP = false;

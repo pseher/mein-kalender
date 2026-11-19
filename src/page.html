@@ -424,6 +424,10 @@ td.mid { text-align: center; }
 .tk .ckb { width: 24px; height: 24px; margin: 8px; flex: none; }
 .sheet-title, .sheet .body b, .sheet h3, .ev-title, .act b, .reply, .doc-gt b { overflow-wrap: anywhere; }
 .f-time-x { grid-column: 1 / -1; justify-self: start; font-size: 13px; padding: 6px 0; }
+/* Speichern/Übernehmen immer im Daumenbereich */
+#f > .btnrow:last-of-type, #a-apply { position: sticky; bottom: 0; z-index: 3; }
+#f > .btnrow:last-of-type { background: var(--surface); margin: 12px -2px 0; padding: 10px 2px calc(10px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 12px -10px rgba(0,0,0,.25); }
+#a-apply { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 .btn.small { padding: 6px 10px; font-size: 13px; min-height: 38px; }
 .btn:disabled { opacity: .55; cursor: default; }
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
