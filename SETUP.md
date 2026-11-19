@@ -42,7 +42,7 @@ Google Kalender direkt aus dem Browser. Geheime Schlüssel kommen **nie** in die
 3. **Einstellungen → Variablen und Geheimnisse**:
    - Variablen (Text): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS` = `https://mein-kalender-czb.pages.dev`,
      `MODEL_QUICK` = `claude-haiku-4-5-20251001`, `MODEL_DEFAULT` = `claude-sonnet-5-5`,
-     `DAILY_LIMIT` = `40`, `IMAGE_DAILY_LIMIT` = `10`
+     `DAILY_LIMIT` = `40`, `IMAGE_DAILY_LIMIT` = `30`
    - Geheimnisse (Secret): `ANTHROPIC_KEY`, `SUPABASE_SERVICE_KEY`
 4. Worker-Adresse notieren, z. B. `https://mein-kalender-ki.<name>.workers.dev`
 

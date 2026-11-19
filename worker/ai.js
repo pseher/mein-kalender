@@ -70,7 +70,7 @@ export default {
       ]);
       const evn = {}; for (const r of evs) evn[r.user_id] = (evn[r.user_id] || 0) + 1;
       const users = (ur.users || []).map(u => { const pl = u.app_metadata?.plan?.src === "family" ? { id: "family", src: "family", until: null } : planOf(env, u); return { id: u.id, created: u.created_at, last: u.last_sign_in_at, me: u.id === user.id, plan: pl.id, planSrc: pl.src, planUntil: pl.until, trial: pl.trial }; });
-      return out(200, { billing: billMode(env), at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { usd: +(env.MONTHLY_USD || 3), day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length, pushBy: subs.reduce((m, s) => (m[s.user_id] = (m[s.user_id] || 0) + 1, m), {}),
+      return out(200, { billing: billMode(env), at: new Date().toISOString(), models: { quick: env.MODEL_QUICK, default: env.MODEL_DEFAULT }, limits: { usd: +(env.MONTHLY_USD || 3), day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 30), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), maxImages: MAX_IMAGES, maxPrompt: MAX_PROMPT }, users, ai, use: use.map(r => ({ u: r.user_id, d: r.id, f: r.data?.f || {} })), push: [...new Set(subs.map(s => s.user_id))].length, pushBy: subs.reduce((m, s) => (m[s.user_id] = (m[s.user_id] || 0) + 1, m), {}),
         sys: sys.map(r => ({ d: r.id, ...r.data })), dev: dev.map(r => ({ u: r.user_id, id: r.id, ...r.data })), helpq: helpq.map(r => ({ u: r.user_id, q: String(r.data?.q || "").slice(0, 300), at: r.updated_at })), evn,
         version: VERSION, keys: { airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET } });
     }
@@ -145,7 +145,7 @@ export default {
     const mrows = u.ok ? await u.json() : [], rows = mrows.filter(r => r.day === today);
     const used = rows.reduce((s, r) => s + r.calls, 0), usedImg = rows.filter(r => String(r.task).startsWith("bilder")).reduce((s, r) => s + r.calls, 0);
     const mCalls = mrows.reduce((s, r) => s + r.calls, 0), mTok = mrows.reduce((s, r) => s + (r.tok_in || 0) + (r.tok_out || 0), 0);
-    const L = { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 10), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), usd: +(env.MONTHLY_USD || 3) };
+    const L = { day: +(env.DAILY_LIMIT || 40), img: +(env.IMAGE_DAILY_LIMIT || 30), month: +(env.MONTHLY_LIMIT || 400), tok: +(env.MONTHLY_TOKENS || 3000000), usd: +(env.MONTHLY_USD || 3) };
     const mUsd = mrows.reduce((s, r) => { const P = PRICE[String(r.task).split("|")[1]] || PRICE[env.MODEL_DEFAULT] || [2, 10]; return s + ((r.tok_in || 0) * P[0] + (r.tok_out || 0) * P[1]) / 1e6; }, 0);
     if (L.usd > 0 && mUsd >= L.usd) return out(429, { code: "rate_limited", message: "Monatslimit für KI-Anfragen erreicht – ab dem 1. geht es weiter. Das Formular funktioniert weiterhin." });
     if (used >= L.day) return out(429, { code: "rate_limited", message: `Tageslimit erreicht (${L.day} KI-Anfragen) – morgen geht es weiter.` });
