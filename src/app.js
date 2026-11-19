@@ -1572,16 +1572,6 @@ function renderToday() {
   const thisWeek = sameDay(ws, monday(TODAY));
   $("wk-lbl").innerHTML = `<button type="button" class="wk-nav" data-wkstep="-1" aria-label="Vorige Woche">‹</button><span>KW ${isoWeek(ws)} · ${fmt(ws)} – ${fmt(addDays(ws, 6))}</span>${thisWeek ? "" : `<button type="button" class="link" id="wk-today">Heute</button>`}<button type="button" class="wk-nav" data-wkstep="1" aria-label="Nächste Woche">›</button>`;
   renderAgenda();
-  // Vor einem Jahr
-  const ly = new Date(TODAY.getFullYear() - 1, TODAY.getMonth(), TODAY.getDate()), memo = [];
-  const cand = OCC.filter(o => o.ev.repeat === "none" && !/sp(ä|ae)t|\bhb[ps]\b|\bmbm\b/i.test(o.ev.title) && o.ev.type !== "contact");
-  let hit = cand.filter(o => o.a <= ly && o.b >= ly), near = false;
-  if (!hit.length) { hit = cand.filter(o => o.b >= addDays(ly, -3) && o.a <= addDays(ly, 3)); near = true; }
-  const dd = d => `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.`, sr = (a, b) => sameDay(a, b) ? dd(a) : a.getMonth() === b.getMonth() ? `${p2(a.getDate())}.–${dd(b)}` : `${dd(a)}–${dd(b)}`;
-  hit.slice(0, 2).forEach(o => memo.push(`<button type="button" class="lr" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="dt">${sr(o.a, o.b)}</span><span class="n"><span class="ev-dot ${o.ev.type}" style="background:${colorOf(o.ev)}"></span><span>${esc(evName(o.ev))}</span></span></button>`));
-  $("ago").hidden = !memo.length || ly < START;
-  $("ago-lbl").textContent = near ? "Vor einem Jahr um diese Zeit" : "Heute vor einem Jahr";
-  $("ago-list").innerHTML = memo.join("");
 }
 
 // =================== Erinnerungen ===================
@@ -2694,12 +2684,18 @@ const swReady = () => Promise.race([navigator.serviceWorker.ready, new Promise(r
 const unb64u = s => { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 const subId = ep => { let h = 0; for (const c of ep) h = (h * 31 + c.charCodeAt(0)) | 0; return "s" + (h >>> 0).toString(36) + ep.length.toString(36); };
 let ntChecked = false;
+async function subSave(s) {
+  const id = subId(s.endpoint), dev = devId();
+  await COLL("pushsub").doc(id).set({ ...s.toJSON(), ua: navigator.userAgent.slice(0, 120), dev, at: new Date().toISOString() });
+  // Abo-Adresse wechselt manchmal (Browser erneuert sie) – ältere Einträge dieses Geräts entfernen, sonst kommt alles doppelt
+  try { const all = await COLL("pushsub").get(); for (const d of all.docs) { const x = d.data() || {}; if (d.id !== id && (x.endpoint === s.endpoint || (dev && x.dev === dev))) await COLL("pushsub").doc(d.id).delete(); } } catch {}
+}
 async function ntRefresh() { if (!ntSupported()) return null; try { const reg = await swReady(); ntSub = reg ? await reg.pushManager.getSubscription() : null; } catch { ntSub = null; } ntChecked = true; try { renderHints(); } catch {}
   const v = $("mi-notify-v"); if (v) v.textContent = ntSub && Notification.permission === "granted" ? "an" : ""; return ntSub; }
 function ntStart() {
   if (!APP || !canWrite) return; const mi = $("mi-notify"); if (mi) mi.hidden = false;
   COLL("prefs").doc("pushcfg").onSnapshot(d => { NTP = { ...NT_DEF, ...(d.exists ? d.data() || {} : {}) }; ntLoaded = true; pushPlanQueue(); if (sheetMode === "notify") showNotify(); });
-  ntRefresh().then(s => { if (s) COLL("pushsub").doc(subId(s.endpoint)).set({ ...s.toJSON(), ua: navigator.userAgent.slice(0, 120), at: new Date().toISOString() }).catch(() => {}); });
+  ntRefresh().then(s => { if (s) subSave(s).catch(() => {}); });
 }
 async function showNotify(msg) {
   if (sheetMode !== "notify") closeMenu();
@@ -2732,7 +2728,7 @@ async function notifyOn(quiet) {
     if ((await Notification.requestPermission()) !== "granted") return show("Ohne Erlaubnis kann ich keine Benachrichtigungen schicken.");
     const key = await window.mkPushKey(), reg = await swReady(); if (!reg) throw new Error("no sw");
     const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
-    await COLL("pushsub").doc(subId(s.endpoint)).set({ ...s.toJSON(), ua: navigator.userAgent.slice(0, 120), at: new Date().toISOString() });
+    await subSave(s);
     await COLL("prefs").doc("pushcfg").set({ ...NTP });
     pushPlanQueue(0); ntSub = s; show(quiet ? "🔔 Benachrichtigungen sind an" : "Eingeschaltet. Tippe auf „Test senden“, um es auszuprobieren.");
   } catch (e) { show(e?.code === "no_vapid" ? "Benachrichtigungen sind auf dem Server noch nicht eingerichtet (Schlüssel fehlt)." : "Einschalten hat nicht geklappt – bitte unter ☰ → Benachrichtigungen noch einmal versuchen."); }
@@ -2747,7 +2743,7 @@ function pushPlanQueue(ms = 4000) { if (!APP || !canWrite || !ntLoaded) return; 
 function buildPushPlan() {
   const N = NTP, now = new Date(), end = addDays(TODAY, 10), items = [];
   const at = (d, hm) => { const [h, m] = String(hm).split(":").map(Number); const x = new Date(d); x.setHours(h || 0, m || 0, 0, 0); return x; };
-  const add = (id, when, t, b, extra = {}) => { if (when > now && when <= addDays(end, 1)) items.push({ id, at: when.toISOString(), t, b, ...extra }); };
+  const dup = new Set(), add = (id, when, t, b, extra = {}) => { const k = `${when.toISOString().slice(0, 15)}|${t}|${b}`; if (when > now && when <= addDays(end, 1) && !dup.has(id) && !dup.has(k)) { dup.add(id); dup.add(k); items.push({ id, at: when.toISOString(), t, b, ...extra }); } };
   const occs = OCC_ALL.filter(o => !o.part && o.b >= TODAY && o.a <= addDays(end, 31) && (o.ev.type !== "info" || !!o.ev.time));   // Hinweise nur mit Uhrzeit
   const bdName = o => o.ev.type === "birthday" ? o.ev.title : String(o.ev.title).replace(/^geburtstag\s*(von\s*)?/i, "").trim();
   const isBd = o => o.ev.type === "birthday" || /geburtstag|birthday/i.test(o.ev.title);
@@ -2764,7 +2760,7 @@ function buildPushPlan() {
   if (N.bd) occs.forEach(o => {
     if (isBd(o)) { const age = ageTxt(o); add(`bd-${o.ev.id}-${iso(o.a)}`, at(o.a, "08:00"), `🎂 Heute: ${bdName(o)}`, age ? `${age} – vergiss nicht zu gratulieren` : "Vergiss nicht zu gratulieren");
       const rd = Math.min(+o.ev.remindDays || 7, 21); if (rd >= 2) add(`bdv-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -rd), "09:00"), `🎁 In ${rd} Tagen: Geburtstag ${bdName(o)}`, "Schon ein Geschenk oder eine Idee?"); }
-    else if (o.ev.type === "deadline") { const rd = +o.ev.remindDays || 3; add(`dl-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -rd), "09:00"), `⏰ Frist in ${rd} Tagen`, evName(o.ev)); add(`dl1-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -1), "09:00"), "⏰ Frist morgen", evName(o.ev)); }
+    else if (o.ev.type === "deadline") { const rd = +o.ev.remindDays || 7; if (rd > 1) add(`dl-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -rd), "09:00"), `⏰ Frist in ${rd} Tagen`, evName(o.ev)); add(`dl1-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -1), "09:00"), "⏰ Frist morgen", evName(o.ev)); }
     else if (o.ev.type === "trip" && o.a > TODAY) { const pk = o.ev.packlist || [], open = pk.filter(x => !x.d).length;
       add(`tr-${o.ev.id}-${iso(o.a)}`, at(addDays(o.a, -3), "18:00"), `🧳 In 3 Tagen: ${evName(o.ev)}`, pk.length ? (open ? `Noch ${open} Dinge auf der Packliste offen` : "Packliste ist komplett ✓") : "Zeit für die Packliste"); } });
   if (N.ev) MERK.forEach(m => { const open = (m.packlist || []).filter(x => !x.d); if (!open.length) return;

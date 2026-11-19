@@ -83,7 +83,7 @@ async function saveStats(env, S) {
 export async function runSchedule(env) {
   if (!(await vapid(env))) return { skipped: "no VAPID_JWK" };
   const now = Date.now(), subsAll = await getDocs(env, "coll=eq.pushsub&select=user_id,id,data");
-  const byUser = new Map(); subsAll.forEach(s => (byUser.get(s.user_id) || byUser.set(s.user_id, []).get(s.user_id)).push(s));
+  const byUser = new Map(), seenEp = new Set(); subsAll.forEach(s => { const ep = s.data?.endpoint; if (!ep || seenEp.has(ep)) return; seenEp.add(ep); (byUser.get(s.user_id) || byUser.set(s.user_id, []).get(s.user_id)).push(s); });
   const S = { runs: 1, users: byUser.size, sent: 0, fail: 0, gone: 0, wt: 0, wf: 0, found: 0, wmsg: 0, al: 0 }; STAT.al = 0;
   if (!byUser.size) { await saveStats(env, S); return { users: 0 }; }
   const ids = [...byUser.keys()].join(",");
@@ -113,12 +113,15 @@ export async function runSchedule(env) {
       if (fl && billMode(env) !== "off") { if (!PM) PM = await planMap(env).catch(() => ({})); if (PM[uid] && !PM[uid].flight) continue; }
       try { const r = await (fl ? flightCheck : trainCheck)(env, w, trains[w.id] || {}, now, plan.tz); trains = { ...trains, [w.id]: r.state }; trCh = true; (r.msgs || []).forEach(m => msgs.push(m));
         S[fl ? "wf" : "wt"]++; if (r.state?.seen) S.found++; S.wmsg += (r.msgs || []).length; } catch {} }
-    if (msgs.length) sent += await sendToUser(env, uid, subs, msgs.slice(0, 8), S);
+    // gleiche Meldung (Titel + Text) nur einmal je Durchlauf
+    const mk = new Set(), uniq = msgs.filter(m => { const k = `${m.title}|${m.body}`; if (mk.has(k)) return false; mk.add(k); return true; });
+    // erst als gesendet merken, dann senden – so kann ein zweiter, überlappender Durchlauf nichts doppelt schicken
     if (msgs.length || trCh || newSeen !== seen || !st.shareSeen) {
       const keep = [...done].filter(id => (plan.items || []).some(i => i.id === id)).slice(-400);   // nur noch geplante merken
       const tk = Object.fromEntries(Object.entries(trains).filter(([id]) => (plan.watch || []).some(w => w.id === id)));
       await upsertDoc(env, uid, "push", "sent", { ids: keep, shareSeen: newSeen > seen ? newSeen : seen, trains: tk, at: new Date(now).toISOString() });
     }
+    if (uniq.length) sent += await sendToUser(env, uid, subs, uniq.slice(0, 8), S);
   }
   S.sent = sent; S.al = STAT.al; await saveStats(env, S);
   return { users: byUser.size, sent };
