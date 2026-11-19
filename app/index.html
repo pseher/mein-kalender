@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119195325";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119201557";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -745,7 +745,10 @@ td.mid { text-align: center; }
 .btn.danger { background: transparent; color: var(--holiday); box-shadow: inset 0 0 0 1px var(--holiday); }
 .delch { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; padding: 12px; border-radius: 14px; background: var(--soft); } .delch p { flex-basis: 100%; margin: 0 0 2px; font-weight: 600; }
 .btn.accent { background: var(--both); color: var(--both-ink); }
-.btn.small { padding: 6px 10px; font-size: 13px; }
+.tk .ckb { width: 24px; height: 24px; margin: 8px; flex: none; }
+.sheet-title, .sheet .body b, .sheet h3, .ev-title, .act b, .reply, .doc-gt b { overflow-wrap: anywhere; }
+.f-time-x { grid-column: 1 / -1; justify-self: start; font-size: 13px; padding: 6px 0; }
+.btn.small { padding: 6px 10px; font-size: 13px; min-height: 38px; }
 .btn:disabled { opacity: .55; cursor: default; }
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .btnrow .push { margin-left: auto; }
@@ -788,7 +791,7 @@ td.mid { text-align: center; }
 .movebar .btn { background: var(--bg); color: var(--fg); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 30; background: var(--fg); color: var(--bg);
   padding: 8px 8px 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 500; max-width: calc(100% - 32px); box-sizing: border-box; display: flex; align-items: center; gap: 12px; }
-.toast button { border: 0; background: var(--bg); color: var(--fg); border-radius: 7px; padding: 5px 10px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.toast button { border: 0; background: var(--bg); color: var(--fg); border-radius: 8px; padding: 8px 14px; min-height: 40px; font-weight: 600; font-size: 14px; cursor: pointer; }
 .toast:not(:has(button)) { padding-right: 14px; }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translate(-50%, 12px); opacity: .6; } } }
 @media (max-width: 640px) {
@@ -825,8 +828,10 @@ td.mid { text-align: center; }
   .wrap .next-hint { display: none !important; }   /* Punkte unten + Wischen ersetzen die Hinweise */
   #bigmonth { touch-action: pan-x; }            /* seitlich: Seiten wechseln (Browser); hoch/runter: Monat (App) */
   #week, #year { touch-action: pan-x pan-y; }
-  .pgdots { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); display: flex; gap: 7px; z-index: 30; pointer-events: none; }
-  .pgdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgdots i.on { opacity: .9; transform: scale(1.15); }
+  .pgdots { position: fixed; left: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 2px); display: flex; gap: 2px; z-index: 30; }
+  .pgd { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 56px; min-height: 40px; justify-content: center; background: none; border: 0; padding: 4px 6px; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
+  .pgd i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgd.on i { opacity: .9; transform: scale(1.2); } .pgd.on { color: var(--ink, #111); font-weight: 600; }
+  html.sheet-open .pgdots { display: none; }
   .p1 { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
   html.fill .p1 { height: 100dvh; }
   html.fill #v-month { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -938,7 +943,7 @@ html.sheet-open.snap { scroll-snap-type: none; }
 .wkbox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 6px; margin-bottom: 10px; }
 .wk-head { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
 .wk-head span { flex: 1; text-align: center; } .wk-head .link { font-size: 12px; }
-.wk-nav { border: 0; background: var(--soft); color: var(--fg); width: 26px; height: 22px; border-radius: 6px; font-size: 15px; line-height: 1; cursor: pointer; padding: 0; }
+.wk-nav { border: 0; background: var(--soft); color: var(--fg); width: 40px; height: 34px; border-radius: 6px; font-size: 15px; line-height: 1; cursor: pointer; padding: 0; }
 .wk { touch-action: pan-y; }
 .wd.sel { background: var(--fg); color: var(--bg); } .wd.sel .wd-l { color: var(--bg); }
 .nx.agh { cursor: default; }
@@ -1424,7 +1429,7 @@ const ymd = (y, m, d) => new Date(y, m - 1, d);
 const addDays = (dt, n) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + n);
 const dayDiff = (a, b) => Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
 const iso = dt => `${dt.getFullYear()}-${p2(dt.getMonth()+1)}-${p2(dt.getDate())}`;
-const parseIso = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; };
+const parseIso = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); if (!m) return null; const d = new Date(+m[1], +m[2]-1, +m[3]); return d.getMonth() === +m[2]-1 && d.getDate() === +m[3] ? d : null; };
 const isWE = dt => dt.getDay() === 0 || dt.getDay() === 6;
 const sameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 const fmt = dt => `${WD[dt.getDay()]} ${p2(dt.getDate())}.${p2(dt.getMonth()+1)}.`;
@@ -3477,7 +3482,7 @@ async function docDelete(id, fid) {
   catch (err) { toast(writeErr(err)); }
 }
 // ---- Alle Dokumente (auch von gelöschten Terminen) ----
-let DOCS = [], DOCSEL = new Set(), docQ = "", docDelArm = false, DOCS_IN = false, EV_IN = false; const DOCSYNC = new Set(), DOC_KEEP = 7, DOC_PAST = 90, DOC_WARN = 7;
+let DOCS_Y = 0, DOCS = [], DOCSEL = new Set(), docQ = "", docDelArm = false, DOCS_IN = false, EV_IN = false; const DOCSYNC = new Set(), DOC_KEEP = 7, DOC_PAST = 90, DOC_WARN = 7;
 function docLbl(d) { const e = EV.find(x => x.id === d.ev && !x.shared) || EV.find(x => (x.files || []).some(f => f.id === d.id));
   const title = e?.title || d.evTitle || "ohne Termin", dt = e ? e.a : parseIso(d.evDate);
   return { e, gone: !e, title, date: dt ? fmtY(dt) : "", sort: dt ? +dt : 0 }; }
@@ -3518,7 +3523,7 @@ function frList() {
 }
 function showFristen() {
   const L = frList(), row = o => { const n = dayDiff(TODAY, o.a), e = o.ev;
-    return `<button type="button" class="fr-row${n < 0 ? " late" : n <= (+e.remindDays || 14) ? " soon" : ""}" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="fr-i">${fkIcon(e)}</span><span class="fr-t"><b>${esc(e.title)}</b><small>${fmtY(o.a)}${e.renew ? " · läuft danach weiter" : ""}</small></span><span class="fr-n">${n < 0 ? `seit ${-n} T.` : n === 0 ? "heute" : n < 60 ? `in ${n} T.` : n < 730 ? `in ${Math.round(n / 30)} Mon.` : `in ${Math.round(n / 365)} J.`}</span></button>`; };
+    return `<button type="button" class="fr-row${n < 0 ? " late" : n <= (+e.remindDays || 14) ? " soon" : ""}" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="fr-i">${fkIcon(e)}</span><span class="fr-t"><b>${esc(e.title)}</b><small>${fmtY(o.a)}${e.renew ? " · läuft danach weiter" : ""}</small></span><span class="fr-n">${n < 0 ? `seit ${-n} ${-n === 1 ? "Tag" : "Tagen"}` : n === 0 ? "heute" : n === 1 ? "morgen" : n < 60 ? `in ${n} Tagen` : n < 730 ? `in ${Math.round(n / 30)} Monaten` : `in ${Math.round(n / 365)} Jahren`}</span></button>`; };
   openSheet("Meine Fristen", "Was als Nächstes abläuft – du wirst rechtzeitig erinnert", `
     ${L.length ? `<div class="fr-l">${L.map(row).join("")}</div>` : `<p class="note" style="margin-top:10px">Noch keine Fristen. Fotografier einfach einen Vertrag, deinen Ausweis oder einen Kassenbon – oder trag eine Frist von Hand ein.</p>`}
     <div class="btnrow" style="margin-top:14px"><button type="button" class="btn accent small" id="fr-new">+ Frist eintragen</button><button type="button" class="btn ghost small" id="mi-account">‹ Konto</button></div>
@@ -3547,7 +3552,7 @@ async function docsMigrate() {
   }
 }
 function showDocs() {
-  const keep = sheetMode === "docs" && !$("sheet").hidden ? $("sheet").scrollTop : 0;
+  const keep = sheetMode === "docs" && !$("sheet").hidden ? $("sheet").scrollTop : sheetMode === "doc" ? DOCS_Y : 0; DOCS_Y = 0;
   storeLoad();
   const q = docQ.trim().toLowerCase();
   const all = DOCS.map(d => ({ d, L: docLbl(d) })).sort((a, b) => b.L.sort - a.L.sort || String(b.d.at).localeCompare(String(a.d.at)));
@@ -4337,8 +4342,8 @@ async function showAccount() {
   let me = {}; try { me = await (await claude.use("user"))?.me?.() || {}; } catch {}
   openSheet("Konto", "", `<div class="acc">
     <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">${(() => { const a = window.mkAuthInfo?.() || {}; return a.google && a.pw ? "angemeldet mit Google oder E-Mail und Passwort" : a.google ? "angemeldet mit Google" : "angemeldet mit E-Mail"; })()}</span></div>
-    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-docs">📁 Meine Dokumente${DOCS.length ? ` <em>${DOCS.length}</em>` : ""}
-    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-fr">⏰ Meine Fristen${frList().length ? ` <em>${frList().length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Verträge, Ausweis, Garantie, TÜV – alles mit Ablaufdatum.</p>` : ""}</button><p class="note" style="margin-top:-4px">Tickets, Buchungen und PDFs – alles, was du an Termine gehängt hast. Nur du siehst sie.</p>` : ""}
+    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-docs">📁 Meine Dokumente${DOCS.length ? ` <em>${DOCS.length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Tickets, Buchungen und PDFs – alles, was du an Termine gehängt hast. Nur du siehst sie.</p>
+    <button type="button" class="btn ghost big acc-docs" id="acc-fr">⏰ Meine Fristen${frList().length ? ` <em>${frList().length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Verträge, Ausweis, Garantie, TÜV – alles mit Ablaufdatum.</p>` : ""}
     <button type="button" class="btn ghost big" id="acc-pw">${(window.mkAuthInfo?.() || {}).pw ? "Passwort ändern" : "Passwort festlegen"}</button>
     <button type="button" class="btn ghost big" id="app-logout">Abmelden</button>
     <p class="note">Deine Daten bleiben gespeichert – nach der nächsten Anmeldung ist alles wieder da.</p>
@@ -4350,7 +4355,7 @@ function showDeleteAccount() {
   closeMenu?.();
   const nEv = EV.filter(e => !e.shared).length, nTk = TASKS.length;
   openSheet("Konto löschen", "Das lässt sich nicht rückgängig machen", `
-    <p>Gelöscht werden <b>dein Konto und alles, was du hier gespeichert hast</b>: ${nEv} Einträge, ${nTk} Aufgaben, Dokumente, Familie, Einstellungen und alles, was du mit anderen teilst. Die Freigabe für deinen Google Kalender wird zurückgezogen.</p>
+    <p>Gelöscht werden <b>dein Konto und alles, was du hier gespeichert hast</b>: ${nEv} ${nEv === 1 ? "Eintrag" : "Einträge"}, ${nTk} ${nTk === 1 ? "Aufgabe" : "Aufgaben"}, Dokumente, Familie, Einstellungen und alles, was du mit anderen teilst. Die Freigabe für deinen Google Kalender wird zurückgezogen.</p>
     <p class="note">Deine Termine <b>in Google selbst</b> bleiben erhalten – die gehören zu deinem Google-Konto.</p>
     <div class="form"><label for="delacc-in">Zum Bestätigen <b>LÖSCHEN</b> eintippen</label>
     <input id="delacc-in" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="LÖSCHEN"></div>
@@ -4385,7 +4390,9 @@ document.addEventListener("focusin", ev => {
   const t = ev.target; if (!t.closest || !t.closest("#sheet") || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
   setTimeout(() => { fitSheet(); t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 350);
 });
+let POP_CLOSING = false;
 function closeSheet() { try { if (MIC) micStop(); } catch {}
+  if (!POP_CLOSING && APP && !sheet.hidden && history.state?.mkSheet) { POP_SKIP = true; try { history.back(); } catch { POP_SKIP = false; } }
   sheet.hidden = true; sheetMode = null; sheetCtx = null; document.documentElement.classList.remove("sheet-open"); setTimeout(renderHints, 0);
   if (selDay) { selDay = null; document.querySelectorAll(".d.sel, .mc.sel").forEach(x => x.classList.remove("sel")); }
   $("add-btn").hidden = (!canWrite && dbState !== "off") || !!moving;
@@ -4519,7 +4526,8 @@ Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "u
 ${UMST_HINT}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
-    const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
+    const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") { el.value = v; if (id === "f-from" || id === "f-time") setTimeout(qMark, 0); } };
+    const addNote = n => { const f = $("f-note"), cur = f.value.trim(); n = String(n || "").replace(/\s*\n\s*/g, " · ").trim(); if (n && !cur.includes(n)) f.value = [cur, n].filter(Boolean).join(" · "); };
     const ty = FORM_TYPE_SET || cur === "abholen" || cur === "urlaub" || cur === "deadline" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin", "deadline", "urlaub"].includes(r.type) ? r.type : "";
     if (ty && ty !== cur) { $("f-type").value = ty; syncFormFields(); }
     if (ty === "abholen") {
@@ -4529,21 +4537,30 @@ ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "defa
       ["f-pk-who", "f-pk-st"].forEach(id => { const el = $(id); if (el?.dataset.pre) { el.value = ""; delete el.dataset.pre; } });
       set("f-pk-who", pk.who); set("f-pk-no", pk.no); set("f-pk-st", r.place); set("f-from", r.from); set("f-time", r.time);
       FORM_UMST = umstClean(pk.umst); const fa = $("f-ask"); if (fa && FORM_UMST.length >= 2) { fa.innerHTML = umstHtml(FORM_UMST, r.place, "data-fumst", $("f-pk-dir")?.dataset.v || pk.dir, pk.no); fa.hidden = false; }
-      if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
+      if (r.note) addNote(r.note);
       pickPreview(); await say(`✓ Ausgefüllt aus ${FORM_FILES.map(f => f.name).join(", ") || "dem Link"}${att.long.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Das Ticket wird beim Speichern angehängt." : ""}`); return;
     }
     if (ty === "deadline") { if (FK[r.fk]) document.querySelector(`[data-ffk="${r.fk}"]`)?.click(); if ($("f-renew")) $("f-renew").checked = [1, 2].includes(+r.renew);
       if (+r.remindDays > 0) set("f-rem", +r.remindDays);
       if (r.nostore || ["ausweis", "pass"].includes(r.fk)) { FORM_FILES = []; files.length = 0; } }
     set("f-title", r.title); set("f-from", r.from); set("f-to", ty === "deadline" ? r.from : parseIso(r.to) ? r.to : r.from); set("f-place", r.place);
-    if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
+    if (r.note) addNote(r.note);
     if (r.time) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; set("f-time", r.time); set("f-end", r.endTime); }
     if (MODES[r.mode]) { const m = document.querySelector(`[name=fmode][value="${r.mode}"]`); if (m) m.checked = true; }
     if (ty === "deadline" && (r.nostore || ["ausweis", "pass"].includes(r.fk))) { await say("✓ Ablaufdatum übernommen – bitte kurz prüfen. Das Foto des Ausweises wird nicht gespeichert."); return; }
     await say(`✓ Ausgefüllt aus ${files.length ? FORM_FILES.map(f => f.name).join(", ") : "dem Link"}${att.long?.length ? " (" + att.long.join("; ") + ")" : ""} – bitte kurz prüfen${files.length ? ". Die Dokumente werden beim Speichern angehängt." : ""}`);
   } catch (err) { await say(err?.code === "rate_limited" ? RL(err) : "Das Auslesen hat nicht geklappt."); }
 }
+let ADJ = null;   // „Anpassen“ eines Vorschlags aus dem Freitext
+function asstBack() {
+  const s = ADJ; ADJ = null; if (!s) return closeSheet();
+  showAssistant(true); const ta = $("a-in"), out = $("a-out"); if (ta) ta.value = s.txt; if (!out) return; out.innerHTML = s.html;
+  const L = out.querySelector(".acts-list"); if (L) L.innerHTML = asstActions.map((x, i) => actHtml(x, i)).join("");
+  asstActions.forEach((x, i) => { const c = document.querySelector(`[data-act="${i}"]`); if (c && x.off) c.checked = false; });
+  const fl = $("a-files-l"); if (fl && ASST_FILES.length) fl.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", ");
+}
 function showForm(e, preset) {
+  ADJ = null;
   if (!arguments[0]) FORM_FILES = [];
   FORM_TYPE_SET = !!(e && (e.id || e.type)); FORM_DIR_SET = !!(e && e.id && e.pick?.dir); KIND_RES = null;
   editing = e && e.id ? e : null;
@@ -4582,7 +4599,7 @@ function showForm(e, preset) {
       ${famGroups().length && gWritable() && !v.gReadOnly ? `<div class="vis" id="f-vis" role="radiogroup" aria-label="Wer sieht das?"><button type="button" role="radio" data-vis="me" aria-checked="${!isShareCal(v.gcal)}">🔒 Nur ich</button>${famGroups().map(g => `<button type="button" role="radio" data-vis="${esc(g.cal)}" aria-checked="${v.gcal === g.cal}">👪 ${esc(calName(g.cal))}</button>`).join("")}</div>` : ""}
       <div class="two"><div><label for="f-from" id="f-from-l">Von</label><input id="f-from" type="date" value="${esc(v.from)}"></div>
       <div id="f-to-wrap"><label for="f-to">Bis</label><input id="f-to" type="date" value="${esc(v.to)}"></div></div>
-      ${editing ? "" : `<div class="qchips" id="f-qd">${qDates().map(([d, l]) => `<button type="button" class="tkq" data-qd="${d}">${l}</button>`).join("")}</div>`}
+      ${`<div class="qchips" id="f-qd">${qDates().map(([d, l]) => `<button type="button" class="tkq" data-qd="${d}">${l}</button>`).join("")}</div>`}
       <div id="f-bd-wrap"><div class="two"><div><label for="f-bd">Geburtstag</label><input id="f-bd" type="text" inputmode="numeric" placeholder="TT.MM." value="${v.type === "birthday" && v.from ? esc(`${v.from.slice(8, 10)}.${v.from.slice(5, 7)}.`) : ""}"></div>
         <div><label for="f-by2">Geburtsjahr</label><input id="f-by2" type="number" inputmode="numeric" min="1900" max="2028" placeholder="falls bekannt" value="${esc(v.birthYear || "")}"></div></div>
         <p class="note" style="margin:2px 0 0">Ohne Jahr wird trotzdem jedes Jahr erinnert – nur das Alter fehlt.</p>
@@ -4591,7 +4608,7 @@ function showForm(e, preset) {
       <button type="button" class="link f-time-add" id="f-time-add">🕒 Uhrzeit hinzufügen</button>
       <div class="qchips" id="f-qt">${QTIMES.map(t => `<button type="button" class="tkq" data-qt="${t}">${t}</button>`).join("")}</div>
       <div class="two" id="f-time-wrap"><div><label for="f-time" id="f-time-l">Uhrzeit</label><input id="f-time" type="time" value="${esc(v.time)}"></div>
-      <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div></div>
+      <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div><button type="button" class="link f-time-x" id="f-time-x">✕ ohne Uhrzeit</button></div>
       <div class="two" id="f-extra">
         <div id="f-by-wrap"><label for="f-by">Geburtsjahr</label><input id="f-by" type="number" inputmode="numeric" min="1900" max="2028" placeholder="fürs Alter" value="${esc(v.birthYear || "")}"></div>
         <div id="f-sy-wrap"><label for="f-sy">Seit Jahr</label><input id="f-sy" type="number" inputmode="numeric" min="1900" max="2028" placeholder="z. B. 2015" value="${esc(v.startYear || "")}"></div>
@@ -4713,8 +4730,9 @@ function formVals0() {
   if (type === "birthday" && $("f-bd")) { // vereinfachte Eingabe: Tag.Monat (+ optional Jahr)
     const p = ctParseDate(g("f-bd")), y = +g("f-by2") || (p && p.y >= 1900 ? p.y : 0);
     const base = editing ? parseIso(editing.from) : parseIso(g("f-from")), yy = base ? base.getFullYear() : TODAY.getFullYear();
-    if (p) { const d = iso(new Date(yy, p.m - 1, p.d)); $("f-from").value = d; $("f-to").value = d; } else { $("f-from").value = ""; }
-    $("f-rep").value = "yearly"; $("f-by").value = y && y >= 1900 ? y : "";
+    const leap = p && p.m === 2 && p.d === 29, y0 = leap ? yy - (yy % 4) : yy, dt = p ? new Date(y0, p.m - 1, p.d) : null;
+    if (dt && dt.getMonth() === p.m - 1 && dt.getDate() === p.d) { const d = iso(dt); $("f-from").value = d; $("f-to").value = d; } else { $("f-from").value = ""; }
+    if ($("f-rep").value !== "yearly") { $("f-rep").value = "yearly"; $("f-rep").dataset.auto = "1"; } $("f-by").value = y && y >= 1900 ? y : "";
   }
   const contact = type === "contact";
   return { type, title: g("f-title"), from: g("f-from"), to: contact || type === "deadline" ? g("f-from") : (g("f-to") || g("f-from")), time: contact ? "" : g("f-time"), endTime: contact ? "" : g("f-end"),
@@ -4737,17 +4755,22 @@ function validate(v) {
   const a = parseIso(v.from), b = parseIso(v.to);
   if (!a) return v.type === "birthday" ? "Bitte den Geburtstag als Tag.Monat eingeben, z. B. 18.05." : "Bitte ein gültiges Von-Datum eingeben.";
   if (!b || b < a) return "Das Bis-Datum liegt vor dem Von-Datum.";
+  if (v.time && v.endTime && +a === +b && v.endTime < v.time) return "Die Endzeit liegt vor der Startzeit.";
+  if (v.until && parseIso(v.until) && parseIso(v.until) < a) return "Die Wiederholung endet vor dem ersten Termin – bitte das Ende prüfen.";
+  if ((!v.repeat || v.repeat === "none") && (a < START || b > END)) return `Der Kalender reicht von ${START.getFullYear()} bis ${END.getFullYear()} – bitte ein Datum in diesem Zeitraum wählen.`;
   return "";
 }
 async function saveForm() {
-  const v = formVals(), msg = validate(v); if (msg) { $("f-err").textContent = msg; return; }
+  const v = formVals(), msg = validate(v); if (msg) { $("f-err").textContent = msg; const fld = /Titel/.test(msg) ? $("f-title") : /Uhrzeit|Endzeit/.test(msg) ? $("f-time") : /Datum|Geburtstag|Kalender reicht/.test(msg) ? ($("f-bd-wrap")?.hidden === false ? $("f-bd") : $("f-from")) : null;
+    if (fld && !fld.closest("[hidden]")) { fld.scrollIntoView({ block: "center", behavior: "smooth" }); try { fld.focus({ preventScroll: true }); } catch {} } return; }
+  if (ADJ) { const a = asstActions[ADJ.i]; if (a) { a.event = { ...a.event, ...v }; } asstBack(); return; }
   use(editing ? "bearbeiten" : "formular_neu"); if (v.color) use("farbe_eintrag"); if (v.repeat && v.repeat !== "none") use("wiederholung_" + v.repeat);
   if (editing && editing.shared) { try { await recvSave(editing, v); closeSheet(); toast(`Gespeichert – ${editing.shared.from} sieht die Änderung`); } catch (err) { toast("Speichern hat nicht geklappt"); } return; }
   const btn = $("f-save"); btn.disabled = true; btn.textContent = "Speichert …";
   try {
     const was = editing; const undo = await applyChanges([was ? { op: "update", id: was.id, event: v } : { op: "add", event: v }]);
     const files = FORM_FILES; FORM_FILES = []; const added = !was && LAST_ADDED[0];
-    closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert` : was ? "Gespeichert" : "Eingetragen", undo);
+    closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? (v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter Konto → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`) : was ? "Gespeichert" : "Eingetragen", undo);
     if (files.length && added) setTimeout(() => docUpload({ ...added.v, id: added.id, files: [], a: parseIso(added.v.from), b: parseIso(added.v.to || added.v.from) }, files), 400);
     if (v.type === "birthday" && canWrite) { const k = famKey(v.title), inFam = FAM().some(p => famKey(p.name) === k || p.key === k); const b = parseIso(v.from);
       if (v.fam && !inFam) { FAMED = FAM().map(p => ({ ...p })); FAMED.push({ name: v.title, role: (FAMKW.find(([re]) => re.test(v.title)) || [])[1] || "andere", birthday: v.birthYear ? `${v.birthYear}-${v.from.slice(5)}` : `--${v.from.slice(5)}`, key: k }); famSave(); }
@@ -4921,7 +4944,7 @@ async function delSeries(btn, m, id, a) {
 async function delEvent(btn, id, a) {
   const e0 = EV.find(x => x.id === id);
   if (e0 && e0.repeat && e0.repeat !== "none" && a) { delChoice(btn, id, a, false); return; }
-  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Auch in Google löschen?" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 4000); return; }
+  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Auch in Google löschen?" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 9000); return; }
   btn.disabled = true;
   const hadDocs = (EV.find(x => x.id === id)?.files || []).length;
   try { const undo = await applyChanges([{ op: "delete", id }]); closeSheet(); toast(hadDocs ? `Gelöscht – die Dokumente werden in ${DOC_KEEP} Tagen mitgelöscht` : "Gelöscht", undo); }
@@ -4943,22 +4966,24 @@ async function useFlush() { const q = USE_Q; USE_Q = {}; if (!Object.keys(q).len
     for (const [k, n] of Object.entries(q)) f[k] = (f[k] || 0) + n; await ref.set({ day, f, v: 1 }); } catch {} }
 window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
 function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
+let ENTRY_TXT = "";   // längerer Freitext (Mail, WhatsApp) bleibt beim Hin- und Herwechseln erhalten
 function switchEntry(m) {
   store.set("ft-entry", m);
+  if (m === "form") ENTRY_TXT = ($("a-in")?.value || "").trim();
   if (m === "form") { const t = ($("a-in")?.value || "").trim().replace(/^vom\s+\d{1,2}\.\d{1,2}\.?\s*(bis\s+\d{1,2}\.\d{1,2}\.?)?\s*:?\s*/i, ""), A = ASST_DAY, B = ASST_TO;
     showForm(null, A ? iso(A) : iso(TODAY)); if (A && B && B > A) { const f = $("f-to"); if (f) { f.value = iso(B); f.dispatchEvent(new Event("change", { bubbles: true })); } }
     if (t && t.length <= 60 && !/\n/.test(t)) { const f = $("f-title"); if (f) { f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); } } }
   else { const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), e = parseIso($("f-to")?.value || ""); const pick = d && (!sameDay(d, TODAY) || (e && e > d));
-    ASST_DAY = pick ? d : null; ASST_TO = pick && e && e > d ? e : null; showAssistant(); const i = $("a-in"); if (i && t) i.value = t; }
+    ASST_DAY = pick ? d : null; ASST_TO = pick && e && e > d ? e : null; const keep = ENTRY_TXT && (!t || ENTRY_TXT.includes(t)) ? ENTRY_TXT : ""; ENTRY_TXT = ""; showAssistant(true); const i = $("a-in"); if (i && (keep || t)) i.value = keep || t; }
 }
 // ---- Spracheingabe: sprechen statt tippen – danach wird automatisch umgewandelt (auch mehrere Termine auf einmal) ----
 const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
-let MIC = null, ASST_VOICE = false;
+let MIC = null, ASST_VOICE = false, LAST_VOICE = "";
 function micStop() { try { MIC?.stop(); } catch {} }
 function micToggle() {
   if (MIC) { micStop(); return; }
   const R = SR(); if (!R) return;
-  const ta = $("a-in"), btn = $("a-mic"), st = $("a-mic-st"), base = ta.value.trim();
+  const ta = $("a-in"), btn = $("a-mic"), st = $("a-mic-st"), base = ta.value.trim() === LAST_VOICE ? "" : ta.value.trim();
   const rec = new R(); MIC = rec; rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = true;
   let fin = "", err = "";
   const show = (txt) => { ta.value = [base, txt].filter(Boolean).join(base ? "\n" : ""); };
@@ -4968,7 +4993,7 @@ function micToggle() {
     if (err === "not-allowed" || err === "service-not-allowed") { if (st) st.textContent = "Mikrofon nicht freigegeben – in den Browser-Einstellungen erlauben."; return; }
     if (err && err !== "no-speech" && err !== "aborted") { if (st) st.textContent = "Spracheingabe gerade nicht möglich (Internet?) – bitte tippen."; return; }
     if (st) st.textContent = "";
-    if (fin.trim()) { show(fin.trim()); ASST_VOICE = true; runAssistant(); } };
+    if (fin.trim()) { show(fin.trim()); LAST_VOICE = ta.value.trim(); ASST_VOICE = true; runAssistant(); } };
   try { rec.start(); } catch { MIC = null; return; }
   if (btn) { btn.setAttribute("aria-pressed", "true"); btn.textContent = "⏹ Fertig"; }
   if (st) st.textContent = "Ich höre zu … sag ruhig mehrere Termine hintereinander.";
@@ -5108,7 +5133,7 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
     execute: async (i, ctx) => ({ termine: await lookupEvents(String(i.from || ""), String(i.to || i.from || ""), String(i.query || ""), ctx?.signal) }) }] : undefined;
   try {
     const r = await (window.MK_TASK = "assistent", sample.json)(prompt, { modelTier: "default", cache: false, tools, images: att.imgs.length ? att.imgs : undefined });
-    asstActions = (Array.isArray(r?.actions) ? r.actions : []).map(a => {
+    asstActions = (Array.isArray(r?.actions) ? r.actions : []).map(a => { if (!a || typeof a !== "object") return null;
       const gid = typeof a.id === "string" && a.id.startsWith("g:");
       if (gid) {
         const o = gSeen.get(a.id) || OCC_ALL.find(x => x.ev.id === a.id); if (!o) return null;
@@ -5137,10 +5162,10 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
     const askBox = conn ? `<div class="kask"><b>Das ist eine Verbindung – wofür ist sie?</b><div class="kask-o">${KIND_OPTS.filter(([k]) => !["deadline", "auto"].includes(k)).map(([k, l]) => `<button type="button" class="tkq" data-akind="${k}"${k === curK ? ' aria-pressed="true"' : ""}>${esc(l)}</button>`).join("")}</div><p class="note" style="margin:6px 0 0">Markiert ist mein Vorschlag. Tipp auf etwas anderes, dann lese ich es passend neu.</p></div>` : "";
     const ui = asstActions.findIndex(a => a.umst?.length >= 2), ua = asstActions[ui];
     const umBox = ua ? `<div data-umi="${ui}">${umstHtml(ua.umst, ua.event.place, "data-aumst", ua.event.pick?.dir, ua.event.pick?.no)}</div>` : "";
-    out.innerHTML = askBox + umBox + `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
+    out.innerHTML = askBox + umBox + `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : asstActions.length ? "" : `<div class="reply">Darin habe ich keinen Termin gefunden. Schreib z. B. „Zahnarzt Freitag 10 Uhr“ – oder nutze das Formular.</div>`}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
       ${canWrite ? `<button type="button" class="btn accent wide" id="a-apply">Übernehmen</button>` : `<p class="note">Speichern kann nur der Besitzer der Seite.</p>`}` : "");
   } catch (e) {
-    out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : e?.code === "too_long" ? "Das war zu viel auf einmal. Versuch es mit weniger Text oder einem Dokument." : e?.code === "bad_image" ? "Das Bild konnte nicht gelesen werden – versuch einen Screenshot oder ein anderes Foto." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
+    out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : e?.code === "too_long" ? "Das war zu viel auf einmal. Versuch es mit weniger Text oder einem Dokument." : e?.code === "bad_image" ? "Das Bild konnte nicht gelesen werden – versuch einen Screenshot oder ein anderes Foto." : e?.code === "bad_output" ? "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular." : "Der Dienst antwortet gerade nicht. Versuch es gleich noch einmal – deine Eingabe bleibt stehen."}</p>`;
   }
   go.disabled = false; go.textContent = "Umwandeln";
 }
@@ -5544,7 +5569,7 @@ async function gDeleteOcc(btn, o, series) {
     try { await mcp.callTool(GSERVER, "delete_event", inp); mcp.invalidate(GSERVER, "list_events").catch(() => {}); closeSheet(); gDropLocal(o.ev.rid, o.ev.calId); gResync(); toast("Ganze Serie in Google gelöscht"); }
     catch (e) { toast(gErr(e)); gSync(true); } return; }
   if (!btn) btn = { dataset: { confirm: "1" }, isConnected: false };
-  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = o.ev.recurring ? "Nur diesen Termin löschen?" : "In Google löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 4000); return; }
+  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = o.ev.recurring ? "Nur diesen Termin löschen?" : "In Google löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 9000); return; }
   btn.disabled = true;
   const snap = gSnap(o), cal = o.ev.calId;
   try {
@@ -5651,7 +5676,10 @@ async function saveNewPw() {
 }
 // Leerzeichen in E-Mail und Passwort sofort entfernen (Handy-Tastaturen setzen gern eins nach „.“)
 document.addEventListener("input", ev => { const t = ev.target; if (t?.id === "f-pk-who" || t?.id === "f-pk-st") delete t.dataset.pre; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
-document.addEventListener("change", ev => { const t = ev.target; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
+document.addEventListener("focusin", ev => { if (ev.target?.id === "f-from") ev.target.dataset.prev = ev.target.value; });
+document.addEventListener("change", ev => { const t = ev.target;
+  if (t?.id === "f-from" && t.dataset.prev && $("f-to")) { const p = parseIso(t.dataset.prev), n = parseIso(t.value), b = parseIso($("f-to").value); if (p && n && b && b >= p) $("f-to").value = iso(addDays(n, dayDiff(p, b))); else if (n && (!b || b < n)) $("f-to").value = t.value; t.dataset.prev = t.value; }
+  if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
 document.addEventListener("input", ev => { const t = ev.target; if (!t?.id || !/^au-(email|pw|np1|np2)$/.test(t.id) || !/\s/.test(t.value)) return;
   const pos = t.selectionStart ?? t.value.length, before = t.value.slice(0, pos).replace(/\s+/g, "").length; t.value = t.value.replace(/\s+/g, ""); try { t.setSelectionRange(before, before); } catch {} });
 document.addEventListener("submit", ev => { const id = ev.target.id; if (id === "au-form" || id === "au-code") { ev.preventDefault(); auSubmit(id); } if (id === "au-np") { ev.preventDefault(); saveNewPw(); } });
@@ -6069,7 +6097,7 @@ let toastT;
 function toast(t, undo) {
   const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${undo ? `<button type="button" id="toast-undo">Rückgängig</button>` : ""}`; el.hidden = false;
   if (undo) $("toast-undo").onclick = async () => { el.hidden = true; try { await undo(); } catch { toast("Rückgängig hat nicht geklappt"); } };
-  clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 6000 : 2400);
+  clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 9000 : 3000);
 }
 document.addEventListener("click", ev => {
   if (Date.now() - swipedAt < 400 && ev.target.closest("#bigmonth, #week, #year")) { ev.preventDefault(); ev.stopPropagation(); return; }
@@ -6130,7 +6158,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wzpick]"))) { const k = el.dataset.wzpick; WZ.picked[k] = !WZ.picked[k]; renderWz(); return; }
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
-  if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
+  if ((el = q("[data-pg]"))) { goPage(el.dataset.pg); return; }
+  if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); if (moving && d) { finishMove(d); return; } setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-kind]"))) { KIND_RES?.(el.dataset.kind); return; }
@@ -6177,13 +6206,14 @@ document.addEventListener("click", ev => {
     // Termin heute: nächste volle Stunde vorschlagen
     timeOpen(!t?.value && f && +f === +TODAY && $("f-type")?.value === "termin" ? `${p2(Math.min(23, new Date().getHours() + 1))}:00` : ""); t?.focus(); return; }
   if ((el = q("[data-qd]"))) { const f = $("f-from"), t = $("f-to"), a = parseIso(f.value), b = parseIso(t.value), n = parseIso(el.dataset.qd); const dur = a && b && b >= a ? dayDiff(a, b) : 0;
-    f.value = el.dataset.qd; t.value = iso(addDays(n, dur)); f.dispatchEvent(new Event("change", { bubbles: true })); qMark(); return; }
+    f.value = el.dataset.qd; f.dataset.prev = ""; t.value = iso(addDays(n, dur)); f.dispatchEvent(new Event("change", { bubbles: true })); qMark(); return; }
+  if ((el = q("#f-time-x"))) { fTimeOpen = false; $("f-time").value = ""; $("f-end").value = ""; $("f-time-wrap").hidden = true; $("f-time-add").hidden = false; qMark(); return; }
   if ((el = q("[data-qt]"))) { timeOpen(el.dataset.qt); $("f-time").dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
   if ((el = q("[data-placeno]"))) { const S = noPlace(); S.add(el.dataset.placeno); store.set("ft-noplace", JSON.stringify([...S].slice(-300))); const b = $("place-sug"); if (b) b.hidden = true; toast("Gemerkt – bei diesem Titel frage ich nicht mehr nach einem Ort"); renderAll(); return; }
   if ((el = q("[data-placeset]"))) { const o = sheetCtx && findOcc(sheetCtx.id, sheetCtx.a); if (o) setPlace(o, el.dataset.placeset); return; }
   if ((el = q("[data-osm]"))) { const f = $("f-place"); if (f) { f.value = el.dataset.osm; osmLast = f.value; } const b = $("f-place-sug"); if (b) b.hidden = true; return; }
-  if ((el = q("[data-doc]"))) { const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
+  if ((el = q("[data-doc]"))) { if (sheetMode === "docs") DOCS_Y = $("sheet").scrollTop; const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
   if ((el = q("[data-docsback]"))) { showDocs(); return; }
   if ((el = q("[data-vid]"))) { showVid(+el.dataset.vid); return; }
   if ((el = q("[data-vidshare]"))) { const v = VIDS[+el.dataset.vidshare]; navigator.share?.({ title: v.t, text: v.s, url: location.origin + v.src }).catch(() => {}); return; }
@@ -6215,10 +6245,12 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-year]"))) { setYear(+el.dataset.year); return; }
   if ((el = q("[data-gomonth]"))) { curMi = +el.dataset.gomonth; setView("month"); setMonth(curMi); return; }
   if ((el = q("[data-ex]"))) { $("a-in").value = el.dataset.ex; $("a-in").focus(); return; }
-  if ((el = q("[data-adjust]"))) { const a = asstActions[+el.dataset.adjust]; if (a) showForm(a.op === "update" ? { ...EV.find(e => e.id === a.id), ...a.event, id: a.id } : { ...a.event, gcal: document.querySelector(`[data-acal="${el.dataset.adjust}"]`)?.value ?? a.event.gcal }); return; }
+  if ((el = q("[data-adjust]"))) { const i = +el.dataset.adjust, a = asstActions[i]; if (!a) return;
+    asstActions.forEach((x, j) => { const c = document.querySelector(`[data-acal="${j}"]`); if (c && x.event) x.event.gcal = c.value; x.off = !document.querySelector(`[data-act="${j}"]`)?.checked; });
+    const snap = { i, txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "" }; showForm(a.op === "update" ? { ...EV.find(e => e.id === a.id), ...a.event, id: a.id } : { ...a.event, gcal: a.event.gcal }); ADJ = snap; $("sheet-sub").textContent = "Vorschlag anpassen – danach geht es zurück zur Liste"; if ($("f-save")) $("f-save").textContent = "Fertig"; return; }
   switch (t.id) {
     case "gf-cancel": gEditing ? showEvent(gEditing) : closeSheet(); break;
-    case "f-cancel": sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
+    case "f-cancel": if (ADJ) { asstBack(); break; } sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
     case "f-dup": { const v = formVals(); v.gEventId = ""; showForm(v); toast("Kopie: Daten anpassen und speichern"); break; }
     case "a-go": runAssistant(); break;
     case "a-mic": micToggle(); break;
@@ -6390,10 +6422,12 @@ document.addEventListener("change", ev => {
   if (ev.target.id === "st-vac") { REMP.vacation = Math.max(0, +ev.target.value || 0); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderStats(); return; }
   if (ev.target.dataset?.notify) { const set = new Set(notifyCals()); ev.target.checked ? set.add(ev.target.dataset.notify) : set.delete(ev.target.dataset.notify); saveNotify({ cals: [...set] }).then(scanOthers); return; }
   if (ev.target.id === "a-cam") { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) { ASST_FILES = [...ASST_FILES, ...fs].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", "); if (!($("a-in")?.value || "").trim()) runAssistant?.(); } return; }
-  if (ev.target.id === "a-files") { ASST_FILES = [...ev.target.files].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", ") || "daraus wird der Eintrag erstellt"; if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
+  if (ev.target.id === "a-files") { const all = [...ASST_FILES, ...ev.target.files]; ev.target.value = ""; ASST_FILES = all.slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = (ASST_FILES.map(f => "📎 " + f.name).join(", ") || "daraus wird der Eintrag erstellt") + (all.length > 6 ? ` – nur die ersten 6 von ${all.length} Dateien` : ""); if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
   if (ev.target.id === "f-files") { formPickFiles([...ev.target.files]); ev.target.value = ""; return; }
   if (ev.target.id === "f-cam") { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) formPickFiles([...FORM_FILES, ...fs].slice(0, 6)); return; }   // mehrere Seiten nacheinander fotografieren
-  if (ev.target.id === "f-type" && ["birthday", "anniversary"].includes(ev.target.value) && $("f-rep")) $("f-rep").value = "yearly";
+  if (ev.target.id === "f-type" && $("f-rep")) { const r = $("f-rep");
+    if (["birthday", "anniversary"].includes(ev.target.value)) { if (r.value !== "yearly") { r.value = "yearly"; r.dataset.auto = "1"; } }
+    else if (r.dataset.auto) { r.value = "none"; delete r.dataset.auto; } }
   if (ev.target.dataset?.stshow) { const c = ev.target.dataset.stshow, on = ev.target.checked;
     if (c === PA || c === PB) { SHOW[c === PA ? "be" : "st"] = on; store.set("ft-show", JSON.stringify(SHOW)); } else XHIDE = on ? XHIDE.filter(x => x !== c) : [...XHIDE.filter(x => x !== c), c];
     saveXst(); renderAll(); return; }
@@ -6441,9 +6475,14 @@ document.addEventListener("keydown", ev => {
 const onP0 = () => { const r = $("p0")?.getBoundingClientRect(); return !!r && r.width > 0 && r.right > innerWidth * 0.4 && r.left < innerWidth * 0.6; };
 $("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSel) : undefined));
 // Aus einem Dokument (oder dessen Auswertung) zurück: in die Dokumentenliste bzw. zum Termin – nicht ganz schließen
-function sheetBack() { const b = !sheet.hidden && $("sheet-body")?.querySelector(sheetMode === "vid" ? "#mi-help" : "[data-docsback],[data-docback]"); if (b && ["doc", "dai", "vid"].includes(sheetMode)) { b.click(); return true; } return false; }
+function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body");
+  const b = B?.querySelector(sheetMode === "vid" ? "#mi-help" : "[data-docsback],[data-docback]"); if (b && ["doc", "dai", "vid"].includes(sheetMode)) { b.click(); return true; }
+  // Unterseiten: Zurück-Geste führt eine Ebene zurück statt alles zu schließen
+  const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay) ? $("f-cancel") : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
+  if (up) { up.click(); return true; } return false; }
 $("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
-addEventListener("popstate", () => { if (sheet.hidden) return; if (sheetBack()) { try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } closeSheet(); });
+let POP_SKIP = false;
+addEventListener("popstate", () => { if (POP_SKIP) { POP_SKIP = false; if (!sheet.hidden && APP) try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } if (sheet.hidden) return; POP_CLOSING = true; if (sheetBack()) { POP_CLOSING = false; try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } closeSheet(); POP_CLOSING = false; });
 $("move-cancel").addEventListener("click", stopMove);
 $("m-prev").addEventListener("click", () => stepCal(-1));
 $("m-next").addEventListener("click", () => stepCal(1));
@@ -6498,7 +6537,8 @@ function goPage(id, smooth = true) { const p = $(id); if (!p || p.hidden) return
 function pagerDots() { const P = [...wrapEl.querySelectorAll(":scope > .page")].filter(p => !p.hidden && !p.classList.contains("pg-off")), d = $("pgdots"); if (!d) return;
   if (!PAGER.matches || P.length < 2) { d.innerHTML = ""; return; }
   const cur = Math.round(wrapEl.scrollLeft / Math.max(1, wrapEl.clientWidth));
-  d.innerHTML = P.map((p, i) => `<i class="${i === cur ? "on" : ""}"></i>`).join("");
+  const NM = { p0: "Start", p1: "Kalender", p2: "Überblick" };
+  d.innerHTML = P.map((p, i) => `<button type="button" class="pgd${i === cur ? " on" : ""}" data-pg="${p.id}" aria-label="${NM[p.id] || "Seite " + (i + 1)}"${i === cur ? ' aria-current="page"' : ""}><i></i><span>${NM[p.id] || ""}</span></button>`).join("");
   document.querySelectorAll(".nh-a").forEach(a => a.textContent = a.closest("#to-p1") ? "◀" : "▶"); }
 wrapEl.addEventListener("scroll", () => { clearTimeout(wrapEl.__t); wrapEl.__t = setTimeout(pagerDots, 60); }, { passive: true });
 PAGER.addEventListener?.("change", () => { pagerDots(); document.querySelectorAll(".nh-a").forEach(a => a.textContent = PAGER.matches ? (a.closest("#to-p1") ? "◀" : "▶") : (a.closest("#to-p1") ? "▼" : "▲")); });
@@ -6865,7 +6905,8 @@ async function showCheckout(id) {
   const P = BILL?.plans || {}, p = P[id]; if (!p) return; use("tarif_checkout_" + id);
   const sim = BILL.mode === "simulate", cur = BILL.plan, eur = v => v == null ? "–" : v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   openSheet(`Zu ${p.label} wechseln`, "lädt …", `<p class="note">Einen Moment …</p>`, "plan");
-  const r = await window.mkBilling("simulate", { plan: id, quote: true }), q = r?.quote || { kind: "up" };
+  const r = await window.mkBilling("simulate", { plan: id, quote: true }).catch(() => null), q = r?.quote;
+  if (!q || (q.kind !== "down" && !q.until)) { openSheet(`Zu ${p.label} wechseln`, "", `<p class="err">Die Tarife konnten gerade nicht geladen werden. Bitte versuch es gleich noch einmal.</p><div class="btnrow"><button type="button" class="btn ghost" id="sheet-close2">Schließen</button></div>`, "plan"); return; }
   const price = BILL.prices?.[id], what = `${p.ai} KI-Aktionen und ${p.img} Ticket-Auswertungen pro Monat${p.flight ? ", Flug live" : ""}${p.family ? `, für bis zu ${p.seats || 5} Konten` : ""}. Monatlich kündbar.`;
   const sum = q.kind === "down"
     ? `<p>Der Wechsel gilt ab <b>${fmt(new Date(q.at))}</b>, wenn deine laufende ${esc(cur.label)}-Periode endet. Bis dahin bleibt alles wie jetzt.</p>`
