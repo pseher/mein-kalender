@@ -1280,6 +1280,7 @@ function applyPages() {
   const h = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
   h("to-cal", PAGES.p1 || PAGES.p2); if ($("to-cal")) $("to-cal").firstChild.textContent = PAGES.p1 ? "Kalender " : "Überblick ";
   h("to-p2", PAGES.p2); h("to-p1", PAGES.p1 || PAGES.p0);
+  setTimeout(() => { try { pagerDots(); } catch {} }, 0);
 }
 function setPage(k, on) {
   const next = { ...PAGES, [k]: on }; if (!next.p0 && !next.p1 && !next.p2) { toast("Mindestens eine Seite bleibt sichtbar"); showSettings(); return; }
@@ -1321,7 +1322,7 @@ function showSettings(sub) {
     const nG = gState === "ok" ? selectedCals().length : 0;
     const prof = typeof FAM === "function" && canWrite && typeof startSetup === "function" ? [PROFILE.name, FAM().length ? `${FAM().length} ${FAM().length === 1 ? "Person" : "Personen"}` : ""].filter(Boolean).join(" · ") : null;
     const pg = (k, label, c) => `<label class="sr2"><i class="dotc" style="--c:${c}"></i><span>${label}</span><input type="checkbox" class="swi" data-page="${k}"${PAGES[k] ? " checked" : ""}></label>`;
-    html = `<div class="sg-t">Seiten</div><div class="sg">${pg("p0", "Heute <small>Countdowns, Woche, Aufgaben, Erinnerungen</small>", "var(--both)")}${pg("p1", "Kalender <small>Monat, Woche, Liste, Jahr</small>", "var(--be-strong)")}${pg("p2", "Überblick <small>Gemeinsam frei, Geburtstage, Statistik</small>", "var(--trip)")}</div>
+    html = `<div class="sg-t">Seiten</div><div class="sg">${pg("p0", "Start <small>Countdowns, Woche, Aufgaben, Erinnerungen</small>", "var(--both)")}${pg("p1", "Kalender <small>Monat, Woche, Liste, Jahr</small>", "var(--be-strong)")}${pg("p2", "Überblick <small>Gemeinsam frei, Geburtstage, Statistik</small>", "var(--trip)")}</div>
       <div class="sg-t">Im Kalender</div><div class="sg">
       ${sw("hol", "Feiertage", "var(--holiday)")}${sw("br", "Brückentage", "var(--bridge)")}${sw("bday", "Geburtstage", "var(--event)")}
       ${sw("own", "Eigene Termine", "var(--c-termin)")}${SHOW.own ? nav("set-arten", "Arten", (SHOW.hide || []).length ? (SHOW.hide || []).map(k => TYPES[k]?.label).filter(Boolean).join(", ") + " aus" : "alle an", "var(--c-termin)") : ""}${sw("season", "Saison-Hinweise", "var(--c-season)")}${sw("bundle", "Hotels & Flüge in der Reise bündeln", "var(--trip)")}${sw("full", "Heute ausführlich (alle Listen auf einmal)", "var(--muted)")}
@@ -1333,9 +1334,10 @@ function showSettings(sub) {
       ${mcp || prof !== null ? `<div class="sg-t">Konten & Profil</div><div class="sg">
         ${mcp ? nav("open-google", "Google Kalender", gState === "ok" ? `${nG} von ${gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary).length + 1}` : "nicht verbunden", "var(--gcal)") : ""}
         ${prof !== null ? nav("open-family", "Familie & Liebste", prof, "var(--event)").replace("<em>", famUnseen() ? '<i class="rdot inl"></i><em>' : "<em>") : ""}${canWrite ? nav("open-contacts", "Geburtstage übernehmen", "Datei oder Bild", "var(--event)") : ""}</div>` : ""}
-      <div class="set-foot"><button type="button" class="link" id="open-a2hs">Auf den Startbildschirm legen</button>${canWrite ? `<span aria-hidden="true">·</span><button type="button" class="link" id="set-test">Einrichtung ausprobieren</button>` : ""}</div>`;
+      <div class="set-foot"><button type="button" class="link" id="open-a2hs">Als App installieren</button>${canWrite ? `<span aria-hidden="true">·</span><button type="button" class="link" id="set-test">Einrichtung ausprobieren</button>` : ""}</div>`;
   }
-  openSheet("Anzeigen", setSub === "main" ? "Was im Kalender zu sehen sein soll" : "", `<div class="setv">${html}</div>`, "settings");
+  const SUBT = { ferien: ["Ferien & Feiertage", "Welche Bundesländer angezeigt werden"], arten: ["Arten", "Welche Arten im Kalender zu sehen sind"], farben: ["Farben", "Farbe je Art"], test: ["Einrichtung", "Einrichtung noch einmal ausprobieren"] }[setSub];
+  openSheet(SUBT ? SUBT[0] : "Anzeigen", SUBT ? SUBT[1] : "Was im Kalender zu sehen sein soll", `<div class="setv">${html}</div>`, "settings");
 }
 function tripStep(d) { const el = $("set-trip"); if (!el) return; el.value = Math.max(0, Math.min(60, (+el.value || 0) + d)); el.dispatchEvent(new Event("change", { bubbles: true })); }
 
@@ -1536,8 +1538,8 @@ function countdowns() {
   const FA = FERX[PA].map(([n, a, b]) => ({ n, be: [parseIso(a), parseIso(b)] }));
   const fNow = FA.find(f => f.be[0] <= TODAY && f.be[1] >= TODAY && dayDiff(f.be[0], f.be[1]) > 2);
   const fNext = FA.filter(f => f.be[0] > TODAY && dayDiff(f.be[0], f.be[1]) > 2).sort((a, b) => a.be[0] - b.be[0])[0];
-  if (fNow) C.push({ pre: "noch", n: dayDiff(TODAY, fNow.be[1]), unit: "Tage", t: fNow.n.replace(/ \d\d\/\d\d$/, ""), sub: `Ferien ${PA} bis ${fmt(fNow.be[1])}`, c: "var(--be-strong)", day: iso(fNow.be[0]) });
-  else if (fNext) push(dn(fNext.be[0]), { t: fNext.n.replace(/ \d\d\/\d\d$/, "").replace("Weihnachten", "Weihnachtsferien"), sub: `Ferien ${PA} ab ${fmt(fNext.be[0])}`, c: "var(--be-strong)", day: iso(fNext.be[0]) });
+  if (fNow && SHOW.be) C.push({ pre: "noch", n: dayDiff(TODAY, fNow.be[1]), unit: "Tage", t: fNow.n.replace(/ \d\d\/\d\d$/, ""), sub: `Ferien ${PA} bis ${fmt(fNow.be[1])}`, c: "var(--be-strong)", day: iso(fNow.be[0]) });
+  else if (fNext && SHOW.be) push(dn(fNext.be[0]), { t: fNext.n.replace(/ \d\d\/\d\d$/, "").replace("Weihnachten", "Weihnachtsferien"), sub: `Ferien ${PA} ab ${fmt(fNext.be[0])}`, c: "var(--be-strong)", day: iso(fNext.be[0]) });
   const br = [...BRIDGES.values()].filter(b => b.dt > TODAY && b.name.startsWith("Brückentag")).sort((a, b) => a.dt - b.dt)[0];
   if (br && dn(br.dt) <= 60) push(dn(br.dt), { t: "Brückentag", sub: `${fmt(br.dt)} · 1 Tag Urlaub, 4 frei`, c: "var(--bridge)", day: iso(br.dt) });
   // nach Tagen sortieren: laufende („noch …“) zuerst, dann das Nächste
@@ -4770,6 +4772,7 @@ document.addEventListener("click", ev => {
   if (Date.now() - swipedAt < 400 && ev.target.closest("#bigmonth, #week, #year")) { ev.preventDefault(); ev.stopPropagation(); return; }
   if (Date.now() - rgSuppress < 350 || ((RG?.waitEnd || rgActive) && ev.target.closest("#bigmonth, #year"))) { ev.preventDefault(); ev.stopPropagation(); return; }
   const t = ev.target, q = s => t.closest(s);
+  if (!q("#menu") && !q("#menu-btn")) closeMenu();
   let el;
   if ((el = q("[data-stat]")) && ev.target.id !== "st-vac") { showStat(el.dataset.stat); return; }
   if ((el = q("[data-n3]"))) { showNext3(); return; }
@@ -5020,7 +5023,7 @@ document.addEventListener("click", ev => {
     case "first-no": store.set("ft-first", ""); renderHints(); break;
     case "sheet-close2": closeSheet(); break;
     case "app-login": window.mkSignIn?.(); break;
-    case "app-logout": window.mkSignOut?.(); break;
+    case "app-logout": { const b = $("app-logout"); if (b && b.dataset.sure) { window.mkSignOut?.(); break; } if (b) { b.dataset.sure = "1"; b.textContent = "Wirklich abmelden?"; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = "Abmelden"; } }, 9000); } break; }
     case "app-delacc": showDeleteAccount(); break;
     case "mi-account": showAccount(); break;
     case "acc-pw": showNewPw(); break;
@@ -5164,7 +5167,7 @@ function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body")
   // Unterseiten: Zurück-Geste führt eine Ebene zurück statt alles zu schließen
   const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay || FROM_TAP) ? $("f-cancel") : null) || (sheetMode === "asst" && selDay && !asstDirty() ? { click: () => showDay(selDay) } : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
   if (up) { up.click(); return true; } return false; }
-$("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
+$("sheet-close").addEventListener("click", () => { if (["doc", "dai", "vid"].includes(sheetMode) && sheetBack()) return; closeSheet(); });
 let POP_SKIP = false;
 addEventListener("popstate", () => { if (POP_SKIP) { POP_SKIP = false; if (!sheet.hidden && APP) try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } if (sheet.hidden) return; POP_CLOSING = true; if (sheetBack()) { POP_CLOSING = false; try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } closeSheet(); POP_CLOSING = false; });
 $("move-cancel").addEventListener("click", stopMove);

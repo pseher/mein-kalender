@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119210239";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119212742";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -844,7 +844,9 @@ td.mid { text-align: center; }
   .wrap { padding-block: 0; padding-inline: 0; display: flex; height: 100dvh; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .wrap::-webkit-scrollbar { display: none; }
   .wrap > .page { flex: 0 0 100%; width: 100%; height: 100dvh; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box; padding-inline: 16px; padding-bottom: 96px; }
-  .wrap > .page[hidden], .wrap > .p0.pg-off { display: none; }
+  .wrap > .page[hidden] { display: none; }
+  /* Start ausgeblendet: Seite hat keine Breite, die feste Kopfzeile mit ☰ bleibt sichtbar */
+  .wrap > .p0.pg-off { flex: 0 0 0; width: 0; min-width: 0; height: 0; overflow: visible; scroll-snap-align: none; padding: 0 !important; }
   .wrap > .p1 { padding-inline: 4px; padding-bottom: 0; }
   .p1 .toolbar, .p1 .mhead, .p1 .legend, .p1 .next-hint { margin-inline: 8px; }
   .p1 .bm { border: 0; border-radius: 0; padding: 0; background: transparent; }
@@ -853,8 +855,9 @@ td.mid { text-align: center; }
   #bigmonth { touch-action: pan-x; }            /* seitlich: Seiten wechseln (Browser); hoch/runter: Monat (App) */
   #week, #year { touch-action: pan-x pan-y; }
   .pgdots { position: fixed; left: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 2px); display: flex; gap: 2px; z-index: 30; }
+  .pgdots { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: 14px; padding: 0 4px; }
   .pgd { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 56px; min-height: 40px; justify-content: center; background: none; border: 0; padding: 4px 6px; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
-  .pgd i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgd.on i { opacity: .9; transform: scale(1.2); } .pgd.on { color: var(--ink, #111); font-weight: 600; }
+  .pgd i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgd.on i { opacity: .9; transform: scale(1.2); } .pgd.on { color: var(--fg); font-weight: 600; } .pgd.on i { background: var(--fg); }
   html.sheet-open .pgdots { display: none; }
   .p1 { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
   html.fill .p1 { height: 100dvh; }
@@ -1172,7 +1175,7 @@ button.tb-g { font: inherit; color: inherit; background: transparent; border: 0;
 .hb::before, .hb::after { content: ""; position: absolute; left: 0; } .hb::before { top: -6px; } .hb::after { top: 6px; }
 .rdot { position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--holiday); box-shadow: 0 0 0 2px var(--bg); }
 .rdot.inl { position: static; display: inline-block; vertical-align: 1px; margin-left: 6px; box-shadow: none; width: 8px; height: 8px; }
-.menu { position: fixed; z-index: 19; top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 4px); right: max(12px, calc((100vw - 1212px) / 2 + 16px)); width: min(280px, calc(100vw - 24px));
+.menu { position: fixed; z-index: 22; top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 4px); right: max(12px, calc((100vw - 1212px) / 2 + 16px)); width: min(280px, calc(100vw - 24px));
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.18); padding: 6px; display: grid; gap: 2px; }
 .mi { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; border: 0; background: none; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 15px; color: var(--fg); text-align: left; cursor: pointer; }
 .mi:hover, .mi:active { background: var(--soft); } .mi > * { pointer-events: none; }
@@ -2724,6 +2727,7 @@ function applyPages() {
   const h = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
   h("to-cal", PAGES.p1 || PAGES.p2); if ($("to-cal")) $("to-cal").firstChild.textContent = PAGES.p1 ? "Kalender " : "Überblick ";
   h("to-p2", PAGES.p2); h("to-p1", PAGES.p1 || PAGES.p0);
+  setTimeout(() => { try { pagerDots(); } catch {} }, 0);
 }
 function setPage(k, on) {
   const next = { ...PAGES, [k]: on }; if (!next.p0 && !next.p1 && !next.p2) { toast("Mindestens eine Seite bleibt sichtbar"); showSettings(); return; }
@@ -2765,7 +2769,7 @@ function showSettings(sub) {
     const nG = gState === "ok" ? selectedCals().length : 0;
     const prof = typeof FAM === "function" && canWrite && typeof startSetup === "function" ? [PROFILE.name, FAM().length ? `${FAM().length} ${FAM().length === 1 ? "Person" : "Personen"}` : ""].filter(Boolean).join(" · ") : null;
     const pg = (k, label, c) => `<label class="sr2"><i class="dotc" style="--c:${c}"></i><span>${label}</span><input type="checkbox" class="swi" data-page="${k}"${PAGES[k] ? " checked" : ""}></label>`;
-    html = `<div class="sg-t">Seiten</div><div class="sg">${pg("p0", "Heute <small>Countdowns, Woche, Aufgaben, Erinnerungen</small>", "var(--both)")}${pg("p1", "Kalender <small>Monat, Woche, Liste, Jahr</small>", "var(--be-strong)")}${pg("p2", "Überblick <small>Gemeinsam frei, Geburtstage, Statistik</small>", "var(--trip)")}</div>
+    html = `<div class="sg-t">Seiten</div><div class="sg">${pg("p0", "Start <small>Countdowns, Woche, Aufgaben, Erinnerungen</small>", "var(--both)")}${pg("p1", "Kalender <small>Monat, Woche, Liste, Jahr</small>", "var(--be-strong)")}${pg("p2", "Überblick <small>Gemeinsam frei, Geburtstage, Statistik</small>", "var(--trip)")}</div>
       <div class="sg-t">Im Kalender</div><div class="sg">
       ${sw("hol", "Feiertage", "var(--holiday)")}${sw("br", "Brückentage", "var(--bridge)")}${sw("bday", "Geburtstage", "var(--event)")}
       ${sw("own", "Eigene Termine", "var(--c-termin)")}${SHOW.own ? nav("set-arten", "Arten", (SHOW.hide || []).length ? (SHOW.hide || []).map(k => TYPES[k]?.label).filter(Boolean).join(", ") + " aus" : "alle an", "var(--c-termin)") : ""}${sw("season", "Saison-Hinweise", "var(--c-season)")}${sw("bundle", "Hotels & Flüge in der Reise bündeln", "var(--trip)")}${sw("full", "Heute ausführlich (alle Listen auf einmal)", "var(--muted)")}
@@ -2777,9 +2781,10 @@ function showSettings(sub) {
       ${mcp || prof !== null ? `<div class="sg-t">Konten & Profil</div><div class="sg">
         ${mcp ? nav("open-google", "Google Kalender", gState === "ok" ? `${nG} von ${gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary).length + 1}` : "nicht verbunden", "var(--gcal)") : ""}
         ${prof !== null ? nav("open-family", "Familie & Liebste", prof, "var(--event)").replace("<em>", famUnseen() ? '<i class="rdot inl"></i><em>' : "<em>") : ""}${canWrite ? nav("open-contacts", "Geburtstage übernehmen", "Datei oder Bild", "var(--event)") : ""}</div>` : ""}
-      <div class="set-foot"><button type="button" class="link" id="open-a2hs">Auf den Startbildschirm legen</button>${canWrite ? `<span aria-hidden="true">·</span><button type="button" class="link" id="set-test">Einrichtung ausprobieren</button>` : ""}</div>`;
+      <div class="set-foot"><button type="button" class="link" id="open-a2hs">Als App installieren</button>${canWrite ? `<span aria-hidden="true">·</span><button type="button" class="link" id="set-test">Einrichtung ausprobieren</button>` : ""}</div>`;
   }
-  openSheet("Anzeigen", setSub === "main" ? "Was im Kalender zu sehen sein soll" : "", `<div class="setv">${html}</div>`, "settings");
+  const SUBT = { ferien: ["Ferien & Feiertage", "Welche Bundesländer angezeigt werden"], arten: ["Arten", "Welche Arten im Kalender zu sehen sind"], farben: ["Farben", "Farbe je Art"], test: ["Einrichtung", "Einrichtung noch einmal ausprobieren"] }[setSub];
+  openSheet(SUBT ? SUBT[0] : "Anzeigen", SUBT ? SUBT[1] : "Was im Kalender zu sehen sein soll", `<div class="setv">${html}</div>`, "settings");
 }
 function tripStep(d) { const el = $("set-trip"); if (!el) return; el.value = Math.max(0, Math.min(60, (+el.value || 0) + d)); el.dispatchEvent(new Event("change", { bubbles: true })); }
 
@@ -2980,8 +2985,8 @@ function countdowns() {
   const FA = FERX[PA].map(([n, a, b]) => ({ n, be: [parseIso(a), parseIso(b)] }));
   const fNow = FA.find(f => f.be[0] <= TODAY && f.be[1] >= TODAY && dayDiff(f.be[0], f.be[1]) > 2);
   const fNext = FA.filter(f => f.be[0] > TODAY && dayDiff(f.be[0], f.be[1]) > 2).sort((a, b) => a.be[0] - b.be[0])[0];
-  if (fNow) C.push({ pre: "noch", n: dayDiff(TODAY, fNow.be[1]), unit: "Tage", t: fNow.n.replace(/ \d\d\/\d\d$/, ""), sub: `Ferien ${PA} bis ${fmt(fNow.be[1])}`, c: "var(--be-strong)", day: iso(fNow.be[0]) });
-  else if (fNext) push(dn(fNext.be[0]), { t: fNext.n.replace(/ \d\d\/\d\d$/, "").replace("Weihnachten", "Weihnachtsferien"), sub: `Ferien ${PA} ab ${fmt(fNext.be[0])}`, c: "var(--be-strong)", day: iso(fNext.be[0]) });
+  if (fNow && SHOW.be) C.push({ pre: "noch", n: dayDiff(TODAY, fNow.be[1]), unit: "Tage", t: fNow.n.replace(/ \d\d\/\d\d$/, ""), sub: `Ferien ${PA} bis ${fmt(fNow.be[1])}`, c: "var(--be-strong)", day: iso(fNow.be[0]) });
+  else if (fNext && SHOW.be) push(dn(fNext.be[0]), { t: fNext.n.replace(/ \d\d\/\d\d$/, "").replace("Weihnachten", "Weihnachtsferien"), sub: `Ferien ${PA} ab ${fmt(fNext.be[0])}`, c: "var(--be-strong)", day: iso(fNext.be[0]) });
   const br = [...BRIDGES.values()].filter(b => b.dt > TODAY && b.name.startsWith("Brückentag")).sort((a, b) => a.dt - b.dt)[0];
   if (br && dn(br.dt) <= 60) push(dn(br.dt), { t: "Brückentag", sub: `${fmt(br.dt)} · 1 Tag Urlaub, 4 frei`, c: "var(--bridge)", day: iso(br.dt) });
   // nach Tagen sortieren: laufende („noch …“) zuerst, dann das Nächste
@@ -6214,6 +6219,7 @@ document.addEventListener("click", ev => {
   if (Date.now() - swipedAt < 400 && ev.target.closest("#bigmonth, #week, #year")) { ev.preventDefault(); ev.stopPropagation(); return; }
   if (Date.now() - rgSuppress < 350 || ((RG?.waitEnd || rgActive) && ev.target.closest("#bigmonth, #year"))) { ev.preventDefault(); ev.stopPropagation(); return; }
   const t = ev.target, q = s => t.closest(s);
+  if (!q("#menu") && !q("#menu-btn")) closeMenu();
   let el;
   if ((el = q("[data-stat]")) && ev.target.id !== "st-vac") { showStat(el.dataset.stat); return; }
   if ((el = q("[data-n3]"))) { showNext3(); return; }
@@ -6464,7 +6470,7 @@ document.addEventListener("click", ev => {
     case "first-no": store.set("ft-first", ""); renderHints(); break;
     case "sheet-close2": closeSheet(); break;
     case "app-login": window.mkSignIn?.(); break;
-    case "app-logout": window.mkSignOut?.(); break;
+    case "app-logout": { const b = $("app-logout"); if (b && b.dataset.sure) { window.mkSignOut?.(); break; } if (b) { b.dataset.sure = "1"; b.textContent = "Wirklich abmelden?"; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = "Abmelden"; } }, 9000); } break; }
     case "app-delacc": showDeleteAccount(); break;
     case "mi-account": showAccount(); break;
     case "acc-pw": showNewPw(); break;
@@ -6608,7 +6614,7 @@ function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body")
   // Unterseiten: Zurück-Geste führt eine Ebene zurück statt alles zu schließen
   const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay || FROM_TAP) ? $("f-cancel") : null) || (sheetMode === "asst" && selDay && !asstDirty() ? { click: () => showDay(selDay) } : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
   if (up) { up.click(); return true; } return false; }
-$("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
+$("sheet-close").addEventListener("click", () => { if (["doc", "dai", "vid"].includes(sheetMode) && sheetBack()) return; closeSheet(); });
 let POP_SKIP = false;
 addEventListener("popstate", () => { if (POP_SKIP) { POP_SKIP = false; if (!sheet.hidden && APP) try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } if (sheet.hidden) return; POP_CLOSING = true; if (sheetBack()) { POP_CLOSING = false; try { history.pushState({ ...(history.state || {}), mkSheet: 1 }, ""); } catch {} return; } closeSheet(); POP_CLOSING = false; });
 $("move-cancel").addEventListener("click", stopMove);
