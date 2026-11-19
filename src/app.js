@@ -3541,8 +3541,8 @@ async function delEvent(btn, id, a) {
 let asstActions = [];
 let ASST_FILES = [], ASST_KIND = "";
 // Eintragen: Freitext oder Formular – jederzeit umschaltbar, die letzte Wahl wird gemerkt
-const entryMode = () => store.get("ft-entry") === "form" || !sample || !canWrite ? "form" : "text";
-const entrySw = cur => sample && canWrite ? `<div class="seg emode" role="tablist" aria-label="Eingabe"><button type="button" role="tab" data-emode="text" aria-selected="${cur === "text"}">✍️ Freitext</button><button type="button" role="tab" data-emode="form" aria-selected="${cur === "form"}">📋 Formular</button></div>` : "";
+const entryMode = () => store.get("ft-entry") === "form" || !sample || !canWrite ? "form" : store.get("ft-entry") === "tap" ? "tap" : "text";
+const entrySw = cur => sample && canWrite ? `<div class="seg emode" role="tablist" aria-label="Eingabe"><button type="button" role="tab" data-emode="text" aria-selected="${cur === "text"}">✍️ Freitext</button><button type="button" role="tab" data-emode="tap" aria-selected="${cur === "tap"}">👆 Antippen</button><button type="button" role="tab" data-emode="form" aria-selected="${cur === "form"}">📋 Formular</button></div>` : "";
 let ASST_DAY = null, ASST_TO = null;
 // ---- Nutzungsstatistik (pseudonym, ohne Inhalte): Zähler pro Tag und Funktion in docs/usage/<Tag> ----
 let USE_Q = {}, USE_T = 0;
@@ -3551,13 +3551,56 @@ async function useFlush() { const q = USE_Q; USE_Q = {}; if (!Object.keys(q).len
   try { const ref = COLL("usage").doc(day), cur = (await ref.get().catch(() => null))?.data?.() || {}, f = { ...(cur.f || {}) };
     for (const [k, n] of Object.entries(q)) f[k] = (f[k] || 0) + n; await ref.set({ day, f, v: 1 }); } catch {} }
 window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
-function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
+function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "tap") return showTap(preset ? parseIso(preset) : null); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
 let ENTRY_TXT = "";   // längerer Freitext (Mail, WhatsApp) bleibt beim Hin- und Herwechseln erhalten
 let FORM_DRAFT = null, ASST_SNAP = null;
+// ---- 👆 Antippen: ein Termin in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
+let TAP = null;
+const tapTime = () => TAP?.allday || TAP?.hour == null ? "" : `${p2(TAP.hour)}:${p2(TAP.min || 0)}`;
+const tapEvent = () => ({ type: "termin", title: TAP.title || "", from: TAP.date ? iso(TAP.date) : iso(TODAY), to: TAP.date ? iso(TAP.date) : iso(TODAY), time: tapTime(), endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: gWritable() ? "primary" : "" });
+function tapTitles() {
+  const own = {}; EV.filter(e => e.type === "termin" && !e.shared && e.title && e.title.length <= 24).forEach(e => own[e.title] = (own[e.title] || 0) + 1);
+  const top = Object.entries(own).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 4);
+  return [...new Set([...top, ...titleSug("termin")])].slice(0, 9); }
+function showTap(day, title) {
+  TAP = { step: title ? (day ? "zeit" : "wann") : "was", title: title || "", date: day || null, preset: !!day, hour: null, min: 0, allday: false, hist: [] };
+  if (!title) TAP.step = "was"; renderTap(); }
+const tapNext = () => !TAP.title ? "was" : !TAP.date ? "wann" : TAP.hour == null && !TAP.allday ? "zeit" : "fertig";
+function tapGo(step) { TAP.hist.push(TAP.step); TAP.step = step; renderTap(); }
+function tapBack() { if (!TAP?.hist.length) return false; TAP.step = TAP.hist.pop(); renderTap(); return true; }
+function renderTap() {
+  const t = TAP, sum = [t.title, t.date ? fmt(t.date) : "", tapTime() || (t.allday ? "ganztägig" : "")].filter(Boolean).join(" · ");
+  const chip = (attr, val, label, on) => `<button type="button" class="tp-c${on ? " on" : ""}" ${attr}="${esc(String(val))}">${label}</button>`;
+  const back = t.hist.length ? `<button type="button" class="link tp-back" id="tp-back">‹ Zurück</button>` : "";
+  let body = "";
+  if (t.step === "was") body = `<h3 class="tp-q">Was steht an?</h3><div class="tp-g">${tapTitles().map(x => chip("data-tpt", x, esc(x), x === t.title)).join("")}</div>
+    <div class="tp-own"><input id="tp-title" class="in" type="text" placeholder="✎ Etwas anderes eintippen" value="${esc(tapTitles().includes(t.title) ? "" : t.title)}" autocomplete="off"><button type="button" class="btn accent" id="tp-title-go">Weiter</button></div>`;
+  else if (t.step === "wann") { const days = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
+    body = `<h3 class="tp-q">Wann?</h3><div class="tp-g">${days.map((d, i) => chip("data-tpd", iso(d), i === 0 ? "Heute" : i === 1 ? "Morgen" : `${WD[d.getDay()]} ${d.getDate()}.`, t.date && sameDay(t.date, d))).join("")}</div>
+    <label class="tp-other">📅 Anderes Datum <input type="date" id="tp-date" value="${t.date ? iso(t.date) : ""}" min="${iso(START)}" max="${iso(END)}"></label>`; }
+  else if (t.step === "zeit") body = `<h3 class="tp-q">Um wie viel Uhr?</h3><div class="tp-g tp-h">${Array.from({ length: 15 }, (_, i) => i + 7).map(h => chip("data-tph", h, `${h}`, t.hour === h)).join("")}</div>
+    <div class="tp-g">${chip("data-tph", "x", "Ohne Uhrzeit", t.allday)}</div>`;
+  else if (t.step === "min") body = `<h3 class="tp-q">${t.hour} Uhr und …?</h3><div class="tp-g tp-m">${[0, 15, 30, 45].map(m => chip("data-tpm", m, `${t.hour}:${p2(m)}`, t.min === m)).join("")}</div>
+    <label class="tp-other">✎ Genaue Zeit <input type="time" id="tp-time" value="${p2(t.hour)}:${p2(t.min || 0)}"></label>`;
+  else body = `<h3 class="tp-q">Passt das so?</h3><div class="tp-sum">
+      <button type="button" class="tp-line" data-tpedit="was"><span>Was</span><b>${esc(t.title)}</b><i>ändern</i></button>
+      <button type="button" class="tp-line" data-tpedit="wann"><span>Wann</span><b>${t.date ? esc(fmtY(t.date)) : "–"}</b><i>ändern</i></button>
+      <button type="button" class="tp-line" data-tpedit="zeit"><span>Uhrzeit</span><b>${esc(tapTime() || "ohne")}</b><i>ändern</i></button></div>
+    <button type="button" class="link tp-more" id="tp-more">＋ Ort, Notiz, Wiederholung … (alle Felder)</button>
+    <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`;
+  openSheet("Neuer Termin", sum || "Schritt für Schritt", `<div class="tap">${entrySw("tap")}${back}${body}</div>`, "tap");
+  setTimeout(() => { if (t.step === "was" && !t.title) $("tp-title")?.blur(); }, 0);
+}
+async function tapSave() { const v = tapEvent(); if (!v.title) return tapGo("was");
+  showForm(v); const b = $("sheet"); if (b) b.style.visibility = "hidden"; try { await saveForm(); } finally { if (b) b.style.visibility = ""; }
+  if (sheetMode === "form") { /* Prüfung fehlgeschlagen – Formular mit Hinweis zeigen */ } }
 function formDirty() { return sheetMode === "form" && !editing && ["f-title", "f-place", "f-note", "f-pk-who", "f-pk-no"].some(id => ($(id)?.value || "").trim() && !$(id)?.dataset.pre); }
 function asstDirty() { return sheetMode === "asst" && (!!($("a-in")?.value || "").trim() || !!$("a-out")?.querySelector(".acts-list")); }
 function switchEntry(m, keepPref) {
   if (!keepPref) store.set("ft-entry", m);
+  if (sheetMode === "tap") { const t = TAP; if (m === "form") { showForm({ ...tapEvent(), title: t.title }); return; } ASST_DAY = t.date; ASST_TO = null; showAssistant(true); if (t.title) $("a-in").value = [t.title, t.date ? fmt(t.date) : "", tapTime()].filter(Boolean).join(" "); return; }
+  if (m === "tap") { const d = sheetMode === "form" ? parseIso($("f-from")?.value || "") : ASST_DAY, ti = sheetMode === "form" ? ($("f-title")?.value || "").trim() : "";
+    showTap(d && !sameDay(d, TODAY) ? d : d, ti); return; }
   if (m === "form") { ENTRY_TXT = ($("a-in")?.value || "").trim(); ASST_SNAP = asstDirty() ? { txt: $("a-in").value, html: $("a-out")?.innerHTML || "" } : null; }
   if (m === "form" && FORM_DRAFT && (!ENTRY_TXT || ENTRY_TXT === FORM_DRAFT.__txt)) { const d = FORM_DRAFT; FORM_DRAFT = null; showForm({ ...d, id: undefined }); fTimeOpen = !!d.time; syncFormFields(); qMark(); return; }
   if (m === "form") { const t = ($("a-in")?.value || "").trim().replace(/^vom\s+\d{1,2}\.\d{1,2}\.?\s*(bis\s+\d{1,2}\.\d{1,2}\.?)?\s*:?\s*/i, ""), A = ASST_DAY, B = ASST_TO;
@@ -4267,6 +4310,10 @@ async function saveNewPw() {
 }
 // Leerzeichen in E-Mail und Passwort sofort entfernen (Handy-Tastaturen setzen gern eins nach „.“)
 document.addEventListener("input", ev => { const t = ev.target; if (t?.id === "f-pk-who" || t?.id === "f-pk-st") delete t.dataset.pre; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
+document.addEventListener("change", ev => { const t = ev.target; if (!TAP || sheetMode !== "tap") return;
+  if (t.id === "tp-date" && parseIso(t.value)) { TAP.date = parseIso(t.value); tapGo(tapNext()); }
+  if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(tapNext()); } });
+document.addEventListener("keydown", ev => { if (ev.key === "Enter" && ev.target?.id === "tp-title") { ev.preventDefault(); $("tp-title-go")?.click(); } });
 document.addEventListener("focusin", ev => { if (ev.target?.id === "f-from") ev.target.dataset.prev = ev.target.value; });
 document.addEventListener("change", ev => { const t = ev.target;
   if (t?.id === "f-from" && t.dataset.prev && $("f-to")) { const p = parseIso(t.dataset.prev), n = parseIso(t.value), b = parseIso($("f-to").value); if (p && n && b && b >= p) $("f-to").value = iso(addDays(n, dayDiff(p, b))); else if (n && (!b || b < n)) $("f-to").value = t.value; t.dataset.prev = t.value; }
@@ -4749,6 +4796,15 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wzpick]"))) { const k = el.dataset.wzpick; WZ.picked[k] = !WZ.picked[k]; renderWz(); return; }
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
+  if ((el = q("[data-tpt]"))) { TAP.title = el.dataset.tpt; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpd]"))) { TAP.date = parseIso(el.dataset.tpd); tapGo(tapNext()); return; }
+  if ((el = q("[data-tph]"))) { if (el.dataset.tph === "x") { TAP.allday = true; TAP.hour = null; tapGo(tapNext()); } else { TAP.allday = false; TAP.hour = +el.dataset.tph; TAP.min = 0; tapGo("min"); } return; }
+  if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
+  if ((el = q("#tp-back"))) { tapBack(); return; }
+  if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { $("tp-title")?.focus(); return; } TAP.title = v; tapGo(tapNext()); return; }
+  if ((el = q("#tp-more"))) { showForm(tapEvent()); return; }
+  if ((el = q("#tp-save"))) { tapSave(); return; }
   if ((el = q("[data-pg]"))) { goPage(el.dataset.pg); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); if (moving && d) { finishMove(d); return; } setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
@@ -5067,7 +5123,7 @@ document.addEventListener("keydown", ev => {
 const onP0 = () => { const r = $("p0")?.getBoundingClientRect(); return !!r && r.width > 0 && r.right > innerWidth * 0.4 && r.left < innerWidth * 0.6; };
 $("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSel) : undefined));
 // Aus einem Dokument (oder dessen Auswertung) zurück: in die Dokumentenliste bzw. zum Termin – nicht ganz schließen
-function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body");
+function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body"); if (sheetMode === "tap" && tapBack()) return true;
   const b = B?.querySelector(sheetMode === "vid" ? "#mi-help" : "[data-docsback],[data-docback]"); if (b && ["doc", "dai", "vid"].includes(sheetMode)) { b.click(); return true; }
   // Unterseiten: Zurück-Geste führt eine Ebene zurück statt alles zu schließen
   const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay) ? $("f-cancel") : null) || (sheetMode === "asst" && selDay && !asstDirty() ? { click: () => showDay(selDay) } : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
