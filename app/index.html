@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119204905";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119205839";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -4580,8 +4580,12 @@ function asstBack() {
   asstActions.forEach((x, i) => { const c = document.querySelector(`[data-act="${i}"]`); if (c && x.off) c.checked = false; });
   const fl = $("a-files-l"); if (fl && ASST_FILES.length) fl.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", ");
 }
+let FROM_TAP = false;
+function tapFromForm() { const t = TAP; FROM_TAP = false; if (!t) return closeSheet();
+  const ti = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), tm = ($("f-time")?.value || "").trim();
+  if (ti) t.title = ti; if (d) t.date = d; if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { t.hour = +tm.slice(0, 2); t.min = +tm.slice(3); t.allday = false; } t.step = "fertig"; renderTap(); }
 function showForm(e, preset) {
-  ADJ = null;
+  ADJ = null; FROM_TAP = false;
   if (!arguments[0]) FORM_FILES = [];
   FORM_TYPE_SET = !!(e && (e.id || e.type)); FORM_DIR_SET = !!(e && e.id && e.pick?.dir); KIND_RES = null;
   editing = e && e.id ? e : null;
@@ -6241,7 +6245,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
   if ((el = q("#tp-back"))) { tapBack(); return; }
   if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { $("tp-title")?.focus(); return; } TAP.title = v; tapGo(tapNext()); return; }
-  if ((el = q("#tp-more"))) { showForm(tapEvent()); return; }
+  if ((el = q("#tp-more"))) { showForm(tapEvent()); FROM_TAP = true; return; }
   if ((el = q("#tp-save"))) { tapSave(); return; }
   if ((el = q("[data-pg]"))) { goPage(el.dataset.pg); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); if (moving && d) { finishMove(d); return; } setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
@@ -6335,7 +6339,7 @@ document.addEventListener("click", ev => {
     const snap = { i, txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "" }; showForm(a.op === "update" ? { ...EV.find(e => e.id === a.id), ...a.event, id: a.id } : { ...a.event, gcal: a.event.gcal }); ADJ = snap; document.querySelector("#f .emode[role=tablist]")?.remove(); $("sheet-sub").textContent = "Vorschlag anpassen – danach geht es zurück zur Liste"; if ($("f-save")) $("f-save").textContent = "Fertig"; return; }
   switch (t.id) {
     case "gf-cancel": gEditing ? showEvent(gEditing) : closeSheet(); break;
-    case "f-cancel": if (ADJ) { asstBack(); break; } sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
+    case "f-cancel": if (ADJ) { asstBack(); break; } if (FROM_TAP) { tapFromForm(); break; } sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
     case "f-dup": { const v = formVals(); v.gEventId = ""; showForm(v); toast("Kopie: Daten anpassen und speichern"); break; }
     case "a-go": runAssistant(); break;
     case "a-mic": micToggle(); break;
@@ -6564,7 +6568,7 @@ $("add-btn").addEventListener("click", () => newEntry(wkSel && onP0() ? iso(wkSe
 function sheetBack() { if (sheet.hidden) return false; const B = $("sheet-body"); if (sheetMode === "tap" && tapBack()) return true;
   const b = B?.querySelector(sheetMode === "vid" ? "#mi-help" : "[data-docsback],[data-docback]"); if (b && ["doc", "dai", "vid"].includes(sheetMode)) { b.click(); return true; }
   // Unterseiten: Zurück-Geste führt eine Ebene zurück statt alles zu schließen
-  const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay) ? $("f-cancel") : null) || (sheetMode === "asst" && selDay && !asstDirty() ? { click: () => showDay(selDay) } : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
+  const up = B?.querySelector("#set-back") || (sheetMode === "form" && (ADJ || selDay || FROM_TAP) ? $("f-cancel") : null) || (sheetMode === "asst" && selDay && !asstDirty() ? { click: () => showDay(selDay) } : null) || (["docs", "frist"].includes(sheetMode) ? B?.querySelector("#mi-account") : null);
   if (up) { up.click(); return true; } return false; }
 $("sheet-close").addEventListener("click", () => { if (!sheetBack()) closeSheet(); });
 let POP_SKIP = false;
