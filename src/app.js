@@ -2143,7 +2143,7 @@ function showDocs() {
     ${DOCS.length > 4 ? `<input type="search" class="search" id="doc-q" placeholder="Suchen: Termin, Datum oder Dateiname" value="${esc(docQ)}" style="margin-top:8px">` : ""}
     ${!DOCS.length ? `<p class="note" style="margin-top:10px">Noch keine Dokumente. Du hängst sie in einem Termin über „📎 Datei hinzufügen“ an.</p>` : ""}
     ${act.length ? `<div class="docs-l">${groups(act)}</div>` : ""}
-    ${gone.length ? `<h3 class="pkh">Von gelöschten Terminen</h3><p class="note" style="margin:2px 0 0">Werden ${DOC_KEEP} Tage nach dem Löschen des Termins mitgelöscht – der Kalender ist kein Archiv.</p><div class="docs-l">${groups(gone)}</div>` : ""}
+    ${gone.length ? `<h3 class="pkh">Von gelöschten Terminen</h3><p class="note" style="margin:2px 0 0">Damit dein Speicher schön frei bleibt, räumt die App diese Dokumente ${DOC_KEEP} Tage nach dem Löschen des Termins auf. Was du behalten möchtest, öffne einfach vorher und speichere es auf deinem Handy.</p><div class="docs-l">${groups(gone)}</div>` : ""}
     ${DOCS.length && !list.length ? `<p class="note" style="margin-top:10px">Nichts gefunden.</p>` : ""}
     ${list.length && canWrite ? `<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost small" id="docs-all">${list.every(x => DOCSEL.has(x.d.id)) ? "Auswahl aufheben" : "Alle auswählen"}</button>
       ${DOCSEL.size ? `<button type="button" class="btn danger small push" id="docs-del">${docDelArm ? `Wirklich ${DOCSEL.size} löschen?` : `${DOCSEL.size} löschen`}</button>` : ""}</div>` : ""}
