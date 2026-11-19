@@ -622,7 +622,7 @@ async function ctImport() {
     try { if (ex) { if (ctDiff(c, ex)) { await COLL("events").doc(ex.id).update({ from: iso(d), to: iso(d), ...(c.y ? { birthYear: c.y } : {}) }); u++; } }
       else { await COLL("events").add(plain({ type: "birthday", title: c.name, from: iso(d), to: iso(d), repeat: "yearly", birthYear: c.y || 0, gcal: "", note: "aus Kontakten" })); n++; } } catch (err) { toast(writeErr(err)); break; } }
   if (u) n = `${n} neu, ${u} geändert –`.replace(/^0 neu, /, "");
-  CT = []; ctSaveDraft(); closeSheet(); setTimeout(() => { renderMenuDot(); toast(famUnseen() ? `${n} Geburtstage übernommen – unter ☰ → Anzeigen → Familie gibt es Vorschläge für deine Liebsten` : `${n} Geburtstage übernommen`); }, 600);
+  CT = []; ctSaveDraft(); closeSheet(); setTimeout(() => { renderMenuDot(); toast(famUnseen() ? `${n} Geburtstage übernommen – unter ☰ → Familie & Liebste gibt es Vorschläge für deine Liebsten` : `${n} Geburtstage übernommen`); }, 600);
 }
 
 // =================== Familie & Liebste: Abgleich mit Geburtstagen ===================
@@ -4751,14 +4751,20 @@ function wzClick(id, el) {
 // =================== Darstellung ===================
 const THEMES = [["auto", "◐", "Auto"], ["light", "☀", "Hell"], ["dark", "☾", "Dunkel"]];
 let themeIdx = Math.max(0, THEMES.findIndex(x => x[0] === store.get("ft27-theme")));
+function applyFs() { const z = store.get("ft-fs") || "1"; document.documentElement.style.setProperty("--z", z); const l = $("fs-lbl"); if (l) l.textContent = z === "1.25" ? "Sehr groß" : z === "1.12" ? "Groß" : "Normal"; }
+applyFs();
 function toggleMenu() { const m = $("menu"); if (!m) return; const open = m.hidden; m.hidden = !open; $("menu-btn").setAttribute("aria-expanded", String(open));
-  if (open) { $("mi-google").hidden = true; $("mi-fam").hidden = true; $("mi-docs").hidden = true; /* Dokumente liegen jetzt unter „Konto“ */ $("mi-docs-n").textContent = DOCS.length || ""; renderMenuDot(); } }
+  if (open) { $("mi-google").hidden = !mcp; $("mi-fam").hidden = !canWrite; $("mi-docs").hidden = !canWrite; $("mi-fristen").hidden = !canWrite; $("mi-share").hidden = !SHR_ON();
+    $("mi-docs-n").textContent = DOCS.length || ""; try { $("mi-fr-n").textContent = frList().length || ""; } catch {}
+    const a = $("open-a2hs"); if (a) a.hidden = typeof IS_STANDALONE !== "undefined" && IS_STANDALONE;
+    m.querySelectorAll(".mi-g").forEach(g => { let n = g.nextElementSibling, any = false; while (n && !n.classList.contains("mi-g") && !n.classList.contains("mi-legal")) { if (!n.hidden) any = true; n = n.nextElementSibling; } g.hidden = !any; });
+    renderMenuDot(); } }
 function closeMenu() { const m = $("menu"); if (m && !m.hidden) { m.hidden = true; $("menu-btn")?.setAttribute("aria-expanded", "false"); } }
 function applyTheme() {
   const [k, ico, lbl] = THEMES[themeIdx], root = document.documentElement;
   if (k === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", k);
   $("theme-ico").textContent = ico; $("theme-lbl").textContent = lbl;
-  $("theme-btn").setAttribute("aria-label", `Darstellung: ${lbl}, tippen zum Wechseln`);
+  $("theme-btn").setAttribute("aria-label", `Hell oder dunkel: ${lbl}, tippen zum Wechseln`);
 }
 
 // =================== Ereignisse ===================
@@ -5013,6 +5019,8 @@ document.addEventListener("click", ev => {
     case "acc-fr": showFristen(); break;
     case "fr-new": closeSheet(); showForm({ type: "deadline", title: "", from: iso(TODAY), to: iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: "", remindDays: "" }); break;
     case "mi-docs": case "acc-docs": DOCSEL = new Set(); docQ = ""; docDelArm = false; showDocs(); break;
+    case "mi-fristen": showFristen(); break;
+    case "fs-btn": { const L = [["1", "Normal"], ["1.12", "Groß"], ["1.25", "Sehr groß"]], i = (L.findIndex(x => x[0] === (store.get("ft-fs") || "1")) + 1) % L.length; store.set("ft-fs", L[i][0]); applyFs(); toast(`Schriftgröße: ${L[i][1]}`); break; }
     case "mi-fam": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "mi-share2": showFamShare(); break;
     case "mi-contacts": CT = []; ctImgCheck().then(showContacts); break;
@@ -5288,7 +5296,7 @@ renderAll();
   if (mcp) initGoogle(); else renderGPill();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
   if (APP) { let np = false; try { np = sessionStorage.getItem("mk-newpw") === "1"; } catch {} if (np) setTimeout(showNewPw, 900); }
-  if (APP) { const m = $("open-a2hs"); if (m) { m.textContent = "Als App installieren"; m.hidden = IS_STANDALONE; } }
+  if (APP) { const m = $("open-a2hs"); if (m) m.hidden = IS_STANDALONE; }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforebegin", `<button type="button" class="mi" data-mi id="mi-account"><i class="dotc" style="--c:var(--muted)"></i>Konto<em class="mi-v">${esc((meName || "").split(/\s+/)[0])}</em></button>`); } }

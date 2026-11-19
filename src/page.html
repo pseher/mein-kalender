@@ -405,7 +405,7 @@ td.mid { text-align: center; }
 .foot { margin-top: 14px; font-size: 11.5px; color: var(--muted); max-width: 80ch; }
 
 /* Bottom-Sheet & Formulare */
-.sheet { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: min(560px, 100%); z-index: 20; max-height: 86vh; overflow-y: auto;
+.sheet { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: min(560px, 100%); z-index: 20; max-height: calc(86vh / var(--z, 1)); overflow-y: auto;
   background: var(--surface); border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0;
   box-shadow: 0 -8px 30px rgba(0,0,0,.2); padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; }
 .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -448,6 +448,9 @@ td.mid { text-align: center; }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
 .seg.emode button { white-space: nowrap; }
+body { zoom: var(--z, 1); }
+.mi-g { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); opacity: .75; padding: 10px 12px 2px; } .mi-g:first-child { padding-top: 4px; }
+.mi .mi-v { font-size: 12px; }
 .btn.small { padding: 6px 10px; font-size: 13px; min-height: 38px; }
 .btn:disabled { opacity: .55; cursor: default; }
 .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -517,9 +520,9 @@ td.mid { text-align: center; }
 @media (max-width: 640px) {
   /* Handy: Heute | Kalender | Überblick nebeneinander, seitlich wischen; jede Seite scrollt für sich */
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
-  .wrap { padding-block: 0; padding-inline: 0; display: flex; height: 100dvh; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .wrap { padding-block: 0; padding-inline: 0; display: flex; height: calc(100dvh / var(--z, 1)); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .wrap::-webkit-scrollbar { display: none; }
-  .wrap > .page { flex: 0 0 100%; width: 100%; height: 100dvh; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box; padding-inline: 16px; padding-bottom: 96px; }
+  .wrap > .page { flex: 0 0 100%; width: 100%; height: calc(100dvh / var(--z, 1)); overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box; padding-inline: 16px; padding-bottom: 96px; }
   .wrap > .page[hidden] { display: none; }
   /* Start ausgeblendet: Seite hat keine Breite, die feste Kopfzeile mit ☰ bleibt sichtbar */
   .wrap > .p0.pg-off { flex: 0 0 0; width: 0; min-width: 0; height: 0; overflow: visible; scroll-snap-align: none; padding: 0 !important; }
@@ -535,8 +538,8 @@ td.mid { text-align: center; }
   .pgd { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 56px; min-height: 40px; justify-content: center; background: none; border: 0; padding: 4px 6px; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
   .pgd i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .35; transition: opacity .2s, transform .2s; } .pgd.on i { opacity: .9; transform: scale(1.2); } .pgd.on { color: var(--fg); font-weight: 600; } .pgd.on i { background: var(--fg); }
   html.sheet-open .pgdots { display: none; }
-  .p1 { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
-  html.fill .p1 { height: 100dvh; }
+  .p1 { min-height: calc(100dvh / var(--z, 1)); display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
+  html.fill .p1 { height: calc(100dvh / var(--z, 1)); }
   html.fill #v-month { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   html.fill .bm { flex: 1; min-height: 0; display: flex; }
   html.fill .mg { flex: 1; grid-template-rows: auto repeat(var(--wk, 6), minmax(0, 1fr)); }
@@ -553,7 +556,7 @@ td.mid { text-align: center; }
   .arrow { width: 34px; height: 34px; }
   .next-hint { display: block; width: 100%; border: 0; background: none; color: var(--muted); font-size: 12.5px; font-weight: 600; padding: 8px 0 10px; cursor: pointer; flex: none; }
   .next-hint.up { padding: 12px 0 2px; }
-  .p2 { min-height: 100dvh; box-sizing: border-box; padding-bottom: 96px; }
+  .p2 { min-height: calc(100dvh / var(--z, 1)); box-sizing: border-box; padding-bottom: 96px; }
   .p2 .ov-head { margin-top: 4px; }
 }
 @media (max-width: 640px) {
@@ -577,7 +580,7 @@ td.mid { text-align: center; }
 /* Handy quer: ganzer Monat auf einen Bildschirm */
 @media (orientation: landscape) and (max-height: 520px) {
   html.fill .p0 { display: none; }
-  html.fill .p1 { height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 4px; padding-bottom: 4px; }
+  html.fill .p1 { height: calc(100dvh / var(--z, 1)); display: flex; flex-direction: column; box-sizing: border-box; padding-top: 4px; padding-bottom: 4px; }
   html.fill .p1 > .top, html.fill .p1 > .up, html.fill .p1 > .toolbar, html.fill .p1 .legend, html.fill .p1 .next-hint { display: none !important; }
   html.fill #v-month { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   html.fill .mnav { margin-bottom: 2px; }
@@ -601,7 +604,7 @@ td.mid { text-align: center; }
   html.fill .fab::before { content: "+"; font-size: 26px; line-height: 44px; }
 }
 /* Eingabefenster: über der Bildschirmtastatur bleiben und eigenständig scrollen */
-.sheet { overflow-x: hidden; overflow-x: clip; bottom: var(--kb, 0px); max-height: calc(var(--vvh, 100dvh) * .9); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.sheet { overflow-x: hidden; overflow-x: clip; bottom: calc(var(--kb, 0px) / var(--z, 1)); max-height: calc(var(--vvh, 100dvh) * .9 / var(--z, 1)); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 html.sheet-open, html.sheet-open body { overflow: hidden; }
 html.sheet-open.snap { scroll-snap-type: none; }
 /* Erinnerungen: eine Zeile, Aktionen als kleine Symbole */
@@ -703,7 +706,7 @@ button.tb-g { font: inherit; color: inherit; background: transparent; border: 0;
 .upsec h3 .link { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .p0 .up-body, .p0 .soon { max-height: none; overflow: visible; }
 @media (max-width: 640px) {
-  .p0 { min-height: 100dvh; display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
+  .p0 { min-height: calc(100dvh / var(--z, 1)); display: flex; flex-direction: column; box-sizing: border-box; padding-top: 10px; }
   .p0 .up { margin-bottom: 0; }
   .p0 .next-hint { margin-top: auto; }
   .p1 { padding-top: 12px; }
@@ -851,7 +854,7 @@ button.tb-g { font: inherit; color: inherit; background: transparent; border: 0;
 .hb::before, .hb::after { content: ""; position: absolute; left: 0; } .hb::before { top: -6px; } .hb::after { top: 6px; }
 .rdot { position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--holiday); box-shadow: 0 0 0 2px var(--bg); }
 .rdot.inl { position: static; display: inline-block; vertical-align: 1px; margin-left: 6px; box-shadow: none; width: 8px; height: 8px; }
-.menu { position: fixed; z-index: 22; top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 4px); right: max(12px, calc((100vw - 1212px) / 2 + 16px)); width: min(280px, calc(100vw - 24px));
+.menu { max-height: calc(100dvh / var(--z, 1) - var(--tbh, 56px) - env(safe-area-inset-top, 0px) - 16px); overflow-y: auto; overscroll-behavior: contain; position: fixed; z-index: 22; top: calc(var(--tbh) + env(safe-area-inset-top, 0px) + 4px); right: max(12px, calc((100vw - 1212px) / 2 + 16px)); width: min(280px, calc(100vw - 24px));
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 40px rgba(0,0,0,.18); padding: 6px; display: grid; gap: 2px; }
 .mi { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; border: 0; background: none; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 15px; color: var(--fg); text-align: left; cursor: pointer; }
 .mi:hover, .mi:active { background: var(--soft); } .mi > * { pointer-events: none; }
@@ -985,17 +988,22 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
     <button type="button" class="tb-b tb-g" id="g-btn" hidden aria-label="Google Kalender: Status und abgleichen"><span id="g-lbl">G</span><i id="g-dot"></i><span class="badge" id="g-badge" hidden></span></button>
     <button type="button" class="tb-b" id="menu-btn" aria-label="Menü" aria-expanded="false" aria-controls="menu"><span class="hb" aria-hidden="true"></span><i class="rdot" id="menu-dot" hidden></i></button></div>
     <nav class="menu" id="menu" hidden aria-label="Menü">
-      <button type="button" class="mi" data-mi id="show-btn"><i class="dotc" style="--c:var(--both)"></i>Anzeigen<i class="rdot inl" id="mi-set-dot" hidden></i></button>
-      <button type="button" class="mi" data-mi id="mi-google"><i class="dotc" style="--c:var(--gcal)"></i>Google Kalender</button>
+      <div class="mi-g">Meins</div>
       <button type="button" class="mi" data-mi id="mi-fam"><i class="dotc" style="--c:var(--event)"></i>Familie &amp; Liebste<i class="rdot inl" id="mi-fam-dot" hidden></i></button>
-      <button type="button" class="mi" data-mi id="mi-docs" hidden><i class="dotc" style="--c:var(--trip)"></i>Dokumente<em id="mi-docs-n"></em></button>
+      <button type="button" class="mi" data-mi id="mi-share"><i class="dotc" style="--c:var(--both)"></i>Mit anderen teilen</button>
+      <button type="button" class="mi" data-mi id="mi-google"><i class="dotc" style="--c:var(--gcal)"></i>Google Kalender</button>
+      <button type="button" class="mi" data-mi id="mi-docs"><i class="dotc" style="--c:var(--trip)"></i>Meine Dokumente<em id="mi-docs-n"></em></button>
+      <button type="button" class="mi" data-mi id="mi-fristen"><i class="dotc" style="--c:var(--c-deadline, #d50000)"></i>Meine Fristen<em id="mi-fr-n"></em></button>
       <button type="button" class="mi" data-mi id="mi-admin" hidden><i class="dotc" style="--c:var(--c-deadline, #d50000)"></i>Betreiber-Dashboard</button>
-      <button type="button" class="mi" data-mi id="mi-share"><i class="dotc" style="--c:var(--both)"></i>Teilen mit …</button>
-      <button type="button" class="mi" data-mi id="mi-plan" hidden><i class="dotc" style="--c:var(--both)"></i> Tarif</button>
-      <button type="button" class="mi" data-mi id="mi-help"><i class="dotc" style="--c:var(--c-info, var(--both))"></i>Hilfe – Wie geht …?</button>
+      <div class="mi-g">Einstellungen</div>
+      <button type="button" class="mi" data-mi id="show-btn"><i class="dotc" style="--c:var(--both)"></i>Anzeigen<em class="mi-v">Seiten, Arten, Farben, Ferien</em><i class="rdot inl" id="mi-set-dot" hidden></i></button>
       <button type="button" class="mi" data-mi id="mi-notify" hidden><i class="dotc" style="--c:var(--deadline, var(--both))"></i>Benachrichtigungen<em class="mi-v" id="mi-notify-v"></em></button>
-      <button type="button" class="mi" id="theme-btn" aria-label="Darstellung wechseln"><i class="dotc" style="--c:var(--muted)"></i>Darstellung<em><span id="theme-ico" aria-hidden="true">◐</span> <span id="theme-lbl">Auto</span></em></button>
-      <button type="button" class="mi sm" data-mi id="open-a2hs">Auf den Startbildschirm legen</button>
+      <button type="button" class="mi" id="theme-btn" aria-label="Hell oder dunkel wechseln"><i class="dotc" style="--c:var(--muted)"></i>Hell / Dunkel<em><span id="theme-ico" aria-hidden="true">◐</span> <span id="theme-lbl">Auto</span></em></button>
+      <button type="button" class="mi" id="fs-btn" aria-label="Schriftgröße wechseln"><i class="dotc" style="--c:var(--muted)"></i>Schriftgröße<em id="fs-lbl">Normal</em></button>
+      <div class="mi-g">Hilfe &amp; Konto</div>
+      <button type="button" class="mi" data-mi id="mi-help"><i class="dotc" style="--c:var(--c-info, var(--both))"></i>Hilfe – Wie geht …?</button>
+      <button type="button" class="mi" data-mi id="mi-plan" hidden><i class="dotc" style="--c:var(--both)"></i> Tarif</button>
+      <button type="button" class="mi" data-mi id="open-a2hs"><i class="dotc" style="--c:var(--muted)"></i>Als App installieren</button>
       <div class="mi-legal"><a data-mi href="https://mein-kalender.onrender.com/?info&back=1" target="_blank" rel="noopener">Über</a><a data-mi href="https://mein-kalender.onrender.com/impressum.html" target="_blank" rel="noopener">Impressum</a><a data-mi href="https://mein-kalender.onrender.com/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a><a data-mi href="https://mein-kalender.onrender.com/ki-hinweise.html" target="_blank" rel="noopener">KI-Hinweise</a></div>
     </nav>
   </header>
