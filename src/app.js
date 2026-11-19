@@ -3545,7 +3545,7 @@ function asstEvList() {
 async function runAssistant() {
   use("freitext");
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
-  if (ASST_FILES.length && !txt && !ASST_KIND) ASST_KIND = await askKind($("a-kind"), "Was ist das?", KIND_OPTS);
+  const kindUsed = ASST_KIND;
   const kindHint = ASST_KIND && KIND_HINT[ASST_KIND] ? `\nWICHTIG – der Nutzer hat zu den angehängten Dokumenten angegeben: ${KIND_HINT[ASST_KIND]} Lege genau EINEN solchen Eintrag an.\n` : ""; ASST_KIND = "";
   if (!txt && !ASST_FILES.length) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll – oder hänge ein Ticket an.</p>`; return; }
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
@@ -3643,7 +3643,12 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
       if (validate(ev)) return null;
       return { op: a.op, id: a.id, event: ev, nostore: ev.type === "deadline" && (!!a.event?.nostore || ["ausweis", "pass"].includes(ev.fk)) };
     }).filter(Boolean);
-    out.innerHTML = `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
+    // Nach dem Lesen: reine Verbindung (Zug, Flug, Bus) erkannt? Dann fragen, wofür sie ist
+    const CONN = /\b(ICE|IC|EC|ECE|RE|RB|IRE|S\s?\d|U\s?\d|FLX|Bus|NJ|TGV|LH|EW|FR|U2|OS|LX|TK|KL|AF|BA)\s?\d{1,5}\b|Gleis|Bahnhof|Hbf|Flughafen|Abflug|Ankunft/i;
+    const conn = ASST_FILES.length && !kindUsed && asstActions.filter(a => a.op === "add").length >= 1 && asstActions.every(a => a.op !== "add" || (["termin", "trip", "urlaub", "abholen"].includes(a.event.type) && (a.event.pick?.no || ["zug", "flug", "bus"].includes(a.event.mode) || CONN.test(a.event.title + " " + (a.event.note || "") + " " + (a.event.place || "")))));
+    const cur = asstActions.find(a => a.op === "add")?.event, curK = cur ? (cur.type === "abholen" ? (cur.pick?.dir === "dep" ? "dep" : "arr") : cur.type) : "";
+    const askBox = conn ? `<div class="kask"><b>Das ist eine Verbindung – wofür ist sie?</b><div class="kask-o">${KIND_OPTS.filter(([k]) => !["deadline", "auto"].includes(k)).map(([k, l]) => `<button type="button" class="tkq" data-akind="${k}"${k === curK ? ' aria-pressed="true"' : ""}>${esc(l)}</button>`).join("")}</div><p class="note" style="margin:6px 0 0">Markiert ist mein Vorschlag. Tipp auf etwas anderes, dann lese ich es passend neu.</p></div>` : "";
+    out.innerHTML = askBox + `${r?.reply ? `<div class="reply">${esc(r.reply)}</div>` : ""}` + (asstActions.length ? `<div class="acts-list">${asstActions.map((a, i) => actHtml(a, i)).join("")}</div>
       ${canWrite ? `<button type="button" class="btn accent wide" id="a-apply">Übernehmen</button>` : `<p class="note">Speichern kann nur der Besitzer der Seite.</p>`}` : "");
   } catch (e) {
     out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : e?.code === "too_long" ? "Das war zu viel auf einmal. Versuch es mit weniger Text oder einem Dokument." : e?.code === "bad_image" ? "Das Bild konnte nicht gelesen werden – versuch einen Screenshot oder ein anderes Foto." : "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular."}</p>`;
@@ -4638,6 +4643,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
   if ((el = q("[data-kind]"))) { KIND_RES?.(el.dataset.kind); return; }
+  if ((el = q("[data-akind]"))) { if (el.getAttribute("aria-pressed") === "true") return; ASST_KIND = el.dataset.akind; runAssistant(); return; }
   if ((el = q("[data-ftype]"))) { FORM_TYPE_SET = true; const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if (q("[data-pkdir]")) FORM_DIR_SET = true;
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
