@@ -3145,7 +3145,7 @@ function asstBack() {
 let FROM_TAP = false;
 function tapFromForm() { const t = TAP; FROM_TAP = false; if (!t) return closeSheet();
   const ti = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), tm = ($("f-time")?.value || "").trim();
-  if (ti) t.title = ti; if (d) t.date = d; if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { t.hour = +tm.slice(0, 2); t.min = +tm.slice(3); t.allday = false; } t.step = "fertig"; renderTap(); }
+  if (ti) t.title = ti; if (d) t.date = d; t.place = ($("f-place")?.value || "").trim(); t.note = ($("f-note")?.value || "").trim(); t.rep = $("f-rep")?.value && $("f-rep").value !== "custom" ? $("f-rep").value : t.rep; if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { t.hour = +tm.slice(0, 2); t.min = +tm.slice(3); t.allday = false; } t.step = "fertig"; renderTap(); }
 function showForm(e, preset) {
   ADJ = null; FROM_TAP = false;
   if (!arguments[0]) FORM_FILES = [];
@@ -3561,7 +3561,18 @@ let FORM_DRAFT = null, ASST_SNAP = null;
 // ---- 👆 Antippen: ein Termin in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
 let TAP = null;
 const tapTime = () => TAP?.allday || TAP?.hour == null ? "" : `${p2(TAP.hour)}:${p2(TAP.min || 0)}`;
-const tapEvent = () => ({ type: "termin", title: TAP.title || "", from: TAP.date ? iso(TAP.date) : iso(TODAY), to: TAP.date ? iso(TAP.date) : iso(TODAY), time: tapTime(), endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: gWritable() ? "primary" : "" });
+const tapEnd = () => { const t = TAP; if (!t || t.hour == null || t.allday || !t.dur) return ""; if (/^\d{2}:\d{2}$/.test(t.dur)) return t.dur; const m = t.hour * 60 + (t.min || 0) + +t.dur; return m >= 24 * 60 ? "23:59" : `${p2(Math.floor(m / 60))}:${p2(m % 60)}`; };
+const tapEvent = () => ({ type: "termin", title: TAP.title || "", from: TAP.date ? iso(TAP.date) : iso(TODAY), to: TAP.date ? iso(TAP.date) : iso(TODAY), time: tapTime(), endTime: tapEnd(), repeat: TAP.rep || "none", until: "", birthYear: "", note: TAP.note || "", place: TAP.place || "", gcal: gWritable() ? "primary" : "", ...(TAP.sh ? shSplit(TAP.sh) : {}) });
+// freiwillige Extras auf der Zusammenfassung – die Reihenfolge richtet sich nach dem Titel, gefragt wird nichts extra
+const TAP_X = { ort: ["📍", "Wo?"], rep: ["🔁", "Wiederholen"], dauer: ["⏱", "Bis wann?"], notiz: ["📝", "Notiz"], teilen: ["👥", "Teilen"] };
+function tapXOrder() { const ti = (TAP.title || "").toLowerCase(), n = EV.filter(e => e.type === "termin" && (e.title || "").toLowerCase() === ti).length;
+  let o = ["ort", "rep", "dauer", "notiz", "teilen"];
+  if (/eltern|training|kurs|chor|probe|sport|verein|stammtisch|unterricht/.test(ti) || n >= 2) o = ["rep", "ort", "dauer", "notiz", "teilen"];
+  if (/familie|oma|opa|geburtstag|feier|essen|besuch/.test(ti)) o = ["teilen", "ort", "dauer", "rep", "notiz"];
+  return o.filter(k => !(k === "teilen" && !(SHR_ON() && SHR.contacts.length)) && !(k === "dauer" && (TAP.hour == null || TAP.allday))); }
+const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(); return /zahnarzt/.test(ti) ? "m6" : /friseur/.test(ti) ? "w6" : /training|kurs|chor|probe|unterricht|stammtisch/.test(ti) ? "weekly" : /elternabend/.test(ti) ? "" : ""; };
+const tapPlaces = () => { const ti = (TAP.title || "").toLowerCase(), same = EV.filter(e => e.place && (e.title || "").toLowerCase() === ti).map(e => e.place), any = EV.filter(e => e.place && e.type === "termin").slice(-30).map(e => e.place).reverse();
+  return [...new Set([...same, ...any])].slice(0, 4); };
 function tapTitles() {
   const own = {}; EV.filter(e => e.type === "termin" && !e.shared && e.title && e.title.length <= 24).forEach(e => own[e.title] = (own[e.title] || 0) + 1);
   const top = Object.entries(own).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 4);
@@ -3571,7 +3582,9 @@ function showTap(day, title) {
   if (!title) TAP.step = "was"; renderTap(); }
 const tapNext = () => !TAP.title ? "was" : !TAP.date ? "wann" : TAP.hour == null && !TAP.allday ? "zeit" : "fertig";
 function tapGo(step) { TAP.hist.push(TAP.step); TAP.step = step; renderTap(); }
+function tapDone() { TAP.step = TAP.hist.pop() || "fertig"; renderTap(); }
 function tapBack() { if (!TAP?.hist.length) return false; TAP.step = TAP.hist.pop(); renderTap(); return true; }
+const xLine = (k, lbl, val) => `<div class="tp-line tp-xl"><button type="button" class="tp-xe" data-tpedit="x-${k}"><span>${lbl}</span><b>${esc(val)}</b></button><button type="button" class="tp-xx" data-tpclr="${k}" aria-label="${lbl} entfernen">✕</button></div>`;
 function renderTap() {
   const t = TAP, sum = [t.title, t.date ? fmt(t.date) : "", tapTime() || (t.allday ? "ganztägig" : "")].filter(Boolean).join(" · ");
   const chip = (attr, val, label, on) => `<button type="button" class="tp-c${on ? " on" : ""}" ${attr}="${esc(String(val))}">${label}</button>`;
@@ -3586,11 +3599,22 @@ function renderTap() {
     <div class="tp-g">${chip("data-tph", "x", "Ohne Uhrzeit", t.allday)}</div>`;
   else if (t.step === "min") body = `<h3 class="tp-q">${t.hour} Uhr und …?</h3><div class="tp-g tp-m">${[0, 15, 30, 45].map(m => chip("data-tpm", m, `${t.hour}:${p2(m)}`, t.min === m)).join("")}</div>
     <label class="tp-other">✎ Genaue Zeit <input type="time" id="tp-time" value="${p2(t.hour)}:${p2(t.min || 0)}"></label>`;
+  else if (t.step === "x-ort") body = `<h3 class="tp-q">Wo ist das?</h3>${tapPlaces().length ? `<div class="tp-g tp-wide">${tapPlaces().map(x => chip("data-tpplace", x, esc(x), x === t.place)).join("")}</div>` : ""}
+    <div class="tp-own"><input id="tp-place" class="in" type="text" placeholder="Ort oder Adresse" value="${esc(tapPlaces().includes(t.place) ? "" : t.place || "")}" autocomplete="off"><button type="button" class="btn accent" id="tp-place-go">Fertig</button></div>`;
+  else if (t.step === "x-rep") { const hint = tapRepHint(), opts = [["none", "Nur einmal"], ["weekly", "Jede Woche"], ["w2", "Alle 2 Wochen"], ["monthly", "Jeden Monat"], ["m3", "Alle 3 Monate"], ["m6", "Alle 6 Monate"], ["yearly", "Jedes Jahr"]];
+    if (hint && !opts.some(([k]) => k === hint)) opts.splice(1, 0, [hint, REPEAT[hint] || repLabel(hint)]);
+    body = `<h3 class="tp-q">Wie oft?</h3><div class="tp-g tp-wide">${opts.map(([k, l]) => chip("data-tprep", k, esc(l) + (k === hint ? ' <small class="tp-sug">Vorschlag</small>' : ""), (t.rep || "none") === k)).join("")}</div><p class="note">Ein Ende der Wiederholung kannst du im Formular festlegen.</p>`; }
+  else if (t.step === "x-dauer") body = `<h3 class="tp-q">Wie lange?</h3><div class="tp-g">${[["30", "½ Std."], ["60", "1 Std."], ["90", "1½ Std."], ["120", "2 Std."], ["180", "3 Std."], ["", "Offen"]].map(([k, l]) => chip("data-tpdur", k, l, (t.dur || "") === k)).join("")}</div>
+    <label class="tp-other">✎ Bis <input type="time" id="tp-end" value="${/^\d{2}:\d{2}$/.test(t.dur || "") ? t.dur : ""}"> Uhr</label>`;
+  else if (t.step === "x-notiz") body = `<h3 class="tp-q">Notiz</h3><textarea id="tp-note" class="in" rows="4" placeholder="z. B. Versichertenkarte mitnehmen">${esc(t.note || "")}</textarea><div class="btnrow"><button type="button" class="btn accent" id="tp-note-go">Fertig</button></div>`;
+  else if (t.step === "x-teilen") body = `<h3 class="tp-q">Wer soll das sehen?</h3>${shrChips("data-tpsh", t.sh || effTo({ ...tapEvent(), shareTo: [], shareNo: [] }))}<div class="btnrow"><button type="button" class="btn accent" id="tp-sh-go">Fertig</button></div>`;
   else body = `<h3 class="tp-q">Passt das so?</h3><div class="tp-sum">
       <button type="button" class="tp-line" data-tpedit="was"><span>Was</span><b>${esc(t.title)}</b><i>ändern</i></button>
       <button type="button" class="tp-line" data-tpedit="wann"><span>Wann</span><b>${t.date ? esc(fmtY(t.date)) : "–"}</b><i>ändern</i></button>
-      <button type="button" class="tp-line" data-tpedit="zeit"><span>Uhrzeit</span><b>${esc(tapTime() || "ohne")}</b><i>ändern</i></button></div>
-    <button type="button" class="link tp-more" id="tp-more">＋ Ort, Notiz, Wiederholung … (alle Felder)</button>
+      <button type="button" class="tp-line" data-tpedit="zeit"><span>Uhrzeit</span><b>${esc(tapTime() ? tapTime() + (tapEnd() ? "–" + tapEnd() : "") : "ohne")}</b><i>ändern</i></button>
+      ${t.place ? xLine("ort", "Wo", t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", REPEAT[t.rep] || repLabel(t.rep)) : ""}${t.note ? xLine("notiz", "Notiz", t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
+    ${(() => { const free = tapXOrder().filter(k => !(k === "ort" && t.place) && !(k === "rep" && t.rep && t.rep !== "none") && !(k === "dauer" && t.dur) && !(k === "notiz" && t.note) && !(k === "teilen" && t.sh)); return free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${TAP_X[k][0]} ${TAP_X[k][1]}</button>`).join("")}</div>` : ""; })()}
+    <button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>
     <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`;
   openSheet("Neuer Termin", sum || "Schritt für Schritt", `<div class="tap">${entrySw("tap")}${back}${body}</div>`, "tap");
   setTimeout(() => { if (t.step === "was" && !t.title) $("tp-title")?.blur(); }, 0);
@@ -4316,8 +4340,9 @@ async function saveNewPw() {
 document.addEventListener("input", ev => { const t = ev.target; if (t?.id === "f-pk-who" || t?.id === "f-pk-st") delete t.dataset.pre; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
 document.addEventListener("change", ev => { const t = ev.target; if (!TAP || sheetMode !== "tap") return;
   if (t.id === "tp-date" && parseIso(t.value)) { TAP.date = parseIso(t.value); tapGo(tapNext()); }
+  if (t.id === "tp-end" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.dur = t.value; tapDone(); return; }
   if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(tapNext()); } });
-document.addEventListener("keydown", ev => { if (ev.key === "Enter" && ev.target?.id === "tp-title") { ev.preventDefault(); $("tp-title-go")?.click(); } });
+document.addEventListener("keydown", ev => { if (ev.key === "Enter" && ev.target?.id === "tp-title") { ev.preventDefault(); $("tp-title-go")?.click(); } if (ev.key === "Enter" && ev.target?.id === "tp-place") { ev.preventDefault(); $("tp-place-go")?.click(); } });
 document.addEventListener("focusin", ev => { if (ev.target?.id === "f-from") ev.target.dataset.prev = ev.target.value; });
 document.addEventListener("change", ev => { const t = ev.target;
   if (t?.id === "f-from" && t.dataset.prev && $("f-to")) { const p = parseIso(t.dataset.prev), n = parseIso(t.value), b = parseIso($("f-to").value); if (p && n && b && b >= p) $("f-to").value = iso(addDays(n, dayDiff(p, b))); else if (n && (!b || b < n)) $("f-to").value = t.value; t.dataset.prev = t.value; }
@@ -4805,6 +4830,13 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-tph]"))) { if (el.dataset.tph === "x") { TAP.allday = true; TAP.hour = null; tapGo(tapNext()); } else { TAP.allday = false; TAP.hour = +el.dataset.tph; TAP.min = 0; tapGo("min"); } return; }
   if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(tapNext()); return; }
   if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
+  if ((el = q("[data-tpclr]"))) { const k = el.dataset.tpclr; if (k === "ort") TAP.place = ""; if (k === "rep") TAP.rep = "none"; if (k === "notiz") TAP.note = ""; if (k === "teilen") TAP.sh = null; renderTap(); return; }
+  if ((el = q("[data-tpplace]"))) { TAP.place = el.dataset.tpplace; tapDone(); return; }
+  if ((el = q("#tp-place-go"))) { TAP.place = ($("tp-place")?.value || "").trim(); tapDone(); return; }
+  if ((el = q("[data-tprep]"))) { TAP.rep = el.dataset.tprep; tapDone(); return; }
+  if ((el = q("[data-tpdur]"))) { TAP.dur = el.dataset.tpdur; tapDone(); return; }
+  if ((el = q("#tp-note-go"))) { TAP.note = ($("tp-note")?.value || "").trim(); tapDone(); return; }
+  if ((el = q("#tp-sh-go"))) { TAP.sh = [...chipSel("data-tpsh")]; tapDone(); return; }
   if ((el = q("#tp-back"))) { tapBack(); return; }
   if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { $("tp-title")?.focus(); return; } TAP.title = v; tapGo(tapNext()); return; }
   if ((el = q("#tp-more"))) { showForm(tapEvent()); FROM_TAP = true; return; }
