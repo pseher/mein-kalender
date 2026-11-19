@@ -2072,7 +2072,7 @@ async function docDelete(id, fid) {
   catch (err) { toast(writeErr(err)); }
 }
 // ---- Alle Dokumente (auch von gelöschten Terminen) ----
-let DOCS = [], DOCSEL = new Set(), docQ = "", docDelArm = false; const DOCSYNC = new Set();
+let DOCS = [], DOCSEL = new Set(), docQ = "", docDelArm = false, DOCS_IN = false, EV_IN = false; const DOCSYNC = new Set(), DOC_KEEP = 7;
 function docLbl(d) { const e = EV.find(x => x.id === d.ev && !x.shared) || EV.find(x => (x.files || []).some(f => f.id === d.id));
   const title = e?.title || d.evTitle || "ohne Termin", dt = e ? e.a : parseIso(d.evDate);
   return { e, gone: !e, title, date: dt ? fmtY(dt) : "", sort: dt ? +dt : 0 }; }
@@ -2080,9 +2080,23 @@ function docSync() { // Dokumente aus Terminen ins Archiv übernehmen und Titel/
   if (!canWrite) return;
   EV.filter(e => !e.shared && (e.files || []).length).forEach(e => e.files.forEach(f => {
     const d = DOCS.find(x => x.id === f.id), want = { ev: e.id, evTitle: e.title, evDate: e.from || iso(e.a) };
-    if (DOCSYNC.has(f.id) || (d && d.evTitle === want.evTitle && d.evDate === want.evDate && d.ev === want.ev && !!d.r2 === !!f.r2)) return;
+    if (DOCSYNC.has(f.id) || (d && !d.gone && d.evTitle === want.evTitle && d.evDate === want.evDate && d.ev === want.ev && !!d.r2 === !!f.r2)) return;
     DOCSYNC.add(f.id); COLL("docs").doc(f.id).set({ name: f.name, type: f.type, size: f.size, n: f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: f.at || "", ...want }).catch(() => {}).finally(() => DOCSYNC.delete(f.id)); }));
+  docGc();
 }
+// Der Kalender ist kein Archiv: Dokumente gelöschter Termine bleiben noch DOC_KEEP Tage (zum Rückgängigmachen), dann werden sie mitgelöscht
+let DOCGC = false;
+function docGc() {
+  if (!canWrite || !DOCS_IN || !EV_IN || DOCGC) return;
+  const old = [];
+  for (const d of DOCS) { if (DOCSYNC.has(d.id)) continue;
+    const gone = docLbl(d).gone;
+    if (gone && !d.gone) { d.gone = iso(TODAY); COLL("docs").doc(d.id).update({ gone: d.gone }).catch(() => {}); }
+    else if (!gone && d.gone) { delete d.gone; COLL("docs").doc(d.id).update({ gone: null }).catch(() => {}); }
+    else if (gone && d.gone && dayDiff(parseIso(d.gone), TODAY) >= DOC_KEEP) old.push(d.id); }
+  if (old.length) { DOCGC = true; docsRemove(old).catch(() => {}).finally(() => { DOCGC = false; }); }
+}
+const docGoneTill = d => { const g = parseIso(d.gone || ""); if (!g) return ""; const t = new Date(g); t.setDate(t.getDate() + DOC_KEEP); return fmt(t); };
 // Meine Fristen: nächste offene Fälligkeit je Frist (auch kürzlich überfällige), sortiert
 function frList() {
   const seen = new Set(), L = [], open = o => dayDiff(TODAY, o.a) >= -60 && !(o.ev.done || []).includes("d" + iso(o.a));
@@ -2122,23 +2136,29 @@ async function docsMigrate() {
   }
 }
 function showDocs() {
+  const keep = sheetMode === "docs" && !$("sheet").hidden ? $("sheet").scrollTop : 0;
   storeLoad();
   const q = docQ.trim().toLowerCase();
   const all = DOCS.map(d => ({ d, L: docLbl(d) })).sort((a, b) => b.L.sort - a.L.sort || String(b.d.at).localeCompare(String(a.d.at)));
   const list = all.filter(x => !q || `${x.d.name} ${x.L.title} ${x.L.date}`.toLowerCase().includes(q));
   DOCSEL = new Set([...DOCSEL].filter(id => DOCS.some(d => d.id === id)));
-  const row = ({ d, L }) => `<div class="doc-row"><label class="doc-ck"><input type="checkbox" data-docsel="${esc(d.id)}"${DOCSEL.has(d.id) ? " checked" : ""} aria-label="Auswählen"></label>
-    <button type="button" class="doc" data-doc="|${esc(d.id)}"><span>${isPdfF(d) ? "📄" : "🖼️"}</span><span class="doc-n"><b>${esc(L.title)}</b>${L.date ? ` · ${esc(L.date)}` : ""}<small class="doc-s">${esc(d.name)} · ${fSize(d.size)}</small></span></button></div>`;
+  const row = ({ d }, i, n) => `<div class="doc-row"><label class="doc-ck"><input type="checkbox" data-docsel="${esc(d.id)}"${DOCSEL.has(d.id) ? " checked" : ""} aria-label="Auswählen"></label>
+    <button type="button" class="doc" data-doc="|${esc(d.id)}"><span>${isPdfF(d) ? "📄" : "🖼️"}</span><span class="doc-n"><b>${isPdfF(d) ? "PDF" : "Bild"}${n > 1 ? ` ${i + 1} von ${n}` : ""}</b><small class="doc-s">${esc(d.name)} · ${fSize(d.size)}</small></span></button></div>`;
+  // je Termin eine Gruppe: Kurztitel mit Datum oben, darunter seine Dokumente
+  const groups = xs => { const G = new Map(); xs.forEach(x => { const k = x.L.e ? x.L.e.id : (x.d.ev || "") + "|" + x.L.title + "|" + x.L.date; if (!G.has(k)) G.set(k, []); G.get(k).push(x); });
+    return [...G.values()].map(g => { const L = g[0].L, till = L.gone ? docGoneTill(g[0].d) : "";
+      return `<div class="doc-g"><div class="doc-gh">${L.e ? `<button type="button" class="doc-gt" data-occ="${esc(L.e.id)}|${iso(L.e.a)}">` : `<span class="doc-gt">`}<b>${esc(L.title)}</b>${L.date ? `<span>${esc(L.date)}</span>` : ""}${L.e ? "</button>" : "</span>"}${till ? `<small>wird am ${esc(till)} mitgelöscht</small>` : ""}</div>${g.map((x, i) => row(x, i, g.length)).join("")}</div>`; }).join(""); };
   const act = list.filter(x => !x.L.gone), gone = list.filter(x => x.L.gone);
-  openSheet("Meine Dokumente", "Tickets, Buchungen und PDFs aus deinen Terminen – auch von gelöschten. Nur für dich.", `${storeHtml()}
+  openSheet("Meine Dokumente", "Tickets, Buchungen und PDFs – nach Termin sortiert. Nur für dich.", `${storeHtml()}
     ${DOCS.length > 4 ? `<input type="search" class="search" id="doc-q" placeholder="Suchen: Termin, Datum oder Dateiname" value="${esc(docQ)}" style="margin-top:8px">` : ""}
     ${!DOCS.length ? `<p class="note" style="margin-top:10px">Noch keine Dokumente. Du hängst sie in einem Termin über „📎 Datei hinzufügen“ an.</p>` : ""}
-    ${act.length ? `<h3 class="pkh">Zu Terminen</h3><div class="docs-l">${act.map(row).join("")}</div>` : ""}
-    ${gone.length ? `<h3 class="pkh">Von gelöschten Terminen</h3><div class="docs-l">${gone.map(row).join("")}</div>` : ""}
+    ${act.length ? `<div class="docs-l">${groups(act)}</div>` : ""}
+    ${gone.length ? `<h3 class="pkh">Von gelöschten Terminen</h3><p class="note" style="margin:2px 0 0">Werden ${DOC_KEEP} Tage nach dem Löschen des Termins mitgelöscht – der Kalender ist kein Archiv.</p><div class="docs-l">${groups(gone)}</div>` : ""}
     ${DOCS.length && !list.length ? `<p class="note" style="margin-top:10px">Nichts gefunden.</p>` : ""}
     ${list.length && canWrite ? `<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost small" id="docs-all">${list.every(x => DOCSEL.has(x.d.id)) ? "Auswahl aufheben" : "Alle auswählen"}</button>
       ${DOCSEL.size ? `<button type="button" class="btn danger small push" id="docs-del">${docDelArm ? `Wirklich ${DOCSEL.size} löschen?` : `${DOCSEL.size} löschen`}</button>` : ""}</div>` : ""}
     ${APP ? `<div class="btnrow" style="margin-top:14px"><button type="button" class="btn ghost small" id="mi-account">‹ Konto</button></div>` : ""}`, "docs");
+  if (keep) $("sheet").scrollTop = keep;
 }
 // ---- Auswerten: Packpunkte, Orga-Aufgaben, Zeiten, Adresse aus den Dokumenten ----
 let DAI = null;
@@ -3460,7 +3480,7 @@ async function delEvent(btn, id, a) {
   if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Auch in Google löschen?" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 4000); return; }
   btn.disabled = true;
   const hadDocs = (EV.find(x => x.id === id)?.files || []).length;
-  try { const undo = await applyChanges([{ op: "delete", id }]); closeSheet(); toast(hadDocs ? "Gelöscht – Dokumente bleiben im Menü" : "Gelöscht", undo); }
+  try { const undo = await applyChanges([{ op: "delete", id }]); closeSheet(); toast(hadDocs ? `Gelöscht – die Dokumente werden in ${DOC_KEEP} Tagen mitgelöscht` : "Gelöscht", undo); }
   catch (err) { toast(writeErr(err)); btn.disabled = false; }
 }
 
@@ -5091,12 +5111,12 @@ renderAll();
 
     TASKS.filter(t => t.done && t.doneAt && Date.now() - Date.parse(t.doneAt) > 30 * 864e5).forEach(t => COLL("tasks").doc(t.id).delete().catch(() => {})); // Erledigtes nach 30 Tagen aufräumen
   }, () => {});
-  COLL("docs").onSnapshot(snap => { DOCS = snap.docs.map(d => ({ ...JSON.parse(JSON.stringify(d.data() || {})), id: d.id })).filter(d => d.n > 0 || d.r2).map(d => ({ ...d, name: String(d.name || "Dokument"), size: +d.size || 0, n: +d.n || 0 }));
+  COLL("docs").onSnapshot(snap => { DOCS_IN = true; DOCS = snap.docs.map(d => ({ ...JSON.parse(JSON.stringify(d.data() || {})), id: d.id })).filter(d => d.n > 0 || d.r2).map(d => ({ ...d, name: String(d.name || "Dokument"), size: +d.size || 0, n: +d.n || 0 }));
     docSync(); if (sheetMode === "docs" && !$("sheet").hidden) showDocs(); }, () => {});
   COLL("events").onSnapshot(snap => {
     clearTimeout(timer); const first = dbState !== "ready"; dbState = "ready"; if (first) { setTimeout(famSyncEvents, 1500); shrStart(); ntStart(); setTimeout(docsMigrate, 40e3); } shrQueue();
     if (!window.__us) { window.__us = 1; use("app_start"); adminCheck().catch(() => {}); setTimeout(() => { trainStatusLoad(true); trainStatusLoop(); }, 1500); }
-    const all = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); MERK = all.filter(e => e.mOnly); EV = all.filter(e => !e.mOnly); docSync();
+    const all = snap.docs.map(doc => normalize(doc.id, doc.data())).filter(e => e.a && e.b); MERK = all.filter(e => e.mOnly); EV = all.filter(e => !e.mOnly); EV_IN = true; docSync();
     if (sheetMode === "event" && !$("sheet").hidden && sheetCtx?.id?.startsWith?.("g:")) { const b = document.querySelector("[data-gmerk]"); if (b) { const o = findOcc(sheetCtx.id, sheetCtx.a); if (o) b.textContent = merkBtn(o); } }
     if (moving && !moving.gocc && !EV.some(e => e.id === moving.id)) stopMove();
     renderAll();
