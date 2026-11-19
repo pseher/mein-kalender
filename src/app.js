@@ -3573,8 +3573,11 @@ function tapXOrder() { const ti = (TAP.title || "").toLowerCase(), n = EV.filter
   if (/familie|oma|opa|geburtstag|feier|essen|besuch/.test(ti)) o = ["teilen", "ort", "dauer", "rep", "notiz"];
   return o.filter(k => !(k === "teilen" && !(SHR_ON() && SHR.contacts.length)) && !(k === "dauer" && (TAP.hour == null || TAP.allday))); }
 const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(); return /zahnarzt/.test(ti) ? "m6" : /friseur/.test(ti) ? "w6" : /training|kurs|chor|probe|unterricht|stammtisch/.test(ti) ? "weekly" : /elternabend/.test(ti) ? "" : ""; };
-const tapPlaces = () => { const ti = (TAP.title || "").toLowerCase(), same = EV.filter(e => e.place && (e.title || "").toLowerCase() === ti).map(e => e.place), any = EV.filter(e => e.place && e.type === "termin").slice(-30).map(e => e.place).reverse();
-  return [...new Set([...same, ...any])].slice(0, 4); };
+// Orte nur aus früheren Terminen mit (fast) demselben Titel – „Zahnarzt“ schlägt nie das Opernhaus vor
+const tapPlaces = () => { const ti = (TAP.title || "").toLowerCase().trim(); if (!ti) return [];
+  const words = ti.split(/[^a-zäöüß0-9]+/).filter(w => w.length >= 4);
+  const hit = e => { const t = (e.title || "").toLowerCase(); return t === ti || t.includes(ti) || ti.includes(t) && t.length >= 4 || words.some(w => t.split(/[^a-zäöüß0-9]+/).includes(w)); };
+  return [...new Set(EV.filter(e => e.place && !e.shared && hit(e)).sort((a, b) => String(b.from).localeCompare(String(a.from))).map(e => e.place))].slice(0, 4); };
 function tapTitles() {
   const own = {}; EV.filter(e => e.type === "termin" && !e.shared && e.title && e.title.length <= 24).forEach(e => own[e.title] = (own[e.title] || 0) + 1);
   const top = Object.entries(own).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 4);
