@@ -3020,7 +3020,24 @@ let formVis = "me", formVisManual = false, formShManual = false;
 function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; document.querySelectorAll("#f-vis [data-vis]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.vis === v)));
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
 let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
-let FORM_FILES = [];
+let FORM_FILES = [], FORM_TYPE_SET = false, FORM_DIR_SET = false;
+// Vor dem Auslesen kurz fragen, wofür das Dokument ist – sonst landet eine Zugverbindung gern als „Termin“
+const KIND_OPTS = [["trip", "🧳 Reise"], ["urlaub", "🏖️ Urlaub"], ["arr", "🙋 Abholen"], ["dep", "👋 Bringen"], ["termin", "📅 Termin"], ["deadline", "⏰ Frist"], ["auto", "✨ Selbst erkennen"]];
+const DIR_OPTS = [["arr", "🙋 Abholen – jemand kommt an"], ["dep", "👋 Bringen – jemand fährt ab"]];
+const LEG_FMT = `Hin- und Rückfahrt (bzw. Hin- und Rückflug) mit Nummer, Bahnhof/Flughafen und Zeit in note, genau im Format „Hinfahrt TT.MM., HH:MM Uhr ab <Bahnhof> (<Zug>) · Rückfahrt TT.MM., HH:MM Uhr ab <Bahnhof> (<Zug>)“ – dann werden die Züge live beobachtet.`;
+const KIND_HINT = {
+  trip: `Es ist eine REISE des Nutzers selbst: type "trip". from = Datum der Hinfahrt, to = Datum der Rückfahrt (bzw. Abreise), time = Abfahrt der Hinfahrt, title = Reiseziel (z. B. „Berlin“). ${LEG_FMT}`,
+  urlaub: `Es ist ein URLAUB: type "urlaub". from/to = Urlaubszeitraum, time = erste Abfahrt bzw. Abflug, title = Ziel oder Unterkunft. ${LEG_FMT}`,
+  arr: `Der Nutzer HOLT jemanden AB: type "abholen" mit pick.dir "arr". Maßgeblich ist die ANKUNFT der ersten Fahrt am Zielbahnhof: from = Ankunftstag, time = Ankunftszeit, place = Ankunftsbahnhof/-flughafen, pick.no = Zug-/Flugnummer der ankommenden Verbindung, pick.mode = "zug" | "flug" | "bus". Umstiege und die Rückfahrt kurz in note.`,
+  dep: `Der Nutzer BRINGT jemanden: type "abholen" mit pick.dir "dep". Maßgeblich ist die ABFAHRT – bei Hin- und Rückfahrt die der RÜCKFAHRT: from = Abfahrtstag, time = Abfahrtszeit, place = Abfahrtsbahnhof/-flughafen, pick.no = Zug-/Flugnummer, pick.mode. Rest kurz in note.`,
+  termin: `Es ist ein TERMIN: type "termin".`,
+  deadline: `Es ist eine FRIST: type "deadline".` };
+let KIND_RES = null;
+function askKind(box, q, opts) {
+  if (!box) return Promise.resolve("auto");
+  box.innerHTML = `<div class="kask"><b>${esc(q)}</b><div class="kask-o">${opts.map(([k, l]) => `<button type="button" class="tkq" data-kind="${k}">${esc(l)}</button>`).join("")}</div></div>`; box.hidden = false;
+  return new Promise(res => { KIND_RES = v => { box.hidden = true; box.innerHTML = ""; KIND_RES = null; res(v); }; });
+}
 async function formPickFiles(fs) {
   const ok = [], bad = [];
   if (fs.length > 6) bad.push(`nur die ersten 6 von ${fs.length} Dateien`);
@@ -3037,25 +3054,30 @@ async function formPickFiles(fs) {
 let sayT = 0; const sayWait = async () => { const w = 1200 - (Date.now() - sayT); if (w > 0) await new Promise(r => setTimeout(r, w)); sayT = Date.now(); };
 async function formFromDocs(files, link) {
   const l = $("f-att-l"), say = async t => { await sayWait(); if ($("f-att-l")) $("f-att-l").textContent = t; };
+  const clickT = k => document.querySelector(`[data-ftype="${k}"]`)?.click(), clickD = d => { document.querySelector(`[data-pkdir="${d}"]`)?.click(); FORM_DIR_SET = true; };
+  if (!FORM_TYPE_SET) { if (l) l.textContent = "Kurz noch: Wofür ist das?";
+    const k = await askKind($("f-ask"), "Was ist das?", KIND_OPTS); if (k === "arr" || k === "dep") { clickT("abholen"); clickD(k); } else if (k !== "auto") clickT(k); }
+  else if ($("f-type")?.value === "abholen" && !FORM_DIR_SET) { if (l) l.textContent = "Kurz noch:";
+    clickD(await askKind($("f-ask"), "Holst du jemanden ab oder bringst du jemanden hin?", DIR_OPTS)); }
   try {
     await say(files.length ? `📄 Ich lese ${files.length === 1 ? "„" + files[0].name + "“" : files.length + " Dokumente"} …` : "🔗 Ich öffne den Link …");
     const lim = await sample.limits().catch(() => null), att = files.length ? await filesForAI(files, lim?.images?.maxCount || 0) : { imgs: [], texts: [], long: [] };
     const lk = link ? await linksForAI(link, say) : { texts: [], fails: [] };
     if (!att.texts.length && !att.imgs.length && !lk.texts.length) { await say(lk.fails.length ? "Der Link ließ sich nicht lesen (evtl. Login nötig) – lade das Ticket als PDF oder Screenshot hoch." : "Daraus konnte ich nichts lesen."); return; }
     await say(`🔎 ${att.texts.length ? att.texts.length + " Seite(n) Text" : ""}${att.texts.length && att.imgs.length ? " und " : ""}${att.imgs.length ? att.imgs.length + " Bild(er)" : ""}${lk.texts.length ? " vom Link" : ""} gelesen – ich suche Datum, Uhrzeit, Ort und Anreise …`); await say("✍️ Ich fülle die Felder aus …");
-    const cur = $("f-type")?.value || "termin", ctx = cur === "abholen" ? `\nDer Nutzer füllt gerade das Formular „Abholen & Bringen“ aus: lege type "abholen" mit pick an (wen abholen/bringen, Zug-/Flugnummer, Bahnhof/Flughafen, Ankunfts- bzw. Abfahrtszeit dort). Ist kein Name erkennbar, lass pick.who leer.`
+    const cur = $("f-type")?.value || "termin", pdir = $("f-pk-dir")?.dataset.v || "arr", ctx = (FORM_TYPE_SET ? `\nWICHTIG – vom Nutzer festgelegt: ${KIND_HINT[cur === "abholen" ? pdir : cur] || ""}` : "") + (cur === "abholen" ? `\nDer Nutzer füllt gerade das Formular „Abholen & Bringen“ aus: lege type "abholen" mit pick an (wen abholen/bringen, Zug-/Flugnummer, Bahnhof/Flughafen, Ankunfts- bzw. Abfahrtszeit dort). Ist kein Name erkennbar, lass pick.who leer.`
       : cur === "urlaub" ? `\nDer Nutzer füllt gerade das Formular „Urlaub & Ferien“ aus: type "urlaub", title = Ziel bzw. Unterkunft, from/to = Urlaubszeitraum, time = erste Abfahrt/Abflug, Hin- und Rückreise (Zug/Flug, Zeiten) kurz in note.`
-      : cur === "deadline" ? `\nDer Nutzer trägt gerade eine Frist ein (Vertrag, Ausweis, Garantie, TÜV …): ${FK_AI}` : "";
+      : cur === "deadline" ? `\nDer Nutzer trägt gerade eine Frist ein (Vertrag, Ausweis, Garantie, TÜV …): ${FK_AI}` : "");
     const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}${ctx}
 Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen" | "deadline", "fk": "", "renew": 0, "remindDays": 0, "nostore": false, "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": ""} oder null}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
     const set = (id, v) => { const el = $(id); if (el && v != null && v !== "") el.value = v; };
-    const ty = cur === "abholen" || cur === "urlaub" || cur === "deadline" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin", "deadline"].includes(r.type) ? r.type : "";
+    const ty = FORM_TYPE_SET || cur === "abholen" || cur === "urlaub" || cur === "deadline" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin", "deadline", "urlaub"].includes(r.type) ? r.type : "";
     if (ty && ty !== cur) { $("f-type").value = ty; syncFormFields(); }
     if (ty === "abholen") {
       const pk = r.pick || {}, tap = (a, v) => document.querySelector(`[${a}="${v}"]`)?.click();
-      if (["arr", "dep"].includes(pk.dir)) tap("data-pkdir", pk.dir);
+      if (!FORM_DIR_SET && ["arr", "dep"].includes(pk.dir)) tap("data-pkdir", pk.dir);
       const md = ["zug", "flug", "bus"].includes(pk.mode) ? pk.mode : r.flight || r.mode === "flug" ? "flug" : ""; if (md) tap("data-pkmode", md);
       set("f-pk-who", pk.who); set("f-pk-no", pk.no); set("f-pk-st", r.place); set("f-from", r.from); set("f-time", r.time);
       if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
@@ -3074,6 +3096,7 @@ ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "defa
 }
 function showForm(e, preset) {
   if (!arguments[0]) FORM_FILES = [];
+  FORM_TYPE_SET = !!(e && (e.id || e.type)); FORM_DIR_SET = !!(e && e.id && e.pick?.dir); KIND_RES = null;
   editing = e && e.id ? e : null;
   const v = e || { type: "termin", title: "", from: preset || iso(TODAY), to: preset || iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: gWritable() ? "primary" : "" };
   fTimeOpen = !!(v.time || v.endTime);
@@ -3091,7 +3114,7 @@ function showForm(e, preset) {
       ${!editing && sample && canWrite ? `<div class="f-att" id="f-att"><div class="f-att-h"><b>✨ Automatisch ausfüllen</b><span class="note" id="f-att-l">${FORM_FILES.length ? esc(FORM_FILES.map(f => f.name).join(", ")) : "Datei, Link oder Mail – die Felder füllen sich selbst."}</span></div>
         <div class="f-att-g"><label class="f-att-b" title="Brief, Vertrag oder Ticket abfotografieren"><i>📷</i><span>Foto</span><input type="file" hidden accept="image/*" capture="environment" id="f-cam"></label><label class="f-att-b"><i>📎</i><span id="f-att-t">Datei</span><input type="file" hidden multiple accept="application/pdf,image/*" id="f-files"></label>
         <button type="button" class="f-att-b" id="f-link-btn"><i>🔗</i><span>Link</span></button>
-        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail</span></button></div>
+        <button type="button" class="f-att-b" id="f-mail-btn"><i>📧</i><span>Mail</span></button></div><div id="f-ask" hidden></div>
         <div id="f-link-wrap" hidden class="f-link"><input id="f-link" type="url" placeholder="https://… (Buchungsbestätigung, Ticket-Seite)"><button type="button" class="btn ghost small" id="f-link-go">Auslesen</button></div></div>` : ""}
       <div id="f-pick-wrap"${v.type === "abholen" ? "" : " hidden"}>
         <div class="seg emode" id="f-pk-dir" data-v="${v.pick?.dir || "arr"}"><button type="button" data-pkdir="arr" aria-selected="${(v.pick?.dir || "arr") === "arr"}">🙋 Abholen</button><button type="button" data-pkdir="dep" aria-selected="${v.pick?.dir === "dep"}">👋 Bringen</button></div>
@@ -3443,7 +3466,7 @@ async function delEvent(btn, id, a) {
 
 // =================== Assistent (wie im Chat) ===================
 let asstActions = [];
-let ASST_FILES = [];
+let ASST_FILES = [], ASST_KIND = "";
 // Eintragen: Freitext oder Formular – jederzeit umschaltbar, die letzte Wahl wird gemerkt
 const entryMode = () => store.get("ft-entry") === "form" || !sample || !canWrite ? "form" : "text";
 const entrySw = cur => sample && canWrite ? `<div class="seg emode" role="tablist" aria-label="Eingabe"><button type="button" role="tab" data-emode="text" aria-selected="${cur === "text"}">✍️ Freitext</button><button type="button" role="tab" data-emode="form" aria-selected="${cur === "form"}">📋 Formular</button></div>` : "";
@@ -3472,7 +3495,7 @@ function showAssistant(keepFiles) {
     <div class="asst">${entrySw("text")}
       ${ASST_DAY ? `<div class="a-day" id="a-day">📅 für <b>${fmt(ASST_DAY)}${ASST_TO ? ` – ${fmt(ASST_TO)}` : ""}${(ASST_TO || ASST_DAY).getFullYear() !== TODAY.getFullYear() ? " " + (ASST_TO || ASST_DAY).getFullYear() : ""}</b><button type="button" class="link" data-act="a-day-x" aria-label="Datum entfernen">✕</button></div>` : ""}
       <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
-      ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" id="a-cam"></label><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
+      ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" id="a-cam"></label><div id="a-kind" hidden></div><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
       <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button></div>
       <div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
@@ -3522,6 +3545,8 @@ function asstEvList() {
 async function runAssistant() {
   use("freitext");
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
+  if (ASST_FILES.length && !txt && !ASST_KIND) ASST_KIND = await askKind($("a-kind"), "Was ist das?", KIND_OPTS);
+  const kindHint = ASST_KIND && KIND_HINT[ASST_KIND] ? `\nWICHTIG – der Nutzer hat zu den angehängten Dokumenten angegeben: ${KIND_HINT[ASST_KIND]} Lege genau EINEN solchen Eintrag an.\n` : ""; ASST_KIND = "";
   if (!txt && !ASST_FILES.length) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll – oder hänge ein Ticket an.</p>`; return; }
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
   const say = async t => { await sayWait(); out.innerHTML = `<p class="note">${esc(t)}</p>`; };
@@ -3589,7 +3614,7 @@ Antworte am Ende NUR mit JSON in genau dieser Form:
 Bei einer reinen Frage: actions = []. Erfinde keine ids. Wenn bei einer ÄNDERUNG oder LÖSCHUNG unklar ist, welcher vorhandene Termin gemeint ist, frag in reply nach und lass actions leer.
 Stichworte sind erlaubt: Kurze Eingaben wie "Abholen 20.12", "Friseur Freitag", "Reifen 3.4." sind ein Auftrag zum Eintragen – IMMER sofort als "add" vorschlagen, mit dem, was da ist (title aus dem Stichwort, sinnvoll großgeschrieben; time und place leer lassen). NICHT nach Uhrzeit, Ort oder Details fragen – das kann man später ergänzen. Datum ohne Jahr: das nächste kommende. Nur wenn gar kein Datum erkennbar ist, kurz nachfragen.
 
-${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
+${kindHint}${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
 ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis ${iso(ASST_TO)}. Nennt die Nachricht kein eigenes Datum, gilt sie für diesen Zeitraum (from = ${iso(ASST_DAY)}, to = ${iso(ASST_TO)}) – dann NICHT nach dem Datum fragen.` : `Im Kalender gewählter Tag: ${iso(ASST_DAY)} (${WDL[ASST_DAY.getDay()]}). Nennt die Nachricht kein eigenes Datum, gilt sie für diesen Tag (from = to = ${iso(ASST_DAY)}, außer es ist erkennbar ein Zeitraum ab diesem Tag) – dann NICHT nach dem Datum fragen.`) + "\n" : ""}Nachricht: ${txt || "(nur Anhänge)"}`;
   const tools = canTools ? [{ name: "find_events", description: "Sucht eigene und Google-Termine in einem Zeitraum (höchstens 400 Tage). Gibt eine Liste mit id, quelle, titel, von, bis, zeit zurück. Optional nach Wörtern im Titel filtern.",
     inputSchema: { type: "object", properties: { from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" }, query: { type: "string", description: "optionale Suchwörter, z. B. Zahnarzt oder Urlaub" } }, required: ["from", "to"] },
@@ -4612,7 +4637,9 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
   if ((el = q("[data-catc]"))) { const [k, id] = el.dataset.catc.split("|"), C = { ...catCols() }; if (id) C[k] = id; else delete C[k]; CATC = null; store.set("ft-catc", JSON.stringify(C)); catOpen = ""; renderAll(); showSettings("farben"); return; }
-  if ((el = q("[data-ftype]"))) { const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
+  if ((el = q("[data-kind]"))) { KIND_RES?.(el.dataset.kind); return; }
+  if ((el = q("[data-ftype]"))) { FORM_TYPE_SET = true; const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
+  if (q("[data-pkdir]")) FORM_DIR_SET = true;
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
   if ((el = q("[data-plans]"))) { showPlans(); return; }
   if ((el = q("[data-faminv]"))) { famInvite(); return; }
