@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119193758";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261119195325";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -452,7 +452,11 @@ button { font: inherit; color: inherit; }
 .doc-gt { display: flex; align-items: baseline; gap: 8px; min-width: 0; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .doc-gt b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; } .doc-gt span { flex: none; color: var(--muted); font-size: 13px; }
 .doc-g .doc { border: 0; background: var(--soft, #f3f4f6); }
-.doc-row { display: flex; align-items: center; gap: 8px; } .doc-row .doc { flex: 1; min-width: 0; }
+.mic[aria-pressed="true"] { background: #fde8e8; border-color: #e05252; color: #a11; animation: micp 1.4s ease-in-out infinite; } @keyframes micp { 50% { box-shadow: 0 0 0 6px rgba(224,82,82,.15); } }
+.mic-st { align-self: center; flex-basis: 100%; margin: 0; } .mic-st:empty { display: none; }
+.qchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; } .qchips[hidden] { display: none; } .qchips .tkq { padding: 5px 11px; font-size: 13.5px; }
+.doc-row { display: flex; align-items: center; gap: 8px; }
+.doc-gh .doc-warn { color: var(--ink); background: #fff7e0; border-radius: 8px; padding: 4px 8px; margin-top: 4px; } .doc-warn .link { font-weight: 600; } .doc-row .doc { flex: 1; min-width: 0; }
 .doc-ck { display: flex; align-items: center; justify-content: center; width: 32px; height: 40px; flex: none; cursor: pointer; } .doc-ck input { width: 20px; height: 20px; accent-color: var(--fg); }
 .doc .doc-n b { font-weight: 600; } .doc-s { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .sheet-list .note { white-space: pre-line; }
@@ -3473,7 +3477,7 @@ async function docDelete(id, fid) {
   catch (err) { toast(writeErr(err)); }
 }
 // ---- Alle Dokumente (auch von gelöschten Terminen) ----
-let DOCS = [], DOCSEL = new Set(), docQ = "", docDelArm = false, DOCS_IN = false, EV_IN = false; const DOCSYNC = new Set(), DOC_KEEP = 7;
+let DOCS = [], DOCSEL = new Set(), docQ = "", docDelArm = false, DOCS_IN = false, EV_IN = false; const DOCSYNC = new Set(), DOC_KEEP = 7, DOC_PAST = 90, DOC_WARN = 7;
 function docLbl(d) { const e = EV.find(x => x.id === d.ev && !x.shared) || EV.find(x => (x.files || []).some(f => f.id === d.id));
   const title = e?.title || d.evTitle || "ohne Termin", dt = e ? e.a : parseIso(d.evDate);
   return { e, gone: !e, title, date: dt ? fmtY(dt) : "", sort: dt ? +dt : 0 }; }
@@ -3494,9 +3498,15 @@ function docGc() {
     const gone = docLbl(d).gone;
     if (gone && !d.gone) { d.gone = iso(TODAY); COLL("docs").doc(d.id).update({ gone: d.gone }).catch(() => {}); }
     else if (!gone && d.gone) { delete d.gone; COLL("docs").doc(d.id).update({ gone: null }).catch(() => {}); }
-    else if (gone && d.gone && dayDiff(parseIso(d.gone), TODAY) >= DOC_KEEP) old.push(d.id); }
+    else if (gone && d.gone && dayDiff(parseIso(d.gone), TODAY) >= DOC_KEEP) old.push(d.id);
+    else if (!gone) { const at = docPastAt(d, docLbl(d)); if (!at || dayDiff(TODAY, at) > DOC_WARN) continue;
+      if (!d.warn) { d.warn = iso(TODAY); COLL("docs").doc(d.id).update({ warn: d.warn }).catch(() => {}); }
+      else if (at <= TODAY) old.push(d.id); } }
   if (old.length) { DOCGC = true; docsRemove(old).catch(() => {}).finally(() => { DOCGC = false; }); }
 }
+// Vergangene Termine: Dokumente DOC_PAST Tage nach dem Ende aufräumen – nicht bei Wiederholungen, laufenden Fristen oder „Behalten“
+function docPastAt(d, L) { const e = L.e; if (!e || d.keep || (e.repeat && e.repeat !== "none") || (e.type === "deadline" && e.renew)) return null;
+  const end = e.b || e.a; if (!end) return null; const at = addDays(end, DOC_PAST), w = parseIso(d.warn || ""); return w && addDays(w, DOC_WARN) > at ? addDays(w, DOC_WARN) : at; }
 const docGoneTill = d => { const g = parseIso(d.gone || ""); if (!g) return ""; const t = new Date(g); t.setDate(t.getDate() + DOC_KEEP); return fmt(t); };
 // Meine Fristen: nächste offene Fälligkeit je Frist (auch kürzlich überfällige), sortiert
 function frList() {
@@ -3548,12 +3558,13 @@ function showDocs() {
   // je Termin eine Gruppe: Kurztitel mit Datum oben, darunter seine Dokumente
   const groups = xs => { const G = new Map(); xs.forEach(x => { const k = x.L.e ? x.L.e.id : (x.d.ev || "") + "|" + x.L.title + "|" + x.L.date; if (!G.has(k)) G.set(k, []); G.get(k).push(x); });
     return [...G.values()].map(g => { const L = g[0].L, till = L.gone ? docGoneTill(g[0].d) : "";
-      return `<div class="doc-g"><div class="doc-gh">${L.e ? `<button type="button" class="doc-gt" data-occ="${esc(L.e.id)}|${iso(L.e.a)}">` : `<span class="doc-gt">`}<b>${esc(L.title)}</b>${L.date ? `<span>${esc(L.date)}</span>` : ""}${L.e ? "</button>" : "</span>"}${till ? `<small>wird am ${esc(till)} mitgelöscht</small>` : ""}</div>${g.map((x, i) => row(x, i, g.length)).join("")}</div>`; }).join(""); };
+      const pa = !L.gone ? g.map(x => docPastAt(x.d, x.L)).filter(Boolean).sort((a, b) => a - b)[0] : null, warn = pa && dayDiff(TODAY, pa) <= DOC_WARN ? fmt(pa) : "";
+      return `<div class="doc-g"><div class="doc-gh">${L.e ? `<button type="button" class="doc-gt" data-occ="${esc(L.e.id)}|${iso(L.e.a)}">` : `<span class="doc-gt">`}<b>${esc(L.title)}</b>${L.date ? `<span>${esc(L.date)}</span>` : ""}${L.e ? "</button>" : "</span>"}${till ? `<small>wird am ${esc(till)} mitgelöscht</small>` : ""}${warn ? `<small class="doc-warn">Wird am ${esc(warn)} aufgeräumt – der Termin ist vorbei. <button type="button" class="link" data-dockeep="${esc(g.map(x => x.d.id).join(","))}">Behalten</button></small>` : ""}</div>${g.map((x, i) => row(x, i, g.length)).join("")}</div>`; }).join(""); };
   const act = list.filter(x => !x.L.gone), gone = list.filter(x => x.L.gone);
   openSheet("Meine Dokumente", "Tickets, Buchungen und PDFs – nach Termin sortiert. Nur für dich.", `${storeHtml()}
     ${DOCS.length > 4 ? `<input type="search" class="search" id="doc-q" placeholder="Suchen: Termin, Datum oder Dateiname" value="${esc(docQ)}" style="margin-top:8px">` : ""}
     ${!DOCS.length ? `<p class="note" style="margin-top:10px">Noch keine Dokumente. Du hängst sie in einem Termin über „📎 Datei hinzufügen“ an.</p>` : ""}
-    ${act.length ? `<div class="docs-l">${groups(act)}</div>` : ""}
+    ${act.length ? `<div class="docs-l">${groups(act)}</div><p class="note" style="margin:8px 2px 0">Damit dein Speicher frei bleibt, räumt die App Dokumente ${DOC_PAST / 30} Monate nach einem vergangenen Termin auf – eine Woche vorher siehst du hier einen Hinweis und kannst sie behalten. Wiederkehrende Termine und laufende Verträge bleiben.</p>` : ""}
     ${gone.length ? `<h3 class="pkh">Von gelöschten Terminen</h3><p class="note" style="margin:2px 0 0">Damit dein Speicher schön frei bleibt, räumt die App diese Dokumente ${DOC_KEEP} Tage nach dem Löschen des Termins auf. Was du behalten möchtest, öffne einfach vorher und speichere es auf deinem Handy.</p><div class="docs-l">${groups(gone)}</div>` : ""}
     ${DOCS.length && !list.length ? `<p class="note" style="margin-top:10px">Nichts gefunden.</p>` : ""}
     ${list.length && canWrite ? `<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost small" id="docs-all">${list.every(x => DOCSEL.has(x.d.id)) ? "Auswahl aufheben" : "Alle auswählen"}</button>
@@ -4374,7 +4385,7 @@ document.addEventListener("focusin", ev => {
   const t = ev.target; if (!t.closest || !t.closest("#sheet") || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
   setTimeout(() => { fitSheet(); t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 350);
 });
-function closeSheet() {
+function closeSheet() { try { if (MIC) micStop(); } catch {}
   sheet.hidden = true; sheetMode = null; sheetCtx = null; document.documentElement.classList.remove("sheet-open"); setTimeout(renderHints, 0);
   if (selDay) { selDay = null; document.querySelectorAll(".d.sel, .mc.sel").forEach(x => x.classList.remove("sel")); }
   $("add-btn").hidden = (!canWrite && dbState !== "off") || !!moving;
@@ -4515,6 +4526,7 @@ ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "defa
       const pk = r.pick || {}, tap = (a, v) => document.querySelector(`[${a}="${v}"]`)?.click();
       if (!FORM_DIR_SET && ["arr", "dep"].includes(pk.dir)) tap("data-pkdir", pk.dir);
       const md = ["zug", "flug", "bus"].includes(pk.mode) ? pk.mode : r.flight || r.mode === "flug" ? "flug" : ""; if (md) tap("data-pkmode", md);
+      ["f-pk-who", "f-pk-st"].forEach(id => { const el = $(id); if (el?.dataset.pre) { el.value = ""; delete el.dataset.pre; } });
       set("f-pk-who", pk.who); set("f-pk-no", pk.no); set("f-pk-st", r.place); set("f-from", r.from); set("f-time", r.time);
       FORM_UMST = umstClean(pk.umst); const fa = $("f-ask"); if (fa && FORM_UMST.length >= 2) { fa.innerHTML = umstHtml(FORM_UMST, r.place, "data-fumst", $("f-pk-dir")?.dataset.v || pk.dir, pk.no); fa.hidden = false; }
       if (r.note) $("f-note").value = [$("f-note").value.trim(), r.note].filter(Boolean).join("\n");
@@ -4570,12 +4582,14 @@ function showForm(e, preset) {
       ${famGroups().length && gWritable() && !v.gReadOnly ? `<div class="vis" id="f-vis" role="radiogroup" aria-label="Wer sieht das?"><button type="button" role="radio" data-vis="me" aria-checked="${!isShareCal(v.gcal)}">🔒 Nur ich</button>${famGroups().map(g => `<button type="button" role="radio" data-vis="${esc(g.cal)}" aria-checked="${v.gcal === g.cal}">👪 ${esc(calName(g.cal))}</button>`).join("")}</div>` : ""}
       <div class="two"><div><label for="f-from" id="f-from-l">Von</label><input id="f-from" type="date" value="${esc(v.from)}"></div>
       <div id="f-to-wrap"><label for="f-to">Bis</label><input id="f-to" type="date" value="${esc(v.to)}"></div></div>
+      ${editing ? "" : `<div class="qchips" id="f-qd">${qDates().map(([d, l]) => `<button type="button" class="tkq" data-qd="${d}">${l}</button>`).join("")}</div>`}
       <div id="f-bd-wrap"><div class="two"><div><label for="f-bd">Geburtstag</label><input id="f-bd" type="text" inputmode="numeric" placeholder="TT.MM." value="${v.type === "birthday" && v.from ? esc(`${v.from.slice(8, 10)}.${v.from.slice(5, 7)}.`) : ""}"></div>
         <div><label for="f-by2">Geburtsjahr</label><input id="f-by2" type="number" inputmode="numeric" min="1900" max="2028" placeholder="falls bekannt" value="${esc(v.birthYear || "")}"></div></div>
         <p class="note" style="margin:2px 0 0">Ohne Jahr wird trotzdem jedes Jahr erinnert – nur das Alter fehlt.</p>
         ${canWrite ? `<label class="tog setrow" style="margin-top:6px"><input type="checkbox" id="f-fam"${v.fam || FAM().some(p => famKey(p.name) === famKey(v.title)) ? " checked" : ""}> Gehört zu meinen Liebsten (frühere Erinnerung, Geschenkeliste)</label>` : ""}</div>
       <div class="shift" id="f-shift"><span>Verschieben</span><button type="button" class="btn ghost small" data-shift="-7">−1 Wo</button><button type="button" class="btn ghost small" data-shift="-1">−1 Tag</button><button type="button" class="btn ghost small" data-shift="1">+1 Tag</button><button type="button" class="btn ghost small" data-shift="7">+1 Wo</button></div>
       <button type="button" class="link f-time-add" id="f-time-add">🕒 Uhrzeit hinzufügen</button>
+      <div class="qchips" id="f-qt">${QTIMES.map(t => `<button type="button" class="tkq" data-qt="${t}">${t}</button>`).join("")}</div>
       <div class="two" id="f-time-wrap"><div><label for="f-time" id="f-time-l">Uhrzeit</label><input id="f-time" type="time" value="${esc(v.time)}"></div>
       <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div></div>
       <div class="two" id="f-extra">
@@ -4603,9 +4617,9 @@ function showForm(e, preset) {
         ${editing?.shared ? `<button type="button" class="btn danger push" data-shdel="${esc(editing.id)}">Löschen</button>` : ""}
       </div>
     </form>`, "form");
-  formVisManual = !!editing; formShManual = false; formVis = (e && isShareCal(e.gcal)) ? e.gcal : "me";
+  PK_PRE = false; formVisManual = !!editing; formShManual = false; formVis = (e && isShareCal(e.gcal)) ? e.gcal : "me";
   fMore = !!(editing && ((v.repeat && v.repeat !== "none" && !["birthday", "anniversary"].includes(v.type)) || v.note || v.color || v.who));
-  syncFormFields(); setVis(formVis);
+  syncFormFields(); setVis(formVis); pickPrefill(); qMark();
 }
 const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom") return r; const n = Math.max(1, Math.min(99, +$("f-repn").value || 1)), u = $("f-repu").value; return n === 1 ? { d: "d1", w: "weekly", m: "monthly", y: "yearly" }[u] : u + n; };
 const TYPE_SHORT = { termin: "Termin", trip: "Reise", urlaub: "Urlaub", dienst: "Dienst", abholen: "Abholen", info: "Hinweis", birthday: "Geburtstag", mina: "Umgang", anniversary: "Jahrestag", deadline: "Frist", contact: "Kontakt" };
@@ -4650,7 +4664,7 @@ function syncFormFields() {
   $("f-rem-wrap").hidden = !["birthday", "anniversary", "deadline"].includes(ty);
   $("f-rem").placeholder = `Standard ${REMIND_DEF[ty] ?? ""}`;
   $("f-extra").hidden = !["birthday", "anniversary", "deadline", "contact"].includes(ty);
-  $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact || ty === "deadline";   /* Frist: nur ein Datum */ { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; } $("f-shift").hidden = contact;
+  $("f-rep-wrap").hidden = contact; $("f-to-wrap").hidden = contact || ty === "deadline";   /* Frist: nur ein Datum */ { const noTime = contact || ty === "birthday" || ty === "anniversary"; $("f-time-wrap").hidden = noTime || !fTimeOpen; $("f-time-add").hidden = noTime || fTimeOpen; if ($("f-qt")) $("f-qt").hidden = noTime; if ($("f-qd")) $("f-qd").hidden = contact || ty === "birthday" || ty === "anniversary"; } $("f-shift").hidden = contact;
   $("f-repc-wrap").hidden = contact || r.value !== "custom";
   $("f-who-wrap").hidden = contact || ty === "birthday" || !!$("f-who-wrap").dataset.off;
   { const a = document.querySelector('[data-fcol=""]'), c = catColor(ty), lbl = `Wie ${TYPES[ty]?.label || "die Art"} (☰ → Anzeigen → Farben)`; if (a) { a.style.background = c; a.style.color = c.startsWith("#") ? lumInk(c) : "#fff"; a.style.borderColor = "transparent"; a.title = lbl; a.setAttribute("aria-label", lbl); } }
@@ -4667,6 +4681,19 @@ function syncFormFields() {
   $("f-from-l").textContent = contact ? "Zuletzt gemeldet" : ty === "deadline" ? "Fällig am" : ty === "abholen" ? "Datum" : "Von";
   formLayout(ty);
 }
+const QTIMES = ["09:00", "12:00", "15:00", "18:00", "19:30"];
+function qDates() { const sa = addDays(TODAY, ((6 - TODAY.getDay() + 7) % 7) || 7), so = addDays(sa, 1), mo = addDays(TODAY, ((8 - TODAY.getDay()) % 7) || 7);
+  return [[iso(TODAY), "Heute"], [iso(addDays(TODAY, 1)), "Morgen"], [iso(sa), `Sa ${p2(sa.getDate())}.${p2(sa.getMonth() + 1)}.`], [iso(so), `So ${p2(so.getDate())}.${p2(so.getMonth() + 1)}.`], [iso(mo), `Nächste Woche`]]; }
+function qMark() { const f = $("f-from")?.value, t = $("f-time")?.value; document.querySelectorAll("[data-qd]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.qd === f)));
+  document.querySelectorAll("[data-qt]").forEach(b => b.setAttribute("aria-pressed", String(fTimeOpen && b.dataset.qt === t))); }
+function timeOpen(val) { fTimeOpen = true; $("f-time-wrap").hidden = false; $("f-time-add").hidden = true; const t = $("f-time"); if (t && val) t.value = val; qMark(); }
+let PK_PRE = false;
+function pickPrefill() {
+  if (editing || PK_PRE || $("f-type")?.value !== "abholen") return; PK_PRE = true;
+  const last = EV.filter(x => x.type === "abholen" && x.pick && !x.shared).sort((a, b) => String(b.created || b.from).localeCompare(String(a.created || a.from)))[0]; if (!last) return;
+  const w = $("f-pk-who"), s = $("f-pk-st"); if (w && !w.value && last.pick.who) { w.value = last.pick.who; w.dataset.pre = "1"; } if (s && !s.value && last.place) { s.value = last.place; s.dataset.pre = "1"; }
+  if (last.pick.mode && last.pick.mode !== "zug") document.querySelector(`[data-pkmode="${last.pick.mode}"]`)?.click();
+  try { pickPreview(); } catch {} }
 function shiftForm(n) {
   const f = $("f-from"), t = $("f-to"), a = parseIso(f.value); if (!a) { $("f-err").textContent = "Erst ein Von-Datum eingeben."; return; }
   const b = parseIso(t.value) || a; f.value = iso(addDays(a, n)); t.value = iso(addDays(b, n));
@@ -4924,7 +4951,30 @@ function switchEntry(m) {
   else { const t = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), e = parseIso($("f-to")?.value || ""); const pick = d && (!sameDay(d, TODAY) || (e && e > d));
     ASST_DAY = pick ? d : null; ASST_TO = pick && e && e > d ? e : null; showAssistant(); const i = $("a-in"); if (i && t) i.value = t; }
 }
+// ---- Spracheingabe: sprechen statt tippen – danach wird automatisch umgewandelt (auch mehrere Termine auf einmal) ----
+const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let MIC = null, ASST_VOICE = false;
+function micStop() { try { MIC?.stop(); } catch {} }
+function micToggle() {
+  if (MIC) { micStop(); return; }
+  const R = SR(); if (!R) return;
+  const ta = $("a-in"), btn = $("a-mic"), st = $("a-mic-st"), base = ta.value.trim();
+  const rec = new R(); MIC = rec; rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = true;
+  let fin = "", err = "";
+  const show = (txt) => { ta.value = [base, txt].filter(Boolean).join(base ? "\n" : ""); };
+  rec.onresult = e => { let inter = ""; for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) fin += (fin ? " " : "") + r[0].transcript.trim(); else inter += r[0].transcript; } show([fin, inter.trim()].filter(Boolean).join(" ")); };
+  rec.onerror = e => { err = e.error || "x"; };
+  rec.onend = () => { MIC = null; if (btn) { btn.setAttribute("aria-pressed", "false"); btn.textContent = "🎤 Sprechen"; }
+    if (err === "not-allowed" || err === "service-not-allowed") { if (st) st.textContent = "Mikrofon nicht freigegeben – in den Browser-Einstellungen erlauben."; return; }
+    if (err && err !== "no-speech" && err !== "aborted") { if (st) st.textContent = "Spracheingabe gerade nicht möglich (Internet?) – bitte tippen."; return; }
+    if (st) st.textContent = "";
+    if (fin.trim()) { show(fin.trim()); ASST_VOICE = true; runAssistant(); } };
+  try { rec.start(); } catch { MIC = null; return; }
+  if (btn) { btn.setAttribute("aria-pressed", "true"); btn.textContent = "⏹ Fertig"; }
+  if (st) st.textContent = "Ich höre zu … sag ruhig mehrere Termine hintereinander.";
+}
 function showAssistant(keepFiles) {
+  micStop();
   if (dbState === "off") return showSignin();
   if (!keepFiles) ASST_FILES = [];
   const ex = ["Zahnarzt Donnerstag 16 Uhr", "Lena vom Zug abholen: RE 4, Berlin Hbf, 13:55", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
@@ -4934,7 +4984,7 @@ function showAssistant(keepFiles) {
       <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
       ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" id="a-cam"></label><div id="a-kind" hidden></div><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
-      <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button></div>
+      <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button>${sample && SR() ? `<button type="button" class="btn ghost mic" id="a-mic" aria-pressed="false">🎤 Sprechen</button>` : ""}<span class="note mic-st" id="a-mic-st" aria-live="polite"></span></div>
       <div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
       <div id="a-out"></div>
     </div>`, "asst");
@@ -4982,7 +5032,7 @@ function asstEvList() {
 async function runAssistant() {
   use("freitext");
   const txt = $("a-in").value.trim(), out = $("a-out"), go = $("a-go");
-  const kindUsed = ASST_KIND;
+  const kindUsed = ASST_KIND, voice = ASST_VOICE; ASST_VOICE = false;
   const kindHint = ASST_KIND && KIND_HINT[ASST_KIND] ? `\nWICHTIG – der Nutzer hat zu den angehängten Dokumenten angegeben: ${KIND_HINT[ASST_KIND]} Lege genau EINEN solchen Eintrag an.\n` : ""; ASST_KIND = "";
   if (!txt && !ASST_FILES.length) { out.innerHTML = `<p class="err">Schreib kurz, was eingetragen oder geändert werden soll – oder hänge ein Ticket an.</p>`; return; }
   go.disabled = true; go.textContent = "Denkt nach …"; out.innerHTML = "";
@@ -5051,7 +5101,7 @@ Antworte am Ende NUR mit JSON in genau dieser Form:
 Bei einer reinen Frage: actions = []. Erfinde keine ids. Wenn bei einer ÄNDERUNG oder LÖSCHUNG unklar ist, welcher vorhandene Termin gemeint ist, frag in reply nach und lass actions leer.
 Stichworte sind erlaubt: Kurze Eingaben wie "Abholen 20.12", "Friseur Freitag", "Reifen 3.4." sind ein Auftrag zum Eintragen – IMMER sofort als "add" vorschlagen, mit dem, was da ist (title aus dem Stichwort, sinnvoll großgeschrieben; time und place leer lassen). NICHT nach Uhrzeit, Ort oder Details fragen – das kann man später ergänzen. Datum ohne Jahr: das nächste kommende. Nur wenn gar kein Datum erkennbar ist, kurz nachfragen.
 
-${kindHint}${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
+${voice ? `\nDie Nachricht wurde GESPROCHEN und automatisch abgeschrieben: Satzzeichen können fehlen, Zahlen und Namen können leicht falsch erkannt sein (z. B. „15 Uhr 30“ = 15:30). Enthält sie mehrere Termine, lege für JEDEN einen eigenen add-Eintrag an.\n` : ""}${kindHint}${hasAtt ? "\n" + ATTACH_HINT + "\n" + [...att.texts, ...links.texts].join("\n\n").slice(0, 20000) + (att.imgs.length ? `\n(Dazu ${att.imgs.length} Bild(er) der Dokumente.)` : "") + "\n" : ""}${links.fails.length ? `\nHinweis: Der Link ${links.fails.join(", ")} ließ sich nicht lesen (z. B. Login nötig). Sag das kurz in reply und nutze nur, was sonst bekannt ist.\n` : ""}
 ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis ${iso(ASST_TO)}. Nennt die Nachricht kein eigenes Datum, gilt sie für diesen Zeitraum (from = ${iso(ASST_DAY)}, to = ${iso(ASST_TO)}) – dann NICHT nach dem Datum fragen.` : `Im Kalender gewählter Tag: ${iso(ASST_DAY)} (${WDL[ASST_DAY.getDay()]}). Nennt die Nachricht kein eigenes Datum, gilt sie für diesen Tag (from = to = ${iso(ASST_DAY)}, außer es ist erkennbar ein Zeitraum ab diesem Tag) – dann NICHT nach dem Datum fragen.`) + "\n" : ""}Nachricht: ${txt || "(nur Anhänge)"}`;
   const tools = canTools ? [{ name: "find_events", description: "Sucht eigene und Google-Termine in einem Zeitraum (höchstens 400 Tage). Gibt eine Liste mit id, quelle, titel, von, bis, zeit zurück. Optional nach Wörtern im Titel filtern.",
     inputSchema: { type: "object", properties: { from: { type: "string", description: "YYYY-MM-DD" }, to: { type: "string", description: "YYYY-MM-DD" }, query: { type: "string", description: "optionale Suchwörter, z. B. Zahnarzt oder Urlaub" } }, required: ["from", "to"] },
@@ -5600,6 +5650,8 @@ async function saveNewPw() {
   closeSheet(); toast("Neues Passwort gespeichert.");
 }
 // Leerzeichen in E-Mail und Passwort sofort entfernen (Handy-Tastaturen setzen gern eins nach „.“)
+document.addEventListener("input", ev => { const t = ev.target; if (t?.id === "f-pk-who" || t?.id === "f-pk-st") delete t.dataset.pre; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
+document.addEventListener("change", ev => { const t = ev.target; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
 document.addEventListener("input", ev => { const t = ev.target; if (!t?.id || !/^au-(email|pw|np1|np2)$/.test(t.id) || !/\s/.test(t.value)) return;
   const pos = t.selectionStart ?? t.value.length, before = t.value.slice(0, pos).replace(/\s+/g, "").length; t.value = t.value.replace(/\s+/g, ""); try { t.setSelectionRange(before, before); } catch {} });
 document.addEventListener("submit", ev => { const id = ev.target.id; if (id === "au-form" || id === "au-code") { ev.preventDefault(); auSubmit(id); } if (id === "au-np") { ev.preventDefault(); saveNewPw(); } });
@@ -6087,7 +6139,9 @@ document.addEventListener("click", ev => {
     const L = $("a-out")?.querySelector(".acts-list"); if (L) L.innerHTML = asstActions.map((x, i) => actHtml(x, i)).join(""); return; }
   if ((el = q("[data-fumst]"))) { const u = FORM_UMST[+el.dataset.fumst]; if (!u) return; const st = $("f-pk-st"), tm = $("f-time"); if (st) st.value = u.st; if (tm && u.time) tm.value = u.time;
     el.parentElement.querySelectorAll("[data-fumst]").forEach(b => b.setAttribute("aria-pressed", String(b === el))); try { pickPreview(); } catch {} return; }
+  if ((el = q("[data-dockeep]"))) { const ids = el.dataset.dockeep.split(","); ids.forEach(id => { const d = DOCS.find(x => x.id === id); if (d) d.keep = true; COLL("docs").doc(id).update({ keep: true }).catch(() => {}); }); toast("Wird behalten"); showDocs(); return; }
   if ((el = q("[data-akind]"))) { if (el.getAttribute("aria-pressed") === "true") return; ASST_KIND = el.dataset.akind; runAssistant(); return; }
+  if ((el = q("[data-ftype]")) && el.dataset.ftype === "abholen") setTimeout(pickPrefill, 0);
   if ((el = q("[data-ftype]"))) { FORM_TYPE_SET = true; const t = $("f-type"); t.value = el.dataset.ftype; t.dispatchEvent(new Event("change", { bubbles: true })); return; }
   if (q("[data-pkdir]")) FORM_DIR_SET = true;
   if ((el = q("[data-pkdir]")) || (el = q("[data-pkmode]"))) { const g = el.parentElement; g.dataset.v = el.dataset.pkdir || el.dataset.pkmode; g.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b === el))); pickPreview(); return; }
@@ -6119,7 +6173,12 @@ document.addEventListener("click", ev => {
     toast(on ? `Alle „${o.ev.title}“-Einträge zählen jetzt als Umgang` : `„${o.ev.title}“ ist wieder ein normaler Termin`); renderAll(); const o2 = findOcc(id, a) || o; showGoogleEvent(o2); return; }
   if ((el = q("[data-gmerk]"))) { const [id, a] = el.dataset.gmerk.split("|"); const o = findOcc(id, a); if (o) openMerk(o); return; }
   if ((el = q("[data-adopt]"))) { const [id, a] = el.dataset.adopt.split("|"); const o = findOcc(id, a); if (o) adoptTrip(o, false); return; }
-  if ((el = q("#f-time-add"))) { fTimeOpen = true; $("f-time-wrap").hidden = false; el.hidden = true; $("f-time")?.focus(); return; }
+  if ((el = q("#f-time-add"))) { const t = $("f-time"), f = parseIso($("f-from")?.value || "");
+    // Termin heute: nächste volle Stunde vorschlagen
+    timeOpen(!t?.value && f && +f === +TODAY && $("f-type")?.value === "termin" ? `${p2(Math.min(23, new Date().getHours() + 1))}:00` : ""); t?.focus(); return; }
+  if ((el = q("[data-qd]"))) { const f = $("f-from"), t = $("f-to"), a = parseIso(f.value), b = parseIso(t.value), n = parseIso(el.dataset.qd); const dur = a && b && b >= a ? dayDiff(a, b) : 0;
+    f.value = el.dataset.qd; t.value = iso(addDays(n, dur)); f.dispatchEvent(new Event("change", { bubbles: true })); qMark(); return; }
+  if ((el = q("[data-qt]"))) { timeOpen(el.dataset.qt); $("f-time").dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
   if ((el = q("[data-placeno]"))) { const S = noPlace(); S.add(el.dataset.placeno); store.set("ft-noplace", JSON.stringify([...S].slice(-300))); const b = $("place-sug"); if (b) b.hidden = true; toast("Gemerkt – bei diesem Titel frage ich nicht mehr nach einem Ort"); renderAll(); return; }
   if ((el = q("[data-placeset]"))) { const o = sheetCtx && findOcc(sheetCtx.id, sheetCtx.a); if (o) setPlace(o, el.dataset.placeset); return; }
@@ -6162,6 +6221,7 @@ document.addEventListener("click", ev => {
     case "f-cancel": sheetCtx = null; selDay ? showDay(selDay) : closeSheet(); break;
     case "f-dup": { const v = formVals(); v.gEventId = ""; showForm(v); toast("Kopie: Daten anpassen und speichern"); break; }
     case "a-go": runAssistant(); break;
+    case "a-mic": micToggle(); break;
     case "f-mail-btn": switchEntry("text"); setTimeout(() => { const i = $("a-in"); if (i) { i.placeholder = "Hier den Text der Buchungsbestätigung einfügen (lange tippen → Einfügen) – ich trage dann alles ein."; i.focus(); } }, 50); break;
     case "mi-help": showHelp(); break;
     case "mi-plan": showPlans(); break;
