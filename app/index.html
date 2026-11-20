@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261120040252";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261120045421";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -778,6 +778,7 @@ td.mid { text-align: center; }
 .tp-cd { min-height: 44px; border: 0; border-radius: 10px; background: var(--soft); color: var(--fg); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
 .tp-cd.today { outline: 2px solid var(--fg); outline-offset: -2px; } .tp-cd.on { background: var(--accent); color: #fff; } .tp-cd:disabled { opacity: .3; }
 .tap .tp-err { margin: -4px 0 10px; }
+.tp-auto { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 10px; padding: 8px 12px; margin: -4px 0 10px; font-size: 14px; }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
 .seg.emode button { white-space: nowrap; }
@@ -4705,7 +4706,7 @@ const TITLE_PH = { termin: "z. B. Zahnarzt", trip: "z. B. Ostsee, Hotel am See",
   anniversary: "z. B. Hochzeitstag", deadline: "z. B. Steuererklärung", birthday: "Name, z. B. Oma Hilde", contact: "Name, z. B. Tante Ute" };
 function sugClamp(el, rows) { requestAnimationFrame(() => { const kids = [...el.children]; kids.forEach(k => k.hidden = false);
   const tops = [...new Set(kids.map(k => k.offsetTop))].sort((a, b) => a - b), lim = tops[rows - 1] ?? Infinity; kids.forEach(k => { if (k.offsetTop > lim) k.hidden = true; }); }); }
-function titleSug(ty) { return [...(TITLE_BASE[ty] || [])]; }
+function titleSug(ty) { let L = []; try { L = habTitles(ty, 5); } catch {} return [...new Set([...L, ...(TITLE_BASE[ty] || [])])]; }
 function formLayout(ty) {
   const main = new Set(F_MAIN[ty] || F_MAIN.termin);
   const fa = $("f-att"), fd = $("f-from")?.closest(".two"); if (fa && fd) { const at = ty === "abholen" ? $("f-pick-wrap") : fd; if (at && fa.nextElementSibling !== at) at.before(fa); }
@@ -5021,6 +5022,51 @@ window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählt
 function newEntry(preset) { if (dbState === "off") return showSignin(); TAP_KEEP = null; if (entryMode() === "tap") return showTap(preset ? parseIso(preset) : null); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
 let ENTRY_TXT = "";   // längerer Freitext (Mail, WhatsApp) bleibt beim Hin- und Herwechseln erhalten
 let FORM_DRAFT = null, ASST_SNAP = null, TAP_KEEP = null, TAP_KEEP_V = null;
+// ---- Gewohnheiten: der Kalender lernt aus deinen eigenen und importierten Terminen – nur auf diesem Gerät, ohne KI ----
+let HABC = null, HABK = "";
+const habKey = t => String(t || "").toLowerCase().replace(/\s+/g, " ").trim();
+function habits() {
+  const gl = []; try { for (const L of GEV.values()) for (const o of L) gl.push(o); } catch {}
+  const k = `${EV.length}|${gl.length}|${EV.reduce((s, e) => s + (e.updated || e.created || e.from || "").length, 0)}|${iso(TODAY)}`;
+  if (HABC && HABK === k) return HABC;
+  const H = {}, P = {}, seen = new Set(), now = +TODAY;
+  const add = (ty, title, a, time, endTime, place, id) => { const key = habKey(title); if (!key || key.length > 40) return;
+    const age = (now - +a) / 864e5, w = age > 730 ? 0 : age > 365 ? .4 : 1; if (!w) return;
+    const T = (H[ty] ??= {}), h = (T[key] ??= { t: String(title).trim(), n: 0, ev: 0, time: {}, wd: {}, mo: {}, dur: {}, place: {}, last: null, dates: [] });
+    if (!seen.has(ty + "|" + id)) { seen.add(ty + "|" + id); h.ev += w; }
+    h.n += w; if (time) h.time[time] = (h.time[time] || 0) + w; h.wd[a.getDay()] = (h.wd[a.getDay()] || 0) + w; h.mo[a.getMonth()] = (h.mo[a.getMonth()] || 0) + w;
+    if (time && endTime) { const d = (+endTime.slice(0, 2) * 60 + +endTime.slice(3)) - (+time.slice(0, 2) * 60 + +time.slice(3)); if (d > 0) h.dur[d] = (h.dur[d] || 0) + w; else h.dur[endTime] = (h.dur[endTime] || 0) + w; }
+    if (place) h.place[place] = (h.place[place] || 0) + w;
+    if (a <= TODAY && (!h.last || a > h.last)) h.last = a; if (h.dates.length < 60) h.dates.push(+a); };
+  for (const e of EV) { if (e.shared || e.mOnly || !e.title) continue; const a = parseIso(e.from); if (!a) continue;
+    if (e.type === "abholen" && e.pick?.who) { const w = habKey(e.pick.who), p = (P[w] ??= { who: e.pick.who, n: 0, mode: {}, no: {}, place: {}, time: {} }); p.n++; p.mode[e.pick.mode] = (p.mode[e.pick.mode] || 0) + 1; if (e.pick.no) p.no[e.pick.no] = (p.no[e.pick.no] || 0) + 1; if (e.place) p.place[e.place] = (p.place[e.place] || 0) + 1; if (e.time) p.time[e.time] = (p.time[e.time] || 0) + 1; continue; }
+    add(e.type, e.title, a, e.time, e.endTime, e.place, e.id); }
+  for (const o of gl) { const e = o.ev; if (!e?.title || e.title === "(ohne Titel)") continue; add("termin", e.title, o.a, e.time, e.endTime, e.place || e.location || "", e.rid || e.gid); }
+  return (HABC = { H, P }, HABK = k, HABC); }
+// häufigster Wert, nur wenn er wirklich überwiegt
+const habTop = (m, minShare = .5, minN = 2) => { const E = Object.entries(m || {}); if (!E.length) return null; const tot = E.reduce((s, [, v]) => s + v, 0); E.sort((a, b) => b[1] - a[1]); return E[0][1] >= minN && E[0][1] / tot >= minShare ? E[0][0] : null; };
+function habTitles(ty, max = 6) { const T = habits().H[ty] || {}, m = TODAY.getMonth(), nm = (m + 1) % 12;
+  return Object.values(T).filter(h => h.ev >= 2 || h.n >= 3).map(h => ({ t: h.t, s: h.n + ((h.mo[m] || 0) + (h.mo[nm] || 0) >= Math.max(2, h.n * .4) ? 4 : 0) + (h.last && (TODAY - h.last) / 864e5 < 60 ? 1 : 0) }))
+    .sort((a, b) => b.s - a.s).slice(0, max).map(x => x.t); }
+function habFor(ty, title) { const h = (habits().H[ty] || {})[habKey(title)]; if (!h || h.n < 3) return null;
+  const time = habTop(h.time, .5, 2), wd = habTop(h.wd, .6, 3), place = habTop(h.place, .5, 2), d = habTop(h.dur, .5, 2);
+  // Abstand zwischen den Terminen (z. B. Friseur ~ alle 6 Wochen)
+  const ds = [...new Set(h.dates)].sort((a, b) => a - b), gaps = ds.slice(1).map((x, i) => (x - ds[i]) / 864e5).filter(g => g >= 5).sort((a, b) => a - b);
+  const gap = gaps.length >= 2 ? gaps[Math.floor(gaps.length / 2)] : 0;
+  return { time, wd: wd != null ? +wd : null, place, dur: d, gap, last: h.last, n: h.n }; }
+const habPick = who => { const p = habits().P[habKey(who)]; if (!p) return null; return { mode: habTop(p.mode, .5, 1), no: habTop(p.no, .5, 1), place: habTop(p.place, .5, 1), time: habTop(p.time, .6, 2) }; };
+// nach der Titelwahl: übliche Uhrzeit, Dauer, Ort und Wochentag vorschlagen (nur vorbelegt, sichtbar auf „Passt das so?“)
+function tapApplyHabits() { const t = TAP; if (!t || !t.title) return; t.auto = t.auto || {};
+  if (t.ty === "abholen") { const p = habPick(t.title); if (!p) return;
+    if (p.place && !t.placeAsked) { t.place = p.place; t.placeAsked = true; t.auto.place = 1; }
+    if (p.no && !t.noAsked && (!p.mode || p.mode === t.mode)) { t.no = p.no; t.noAsked = true; t.auto.no = 1; }
+    if (p.time && t.hour == null) { t.hour = +p.time.slice(0, 2); t.min = +p.time.slice(3, 5); t.auto.time = 1; } return; }
+  const h = habFor(t.ty, t.title); if (!h) return;
+  if (["termin", "info", "dienst"].includes(t.ty)) {
+    if (h.time && t.hour == null && !t.allday) { t.hour = +h.time.slice(0, 2); t.min = +h.time.slice(3, 5); t.auto.time = 1; }
+    if (h.dur && t.dur == null && t.hour != null) { t.dur = /:/.test(h.dur) ? h.dur : String(h.dur); t.auto.dur = 1; } }
+  if (h.place && !t.place && ["termin", "trip"].includes(t.ty)) { t.place = h.place; t.auto.place = 1; }
+  if (h.wd != null && !t.date && t.ty === "termin") { let d = TODAY; for (let i = 0; i < 7; i++) { if (d.getDay() === h.wd) break; d = addDays(d, 1); } t.date = d; t.auto.date = 1; } }
 // ---- 👆 Antippen: jede Art in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
 let TAP = null;
 const TAP_TYPES = [["termin", "📅", "Termin"], ["birthday", "🎂", "Geburtstag"], ["abholen", "🚉", "Abholen / Bringen"], ["urlaub", "🏖️", "Urlaub"], ["trip", "🧳", "Reise"], ["deadline", "⏰", "Frist"], ["dienst", "👷", "Dienst"], ["info", "💡", "Hinweis"]];
@@ -5062,13 +5108,16 @@ function tapXOrder() { const t = TAP, ti = (t.title || "").toLowerCase();
     if (/eltern|training|kurs|chor|probe|sport|verein|stammtisch|unterricht/.test(ti) || n >= 2) o = ["rep", "ort", "dauer", "notiz", "teilen"];
     if (/familie|oma|opa|geburtstag|feier|essen|besuch/.test(ti)) o = ["teilen", "ort", "dauer", "rep", "notiz"]; }
   return o.filter(k => !(k === "teilen" && !(SHR_ON() && SHR.contacts.length)) && !(k === "dauer" && (t.hour == null || t.allday))); }
-const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(); return /zahnarzt/.test(ti) ? "m6" : /friseur/.test(ti) ? "w6" : /training|kurs|chor|probe|unterricht|stammtisch/.test(ti) ? "weekly" : ""; };
+const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(), g = habFor(TAP.ty, TAP.title)?.gap || 0;
+  if (g) { const w = Math.round(g / 7), m = Math.round(g / 30.4); if (g <= 10) return "weekly"; if (g < 56) return `w${w}`; if (m <= 12) return m === 1 ? "monthly" : m === 12 ? "yearly" : `m${m}`; }
+  return /zahnarzt/.test(ti) ? "m6" : /friseur/.test(ti) ? "w6" : /training|kurs|chor|probe|unterricht|stammtisch/.test(ti) ? "weekly" : ""; };
 // Orte nur aus früheren Einträgen mit (fast) demselben Titel – „Zahnarzt“ schlägt nie das Opernhaus vor
 const tapPlaces = (only) => { const ti = (TAP.title || "").toLowerCase().trim(); if (!ti && !only) return [];
   const words = ti.split(/[^a-zäöüß0-9]+/).filter(w => w.length >= 4);
   const hit = e => { if (only) return e.type === only; const t = (e.title || "").toLowerCase(); return t === ti || t.includes(ti) || ti.includes(t) && t.length >= 4 || words.some(w => t.split(/[^a-zäöüß0-9]+/).includes(w)); };
   return [...new Set(EV.filter(e => e.place && !e.shared && hit(e)).sort((a, b) => String(b.from).localeCompare(String(a.from))).map(e => e.place))].slice(0, 4); };
 function tapTitles() { const ty = TAP.ty || "termin", own = {};
+  if (ty !== "abholen" && ty !== "dienst" && ty !== "trip") return titleSug(ty).slice(0, 9);
   const src = ty === "abholen" ? EV.filter(e => e.type === "abholen" && e.pick?.who).map(e => e.pick.who) : EV.filter(e => e.type === ty && !e.shared && e.title && e.title.length <= 24).map(e => e.title);
   src.forEach(x => own[x] = (own[x] || 0) + 1);
   const top = Object.entries(own).filter(([, n]) => n >= (ty === "abholen" || ty === "dienst" || ty === "trip" ? 1 : 2)).sort((a, b) => b[1] - a[1]).map(([x]) => x).slice(0, 4);
@@ -5116,6 +5165,8 @@ function renderTap() {
   else if (s === "wann" || s === "fdat") { const days = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
     const eom = k => new Date(TODAY.getFullYear(), TODAY.getMonth() + 1 + k, 0);
     const opts = s === "fdat" ? [[eom(0), "Ende dieses Monats"], [eom(1), "Ende nächsten Monats"], [addDays(TODAY, 91), "In 3 Monaten"], [new Date(TODAY.getFullYear(), 11, 31), "Jahresende"]] : days.map((d, i) => [d, i === 0 ? "Heute" : i === 1 ? "Morgen" : `${WD[d.getDay()]} ${d.getDate()}.`]);
+    const hw = s === "wann" && t.title ? habFor(t.ty, t.title)?.wd : null;
+    if (hw != null) { const i = opts.findIndex(([d]) => d.getDay() === hw); if (i > 0) { const [o] = opts.splice(i, 1); opts.unshift([o[0], o[1] + '<small class="tp-sug">wie meist</small>']); } else if (i === 0) opts[0][1] += '<small class="tp-sug">wie meist</small>'; }
     body = `<h3 class="tp-q">${s === "fdat" ? "Bis wann?" : "Wann?"}</h3><div class="tp-g${s === "fdat" ? " tp-wide" : ""}">${opts.map(([d, l]) => chip("data-tpd", iso(d), l + (s === "fdat" ? `<small class="tp-sug">${fmt(d)}</small>` : ""), t.date && sameDay(t.date, d))).join("")}</div>
     <label class="tp-other">📅 Anderes Datum <input type="date" id="tp-date" value="${t.date ? iso(t.date) : ""}" min="${iso(START)}" max="${iso(END)}"></label>`; }
   else if (s === "zeit") body = `<h3 class="tp-q">${ty === "abholen" ? (t.dir === "dep" ? "Wann fährt es ab?" : "Wann kommt es an?") : ty === "trip" ? "Abfahrt um wie viel Uhr?" : ty === "dienst" ? "Dienstbeginn?" : "Um wie viel Uhr?"}</h3><div class="tp-g tp-h">${Array.from({ length: ty === "dienst" ? 24 : 17 }, (_, i) => ty === "dienst" ? i : i + 6).map(h => chip("data-tph", h, `${h}`, t.hour === h)).join("")}</div>
@@ -5158,7 +5209,8 @@ function renderTap() {
   else { const XL = { ort: ty === "trip" || ty === "urlaub" ? "Unterkunft" : "Wo", notiz: ty === "birthday" ? "Geschenk/Notiz" : "Notiz" };
     const free = tapXOrder().filter(k => !(k === "ort" && t.place) && !(k === "rep" && t.rep && t.rep !== "none") && !(k === "dauer" && t.dur) && !(k === "notiz" && t.note) && !(k === "teilen" && t.sh));
     const xlbl = k => k === "ort" && (ty === "trip" || ty === "urlaub") ? "📍 Unterkunft" : k === "notiz" && ty === "birthday" ? "🎁 Geschenkidee" : `${TAP_X[k][0]} ${TAP_X[k][1]}`;
-    body = `<h3 class="tp-q">Passt das so?</h3><div class="tp-sum">${tapSummary()}
+    const au = t.auto && Object.keys(t.auto).length ? `<p class="tp-auto">✨ Vorgeschlagen wie bei deinen bisherigen Einträgen „${esc(t.title)}“ – bitte kurz prüfen.</p>` : "";
+    body = `<h3 class="tp-q">Passt das so?</h3>${au}<div class="tp-sum">${tapSummary()}
       ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", REPEAT[t.rep] || repLabel(t.rep)) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
     ${free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${xlbl(k)}</button>`).join("")}</div>` : ""}
     ${ty === "dienst" && (t.days || []).length > 1 ? "" : `<button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>`}
@@ -5179,8 +5231,8 @@ function tapSet(k, val, done) { TAP[k] = val; done ? tapDone() : tapGo(tapNext()
 document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") return; const q = s => ev.target.closest(s); let el;
   const isX = TAP.step.startsWith("x-"), after = () => isX ? tapDone() : tapGo(tapNext());
   if ((el = q("[data-tpty]"))) { const k = el.dataset.tpty; if (k !== TAP.ty) { const keep = { date: TAP.date, preset: TAP.preset, cal: TAP.cal }; TAP = { ...TAP, ty: k, title: "", hour: null, min: 0, allday: false, date2: null, mo: 0, day: 0, yr: undefined, dir: "", mode: "", no: "", noAsked: false, placeAsked: false, place: "", fk: undefined, lead: null, renew: null, days: null, dur: null, every: 0, rep: "none", note: "", sh: null, ...keep }; if (k === "urlaub" || k === "trip") TAP.date = keep.preset ? keep.date : null; if ((k === "birthday" || k === "anniversary") && keep.preset && keep.date) { TAP.mo = keep.date.getMonth() + 1; TAP.day = keep.date.getDate(); } if (k === "deadline") TAP.date = null; if (k === "dienst" && keep.preset && keep.date) TAP.days = [iso(keep.date)]; } tapGo(tapNext()); return; }
-  if ((el = q("[data-tpt]"))) { TAP.title = el.dataset.tpt; if (TAP.ty === "dienst") tapDienstTimes(); tapGo(tapNext()); return; }
-  if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { tapErr("Bitte einen Knopf antippen oder etwas eintippen.", "tp-title"); return; } TAP.title = v; if (TAP.ty === "dienst") tapDienstTimes(); tapGo(tapNext()); return; }
+  if ((el = q("[data-tpt]"))) { TAP.title = el.dataset.tpt; if (TAP.ty === "dienst") tapDienstTimes(); tapApplyHabits(); tapGo(tapNext()); return; }
+  if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { tapErr("Bitte einen Knopf antippen oder etwas eintippen.", "tp-title"); return; } TAP.title = v; if (TAP.ty === "dienst") tapDienstTimes(); tapApplyHabits(); tapGo(tapNext()); return; }
   if ((el = q("[data-tpd]"))) { TAP.date = parseIso(el.dataset.tpd); tapGo(tapNext()); return; }
   if ((el = q("[data-tph]"))) { if (el.dataset.tph === "x") { TAP.allday = true; TAP.hour = null; tapGo(tapNext()); } else { TAP.allday = false; TAP.hour = +el.dataset.tph; TAP.min = 0; tapGo("min"); } return; }
   if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(TAP.ty === "dienst" ? "ende" : tapNext()); return; }
@@ -6471,7 +6523,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-ffk]"))) { const k = el.dataset.ffk, d = FK[k], t = $("f-title"); $("f-fk").value = k;
     if (!t.value.trim() || Object.values(FK).some(x => x.t === t.value.trim())) { t.value = d.t; t.dispatchEvent(new Event("input", { bubbles: true })); }
     $("f-rem").value = d.lead; $("f-renew").checked = !!d.renew; document.querySelectorAll("[data-ffk]").forEach(b => b.setAttribute("aria-pressed", String(b === el))); return; }
-  if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true })); return; }
+  if ((el = q("[data-ftitle]"))) { const t = $("f-title"); t.value = el.dataset.ftitle; t.dispatchEvent(new Event("input", { bubbles: true }));
+    const h = habFor($("f-type")?.value || "termin", el.dataset.ftitle); if (h) { if (h.time && !$("f-time").value && $("f-time-add") && !$("f-time-add").hidden) { timeOpen(h.time); } if (h.place && $("f-place") && !$("f-place").value) $("f-place").value = h.place; if (h.time || h.place) toast("✨ Uhrzeit/Ort wie bei deinen bisherigen Einträgen – bitte prüfen"); } return; }
   if ((el = q("#f-more"))) { fMore = !fMore; syncFormFields(); return; }
   if ((el = q("[data-fcol]"))) { document.querySelectorAll("[data-fcol]").forEach(b => b.setAttribute("aria-checked", String(b === el))); return; }
   if ((el = q("[data-tkn]"))) { const d = $("tk-due"), k = el.dataset.tkn, v = k === "w" ? iso(addDays(monday(TODAY), 6)) : iso(addDays(TODAY, +k)); d.value = d.value === v ? "" : v; d.dataset.man = "1"; tkUi(); $("tk-in").focus(); return; }
