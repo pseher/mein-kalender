@@ -2736,8 +2736,7 @@ async function showNotify(msg) {
       ${tg("fest", "Weihnachten, Mutter- & Vatertag", "rechtzeitig an Geschenke für deine Liebsten denken")}
       ${tg("shared", "Geteilte Termine", "wenn jemand etwas mit dir teilt, ändert oder löscht")}
       ${tg("train", "🚆✈️ Züge &amp; Flüge live", "Verspätung, Gleis/Gate, Gepäckband oder Ausfall – wenn im Termin eine Zug- oder Flugnummer steht (z. B. „RE 4“, „LH 123“)")}
-    </div>
-    <p class="note">Abfahrtszeit mit echter Fahrzeit („jetzt losfahren“) kann die App noch nicht berechnen – stell die Erinnerung dafür z. B. auf 1 Std. vorher und tippe auf „Route“.</p></div>`, "notify");
+    </div></div>`, "notify");
 }
 async function notifyOn(quiet) {
   use("benachrichtigung_an");
