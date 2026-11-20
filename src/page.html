@@ -445,6 +445,14 @@ td.mid { text-align: center; }
 .tp-xl { grid-template-columns: 1fr auto; } .tp-xx { background: none; border: 0; color: var(--muted); font-size: 18px; width: 44px; height: 44px; cursor: pointer; }
 .tp-g.tp-wide { grid-template-columns: 1fr 1fr; } .tp-sug { display: block; font-size: 11px; font-weight: 500; opacity: .8; }
 #tp-note { width: 100%; font-size: 17px; }
+.tp-mo summary { cursor: pointer; padding: 10px 2px; font-weight: 600; color: var(--accent); }
+.tp-g.tp-mo3 { grid-template-columns: repeat(4, 1fr); }
+.tp-cal { border: 1px solid var(--line); border-radius: 14px; padding: 8px; margin-bottom: 8px; }
+.tp-calh { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; } .tp-calh b { font-size: 17px; }
+.tp-cn { width: 44px; height: 44px; border: 0; border-radius: 10px; background: var(--soft); color: var(--fg); font-size: 22px; cursor: pointer; }
+.tp-cw, .tp-cg { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; } .tp-cw span { text-align: center; font-size: 12px; color: var(--muted); }
+.tp-cd { min-height: 44px; border: 0; border-radius: 10px; background: var(--soft); color: var(--fg); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.tp-cd.today { outline: 2px solid var(--fg); outline-offset: -2px; } .tp-cd.on { background: var(--accent); color: #fff; } .tp-cd:disabled { opacity: .3; }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
 .seg.emode button { white-space: nowrap; }

@@ -3560,80 +3560,209 @@ window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählt
 function newEntry(preset) { if (dbState === "off") return showSignin(); if (entryMode() === "tap") return showTap(preset ? parseIso(preset) : null); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
 let ENTRY_TXT = "";   // längerer Freitext (Mail, WhatsApp) bleibt beim Hin- und Herwechseln erhalten
 let FORM_DRAFT = null, ASST_SNAP = null;
-// ---- 👆 Antippen: ein Termin in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
+// ---- 👆 Antippen: jede Art in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
 let TAP = null;
+const TAP_TYPES = [["termin", "📅", "Termin"], ["birthday", "🎂", "Geburtstag"], ["abholen", "🚉", "Abholen / Bringen"], ["urlaub", "🏖️", "Urlaub"], ["trip", "🧳", "Reise"], ["deadline", "⏰", "Frist"], ["dienst", "👷", "Dienst"], ["info", "💡", "Hinweis"]];
+const TAP_MORE = [["anniversary", "💞", "Jahrestag"], ["contact", "📞", "Kontakt halten"]];
+const TAP_HEAD = { termin: "Neuer Termin", birthday: "Neuer Geburtstag", abholen: "Abholen / Bringen", urlaub: "Neuer Urlaub", trip: "Neue Reise", deadline: "Neue Frist", dienst: "Neuer Dienst", info: "Neuer Hinweis", anniversary: "Neuer Jahrestag", contact: "Kontakt halten" };
+// Fragen je Art – die erste unbeantwortete kommt als Nächstes
+const TAP_FLOW = { termin: ["was", "wann", "zeit"], info: ["was", "wann"], urlaub: ["was", "zeitraum"], trip: ["was", "zeitraum", "zeit"],
+  birthday: ["was", "monat", "tag", "jahr"], anniversary: ["was", "monat", "tag", "jahr"], abholen: ["pdir", "pmode", "was", "wann", "zeit", "pwo", "pno"],
+  deadline: ["fk", "fdat", "flead", "frenew"], dienst: ["was", "tage", "zeit", "ende"], contact: ["was", "oft"] };
+const TAP_Q = { termin: "Was steht an?", info: "Woran soll der Kalender erinnern?", urlaub: "Was ist es?", trip: "Wohin geht's?", birthday: "Wer hat Geburtstag?", anniversary: "Welcher Jahrestag?", abholen: "Wen?", dienst: "Welcher Dienst?", contact: "Mit wem möchtest du in Kontakt bleiben?" };
+const TAP_X = { ort: ["📍", "Wo?"], rep: ["🔁", "Wiederholen"], dauer: ["⏱", "Bis wann?"], notiz: ["📝", "Notiz"], teilen: ["👥", "Teilen"] };
+const TAP_XT = { termin: null, abholen: ["notiz", "teilen"], urlaub: ["ort", "notiz", "teilen"], trip: ["ort", "notiz", "teilen"], birthday: ["notiz", "teilen"], anniversary: ["notiz", "teilen"], deadline: ["notiz"], dienst: ["notiz"], info: ["notiz"], contact: ["notiz"] };
 const tapTime = () => TAP?.allday || TAP?.hour == null ? "" : `${p2(TAP.hour)}:${p2(TAP.min || 0)}`;
 const tapEnd = () => { const t = TAP; if (!t || t.hour == null || t.allday || !t.dur) return ""; if (/^\d{2}:\d{2}$/.test(t.dur)) return t.dur; const m = t.hour * 60 + (t.min || 0) + +t.dur; return m >= 24 * 60 ? "23:59" : `${p2(Math.floor(m / 60))}:${p2(m % 60)}`; };
-const tapEvent = () => ({ type: "termin", title: TAP.title || "", from: TAP.date ? iso(TAP.date) : iso(TODAY), to: TAP.date ? iso(TAP.date) : iso(TODAY), time: tapTime(), endTime: tapEnd(), repeat: TAP.rep || "none", until: "", birthYear: "", note: TAP.note || "", place: TAP.place || "", gcal: gWritable() ? "primary" : "", ...(TAP.sh ? shSplit(TAP.sh) : {}) });
-// freiwillige Extras auf der Zusammenfassung – die Reihenfolge richtet sich nach dem Titel, gefragt wird nichts extra
-const TAP_X = { ort: ["📍", "Wo?"], rep: ["🔁", "Wiederholen"], dauer: ["⏱", "Bis wann?"], notiz: ["📝", "Notiz"], teilen: ["👥", "Teilen"] };
-function tapXOrder() { const ti = (TAP.title || "").toLowerCase(), n = EV.filter(e => e.type === "termin" && (e.title || "").toLowerCase() === ti).length;
-  let o = ["ort", "rep", "dauer", "notiz", "teilen"];
-  if (/eltern|training|kurs|chor|probe|sport|verein|stammtisch|unterricht/.test(ti) || n >= 2) o = ["rep", "ort", "dauer", "notiz", "teilen"];
-  if (/familie|oma|opa|geburtstag|feier|essen|besuch/.test(ti)) o = ["teilen", "ort", "dauer", "rep", "notiz"];
-  return o.filter(k => !(k === "teilen" && !(SHR_ON() && SHR.contacts.length)) && !(k === "dauer" && (TAP.hour == null || TAP.allday))); }
-const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(); return /zahnarzt/.test(ti) ? "m6" : /friseur/.test(ti) ? "w6" : /training|kurs|chor|probe|unterricht|stammtisch/.test(ti) ? "weekly" : /elternabend/.test(ti) ? "" : ""; };
-// Orte nur aus früheren Terminen mit (fast) demselben Titel – „Zahnarzt“ schlägt nie das Opernhaus vor
-const tapPlaces = () => { const ti = (TAP.title || "").toLowerCase().trim(); if (!ti) return [];
+const tapMD = () => TAP.mo && TAP.day ? `${p2(TAP.day)}.${p2(TAP.mo)}.` : "";
+function tapDone_(k) { const t = TAP;
+  switch (k) {
+    case "was": return !!t.title; case "wann": return !!t.date; case "zeit": return t.hour != null || t.allday; case "zeitraum": return !!(t.date && t.date2);
+    case "monat": return !!t.mo; case "tag": return !!t.day; case "jahr": return t.yr !== undefined;
+    case "pdir": return !!t.dir; case "pmode": return !!t.mode; case "pwo": return t.place !== undefined && t.placeAsked; case "pno": return !!t.noAsked;
+    case "fk": return t.fk !== undefined; case "fdat": return !!t.date; case "flead": return t.lead != null; case "frenew": return !FK[t.fk]?.renew || t.renew != null;
+    case "tage": return !!t.days?.length; case "ende": return t.dur != null; case "oft": return !!t.every; }
+  return true; }
+const tapNext = () => !TAP.ty ? "art" : (TAP_FLOW[TAP.ty] || []).find(k => !tapDone_(k)) || "fertig";
+function tapEvent() { const t = TAP, ty = t.ty || "termin", d0 = t.date || TODAY, Y = TODAY.getFullYear();
+  const v = { type: ty, title: t.title || "", from: iso(d0), to: iso(t.date2 || d0), time: tapTime(), endTime: tapEnd(), repeat: t.rep || "none", until: "", birthYear: "", note: t.note || "", place: t.place || "", gcal: gWritable() ? "primary" : "", ...(t.sh ? shSplit(t.sh) : {}) };
+  if (ty === "info" || ty === "urlaub") { v.time = ""; v.endTime = ""; }
+  if (ty === "birthday" || ty === "anniversary") { const md = `${Y}-${p2(t.mo || 1)}-${p2(t.day || 1)}`; Object.assign(v, { from: md, to: md, time: "", endTime: "", repeat: "yearly" }); if (ty === "birthday") v.birthYear = t.yr || ""; else v.startYear = t.yr || 0; }
+  if (ty === "abholen") { v.pick = { dir: t.dir || "arr", mode: t.mode || "zug", who: t.title || "", no: t.no || "" }; v.endTime = ""; v.title = `${t.title || ""} ${t.dir === "dep" ? "bringen" : "abholen"}${t.no ? " · " + t.no : ""}`.trim(); }
+  if (ty === "deadline") Object.assign(v, { title: t.fk ? FK[t.fk].t : t.title || "Frist", fk: t.fk || "", to: v.from, time: "", endTime: "", remindDays: t.lead ?? (FK[t.fk]?.lead || 7), renew: t.renew ? (FK[t.fk]?.renew || 1) : 0 });
+  if (ty === "contact") Object.assign(v, { from: iso(TODAY), to: iso(TODAY), time: "", endTime: "", everyWeeks: t.every || 8 });
+  if (ty === "dienst") { v.from = v.to = t.days?.[0] || iso(d0); }
+  return v; }
+function tapXOrder() { const t = TAP, ti = (t.title || "").toLowerCase();
+  let o = TAP_XT[t.ty] || ["ort", "rep", "dauer", "notiz", "teilen"];
+  if (!TAP_XT[t.ty]) { const n = EV.filter(e => e.type === "termin" && (e.title || "").toLowerCase() === ti).length;
+    if (/eltern|training|kurs|chor|probe|sport|verein|stammtisch|unterricht/.test(ti) || n >= 2) o = ["rep", "ort", "dauer", "notiz", "teilen"];
+    if (/familie|oma|opa|geburtstag|feier|essen|besuch/.test(ti)) o = ["teilen", "ort", "dauer", "rep", "notiz"]; }
+  return o.filter(k => !(k === "teilen" && !(SHR_ON() && SHR.contacts.length)) && !(k === "dauer" && (t.hour == null || t.allday))); }
+const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(); return /zahnarzt/.test(ti) ? "m6" : /friseur/.test(ti) ? "w6" : /training|kurs|chor|probe|unterricht|stammtisch/.test(ti) ? "weekly" : ""; };
+// Orte nur aus früheren Einträgen mit (fast) demselben Titel – „Zahnarzt“ schlägt nie das Opernhaus vor
+const tapPlaces = (only) => { const ti = (TAP.title || "").toLowerCase().trim(); if (!ti && !only) return [];
   const words = ti.split(/[^a-zäöüß0-9]+/).filter(w => w.length >= 4);
-  const hit = e => { const t = (e.title || "").toLowerCase(); return t === ti || t.includes(ti) || ti.includes(t) && t.length >= 4 || words.some(w => t.split(/[^a-zäöüß0-9]+/).includes(w)); };
+  const hit = e => { if (only) return e.type === only; const t = (e.title || "").toLowerCase(); return t === ti || t.includes(ti) || ti.includes(t) && t.length >= 4 || words.some(w => t.split(/[^a-zäöüß0-9]+/).includes(w)); };
   return [...new Set(EV.filter(e => e.place && !e.shared && hit(e)).sort((a, b) => String(b.from).localeCompare(String(a.from))).map(e => e.place))].slice(0, 4); };
-function tapTitles() {
-  const own = {}; EV.filter(e => e.type === "termin" && !e.shared && e.title && e.title.length <= 24).forEach(e => own[e.title] = (own[e.title] || 0) + 1);
-  const top = Object.entries(own).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 4);
-  return [...new Set([...top, ...titleSug("termin")])].slice(0, 9); }
-function showTap(day, title) {
-  TAP = { step: title ? (day ? "zeit" : "wann") : "was", title: title || "", date: day || null, preset: !!day, hour: null, min: 0, allday: false, hist: [] };
-  if (!title) TAP.step = "was"; renderTap(); }
-const tapNext = () => !TAP.title ? "was" : !TAP.date ? "wann" : TAP.hour == null && !TAP.allday ? "zeit" : "fertig";
+function tapTitles() { const ty = TAP.ty || "termin", own = {};
+  const src = ty === "abholen" ? EV.filter(e => e.type === "abholen" && e.pick?.who).map(e => e.pick.who) : EV.filter(e => e.type === ty && !e.shared && e.title && e.title.length <= 24).map(e => e.title);
+  src.forEach(x => own[x] = (own[x] || 0) + 1);
+  const top = Object.entries(own).filter(([, n]) => n >= (ty === "abholen" || ty === "dienst" || ty === "trip" ? 1 : 2)).sort((a, b) => b[1] - a[1]).map(([x]) => x).slice(0, 4);
+  return [...new Set([...top, ...(ty === "abholen" ? [] : titleSug(ty))])].slice(0, 9); }
+function showTap(day, title, ty) {
+  if (ty && !TAP_FLOW[ty]) ty = "";
+  TAP = { ty: ty || "", title: title || "", date: day || null, preset: !!day, hour: null, min: 0, allday: false, hist: [], cal: day ? new Date(day.getFullYear(), day.getMonth(), 1) : new Date(TODAY.getFullYear(), TODAY.getMonth(), 1) };
+  TAP.step = tapNext(); renderTap(); }
 function tapGo(step) { TAP.hist.push(TAP.step); TAP.step = step; renderTap(); }
 function tapDone() { TAP.step = TAP.hist.pop() || "fertig"; renderTap(); }
 function tapBack() { if (!TAP?.hist.length) return false; TAP.step = TAP.hist.pop(); renderTap(); return true; }
 const xLine = (k, lbl, val) => `<div class="tp-line tp-xl"><button type="button" class="tp-xe" data-tpedit="x-${k}"><span>${lbl}</span><b>${esc(val)}</b></button><button type="button" class="tp-xx" data-tpclr="${k}" aria-label="${lbl} entfernen">✕</button></div>`;
+const sLine = (lbl, val, step) => `<button type="button" class="tp-line" data-tpedit="${step}"><span>${lbl}</span><b>${esc(val || "–")}</b><i>ändern</i></button>`;
+// Monatsblatt zum Antippen: Zeitraum (Urlaub, Reise) oder mehrere einzelne Tage (Dienst)
+function tapCal(multi) { const t = TAP, m0 = t.cal, first = (m0.getDay() + 6) % 7, n = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate();
+  const sel = d => multi ? (t.days || []).includes(iso(d)) : t.date && (t.date2 ? d >= t.date && d <= t.date2 : sameDay(d, t.date));
+  let cells = ""; for (let i = 0; i < first; i++) cells += "<i></i>";
+  for (let i = 1; i <= n; i++) { const d = new Date(m0.getFullYear(), m0.getMonth(), i), past = d < TODAY;
+    cells += `<button type="button" class="tp-cd${sel(d) ? " on" : ""}${sameDay(d, TODAY) ? " today" : ""}" data-tpcal="${iso(d)}"${past && !multi ? " disabled" : ""}>${i}</button>`; }
+  return `<div class="tp-cal"><div class="tp-calh"><button type="button" class="tp-cn" data-tpcalnav="-1" aria-label="Monat zurück">‹</button><b>${MON[m0.getMonth()]} ${m0.getFullYear()}</b><button type="button" class="tp-cn" data-tpcalnav="1" aria-label="Monat vor">›</button></div>
+    <div class="tp-cw">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(x => `<span>${x}</span>`).join("")}</div><div class="tp-cg">${cells}</div></div>`; }
+function tapSummary() { const t = TAP, ty = t.ty, tm = tapTime() ? tapTime() + (tapEnd() ? "–" + tapEnd() : "") : "ohne", range = t.date ? fmtY(t.date) + (t.date2 && +t.date2 !== +t.date ? " – " + fmtY(t.date2) : "") : "";
+  if (ty === "info") return sLine("Was", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann");
+  if (ty === "urlaub") return sLine("Was", t.title, "was") + sLine("Zeitraum", range, "zeitraum");
+  if (ty === "trip") return sLine("Wohin", t.title, "was") + sLine("Zeitraum", range, "zeitraum") + sLine("Abfahrt", tm, "zeit");
+  if (ty === "birthday") return sLine("Wer", t.title, "was") + sLine("Geburtstag", tapMD(), "monat") + sLine("Jahrgang", t.yr || "unbekannt", "jahr");
+  if (ty === "anniversary") return sLine("Was", t.title, "was") + sLine("Datum", tapMD(), "monat") + sLine("Seit", t.yr || "–", "jahr");
+  if (ty === "abholen") return sLine(t.dir === "dep" ? "Bringen" : "Abholen", { zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus", auto: "🚗 Auto" }[t.mode] || "", "pdir") + sLine("Wen", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann") + sLine(t.dir === "dep" ? "Abfahrt" : "Ankunft", tm, "zeit") + sLine("Wo", t.place || "–", "pwo") + sLine(t.mode === "flug" ? "Flug-Nr." : "Zug/Bus", t.no || "–", "pno");
+  if (ty === "deadline") return sLine("Worum", t.fk ? FK[t.fk].t : t.title, "fk") + sLine("Bis wann", t.date && fmtY(t.date), "fdat") + sLine("Erinnern", t.lead ? `${t.lead} Tage vorher` : "am Tag", "flead") + (FK[t.fk]?.renew ? sLine("Läuft weiter", t.renew ? "ja" : "nein", "frenew") : "");
+  if (ty === "dienst") return sLine("Dienst", t.title, "was") + sLine("Tage", (t.days || []).map(d => fmt(parseIso(d))).join(", "), "tage") + sLine("Uhrzeit", tm, "zeit");
+  if (ty === "contact") return sLine("Mit wem", t.title, "was") + sLine("Melden", `alle ${t.every} Wochen`, "oft");
+  return sLine("Was", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann") + sLine("Uhrzeit", tm, "zeit"); }
 function renderTap() {
-  const t = TAP, sum = [t.title, t.date ? fmt(t.date) : "", tapTime() || (t.allday ? "ganztägig" : "")].filter(Boolean).join(" · ");
+  const t = TAP, ty = t.ty, sum = [ty === "abholen" ? tapEvent().title : t.title, ty === "birthday" || ty === "anniversary" ? tapMD() : t.date ? fmt(t.date) + (t.date2 && +t.date2 !== +t.date ? "–" + fmt(t.date2) : "") : "", tapTime()].filter(Boolean).join(" · ");
   const chip = (attr, val, label, on) => `<button type="button" class="tp-c${on ? " on" : ""}" ${attr}="${esc(String(val))}">${label}</button>`;
   const back = t.hist.length ? `<button type="button" class="link tp-back" id="tp-back">‹ Zurück</button>` : "";
-  let body = "";
-  if (t.step === "was") body = `<h3 class="tp-q">Was steht an?</h3><div class="tp-g">${tapTitles().map(x => chip("data-tpt", x, esc(x), x === t.title)).join("")}</div>
-    <div class="tp-own"><input id="tp-title" class="in" type="text" placeholder="✎ Etwas anderes eintippen" value="${esc(tapTitles().includes(t.title) ? "" : t.title)}" autocomplete="off"><button type="button" class="btn accent" id="tp-title-go">Weiter</button></div>`;
-  else if (t.step === "wann") { const days = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
-    body = `<h3 class="tp-q">Wann?</h3><div class="tp-g">${days.map((d, i) => chip("data-tpd", iso(d), i === 0 ? "Heute" : i === 1 ? "Morgen" : `${WD[d.getDay()]} ${d.getDate()}.`, t.date && sameDay(t.date, d))).join("")}</div>
+  const own = (ph, val, go = "tp-title-go", id = "tp-title", lbl = "Weiter") => `<div class="tp-own"><input id="${id}" class="in" type="text" placeholder="${esc(ph)}" value="${esc(val || "")}" autocomplete="off"><button type="button" class="btn accent" id="${go}">${lbl}</button></div>`;
+  const s = t.step; let body = "";
+  if (s === "art") { const last = store.get("ft-tap-ty"), L = [...TAP_TYPES].sort((a, b) => (b[0] === last) - (a[0] === last));
+    body = `<h3 class="tp-q">Was möchtest du eintragen?</h3><div class="tp-g tp-wide">${L.map(([k, i, l]) => chip("data-tpty", k, `${i} ${l}`, k === ty)).join("")}</div>
+      <details class="tp-mo"><summary>Mehr …</summary><div class="tp-g tp-wide">${TAP_MORE.map(([k, i, l]) => chip("data-tpty", k, `${i} ${l}`, k === ty)).join("")}</div></details>`; }
+  else if (s === "was") { const T = tapTitles(); body = `<h3 class="tp-q">${TAP_Q[ty] || "Was steht an?"}</h3>${T.length ? `<div class="tp-g">${T.map(x => chip("data-tpt", x, esc(x), x === t.title)).join("")}</div>` : ""}
+    ${own(ty === "birthday" || ty === "contact" || ty === "abholen" ? "✎ Name eintippen" : ty === "trip" ? "✎ Ort eintippen" : "✎ Etwas anderes eintippen", T.includes(t.title) ? "" : t.title)}`; }
+  else if (s === "wann" || s === "fdat") { const days = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
+    const eom = k => new Date(TODAY.getFullYear(), TODAY.getMonth() + 1 + k, 0);
+    const opts = s === "fdat" ? [[eom(0), "Ende dieses Monats"], [eom(1), "Ende nächsten Monats"], [addDays(TODAY, 91), "In 3 Monaten"], [new Date(TODAY.getFullYear(), 11, 31), "Jahresende"]] : days.map((d, i) => [d, i === 0 ? "Heute" : i === 1 ? "Morgen" : `${WD[d.getDay()]} ${d.getDate()}.`]);
+    body = `<h3 class="tp-q">${s === "fdat" ? "Bis wann?" : "Wann?"}</h3><div class="tp-g${s === "fdat" ? " tp-wide" : ""}">${opts.map(([d, l]) => chip("data-tpd", iso(d), l + (s === "fdat" ? `<small class="tp-sug">${fmt(d)}</small>` : ""), t.date && sameDay(t.date, d))).join("")}</div>
     <label class="tp-other">📅 Anderes Datum <input type="date" id="tp-date" value="${t.date ? iso(t.date) : ""}" min="${iso(START)}" max="${iso(END)}"></label>`; }
-  else if (t.step === "zeit") body = `<h3 class="tp-q">Um wie viel Uhr?</h3><div class="tp-g tp-h">${Array.from({ length: 15 }, (_, i) => i + 7).map(h => chip("data-tph", h, `${h}`, t.hour === h)).join("")}</div>
-    <div class="tp-g">${chip("data-tph", "x", "Ohne Uhrzeit", t.allday)}</div>`;
-  else if (t.step === "min") body = `<h3 class="tp-q">${t.hour} Uhr und …?</h3><div class="tp-g tp-m">${[0, 15, 30, 45].map(m => chip("data-tpm", m, `${t.hour}:${p2(m)}`, t.min === m)).join("")}</div>
+  else if (s === "zeit") body = `<h3 class="tp-q">${ty === "abholen" ? (t.dir === "dep" ? "Wann fährt es ab?" : "Wann kommt es an?") : ty === "trip" ? "Abfahrt um wie viel Uhr?" : ty === "dienst" ? "Dienstbeginn?" : "Um wie viel Uhr?"}</h3><div class="tp-g tp-h">${Array.from({ length: ty === "dienst" ? 24 : 15 }, (_, i) => ty === "dienst" ? i : i + 7).map(h => chip("data-tph", h, `${h}`, t.hour === h)).join("")}</div>
+    ${ty === "abholen" || ty === "dienst" ? "" : `<div class="tp-g">${chip("data-tph", "x", "Ohne Uhrzeit", t.allday)}</div>`}`;
+  else if (s === "min") body = `<h3 class="tp-q">${t.hour} Uhr und …?</h3><div class="tp-g tp-m">${[0, 15, 30, 45].map(m => chip("data-tpm", m, `${t.hour}:${p2(m)}`, t.min === m)).join("")}</div>
     <label class="tp-other">✎ Genaue Zeit <input type="time" id="tp-time" value="${p2(t.hour)}:${p2(t.min || 0)}"></label>`;
-  else if (t.step === "x-ort") body = `<h3 class="tp-q">Wo ist das?</h3>${tapPlaces().length ? `<div class="tp-g tp-wide">${tapPlaces().map(x => chip("data-tpplace", x, esc(x), x === t.place)).join("")}</div>` : ""}
-    <div class="tp-own"><input id="tp-place" class="in" type="text" placeholder="Ort oder Adresse" value="${esc(tapPlaces().includes(t.place) ? "" : t.place || "")}" autocomplete="off"><button type="button" class="btn accent" id="tp-place-go">Fertig</button></div>`;
-  else if (t.step === "x-rep") { const hint = tapRepHint(), opts = [["none", "Nur einmal"], ["weekly", "Jede Woche"], ["w2", "Alle 2 Wochen"], ["monthly", "Jeden Monat"], ["m3", "Alle 3 Monate"], ["m6", "Alle 6 Monate"], ["yearly", "Jedes Jahr"]];
+  else if (s === "ende") body = `<h3 class="tp-q">Dienstende?</h3><div class="tp-g tp-h">${Array.from({ length: 24 }, (_, i) => i).map(h => chip("data-tpdur", `${p2(h)}:00`, `${h}`, t.dur === `${p2(h)}:00`)).join("")}</div>
+    <label class="tp-other">✎ Genau <input type="time" id="tp-end" value="${/^\d{2}:\d{2}$/.test(t.dur || "") ? t.dur : ""}"></label>`;
+  else if (s === "zeitraum") body = `<h3 class="tp-q">${!t.date ? "Erster Tag?" : !t.date2 ? "Und der letzte Tag?" : "Passt der Zeitraum?"}</h3>${tapCal(false)}
+    <p class="note">${t.date && !t.date2 ? `Ab ${fmt(t.date)} – jetzt den letzten Tag antippen (nur ein Tag: denselben noch einmal).` : t.date2 ? `${fmt(t.date)} – ${fmt(t.date2)}` : "Erst den ersten, dann den letzten Tag antippen."}</p>
+    ${t.date && t.date2 ? `<div class="btnrow"><button type="button" class="btn accent" id="tp-cal-go">Weiter</button></div>` : ""}`;
+  else if (s === "tage") body = `<h3 class="tp-q">An welchen Tagen?</h3>${tapCal(true)}<p class="note">Alle Tage antippen, an denen du ${esc(t.title || "Dienst")} hast.</p>
+    ${t.days?.length ? `<div class="btnrow"><button type="button" class="btn accent" id="tp-cal-go">Weiter (${t.days.length} ${t.days.length === 1 ? "Tag" : "Tage"})</button></div>` : ""}`;
+  else if (s === "monat") body = `<h3 class="tp-q">In welchem Monat?</h3><div class="tp-g tp-mo3">${MON.map((m, i) => chip("data-tpmo", i + 1, m.slice(0, 3), t.mo === i + 1)).join("")}</div>`;
+  else if (s === "tag") { const n = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][(t.mo || 1) - 1];
+    body = `<h3 class="tp-q">Welcher Tag im ${MON[(t.mo || 1) - 1]}?</h3><div class="tp-g tp-h">${Array.from({ length: n }, (_, i) => chip("data-tpday", i + 1, i + 1, t.day === i + 1)).join("")}</div>`; }
+  else if (s === "jahr") body = `<h3 class="tp-q">${ty === "birthday" ? "Geburtsjahr?" : "Seit welchem Jahr?"}</h3>${own("z. B. 1952", t.yr || "", "tp-yr-go", "tp-yr", "Fertig").replace('type="text"', 'type="number" inputmode="numeric" min="1900" max="' + TODAY.getFullYear() + '"')}
+    <div class="tp-g">${chip("data-tpyr", "x", ty === "birthday" ? "Weiß ich nicht" : "Überspringen", false)}</div>${ty === "birthday" ? `<p class="note">Mit Jahrgang zeigt der Kalender, wie alt jemand wird.</p>` : ""}`;
+  else if (s === "pdir") body = `<h3 class="tp-q">Abholen oder Bringen?</h3><div class="tp-g tp-wide">${chip("data-tpdir", "arr", "🙋 Abholen<small class=\"tp-sug\">jemand kommt an</small>", t.dir === "arr")}${chip("data-tpdir", "dep", "👋 Bringen<small class=\"tp-sug\">jemand fährt ab</small>", t.dir === "dep")}</div>`;
+  else if (s === "pmode") body = `<h3 class="tp-q">Womit?</h3><div class="tp-g tp-wide">${[["zug", "🚆 Zug"], ["flug", "✈️ Flug"], ["bus", "🚌 Bus"], ["auto", "🚗 Auto / sonstwo"]].map(([k, l]) => chip("data-tpmode", k, l, t.mode === k)).join("")}</div>`;
+  else if (s === "pwo") { const P = tapPlaces("abholen"); body = `<h3 class="tp-q">Wo?</h3>${P.length ? `<div class="tp-g tp-wide">${P.map(x => chip("data-tpplace", x, esc(x), x === t.place)).join("")}</div>` : ""}
+    ${own(t.mode === "flug" ? "z. B. Flughafen BER" : "z. B. Berlin Hbf", P.includes(t.place) ? "" : t.place, "tp-place-go", "tp-place", "Fertig")}`; }
+  else if (s === "pno") body = `<h3 class="tp-q">${t.mode === "flug" ? "Flugnummer?" : "Zug- oder Busnummer?"}</h3>${own(t.mode === "flug" ? "z. B. LH 123" : "z. B. ICE 553, RE 1", t.no, "tp-no-go", "tp-no", "Fertig")}
+    <div class="tp-g">${chip("data-tpno", "x", "Weiß ich nicht", false)}</div>${t.mode === "zug" ? `<p class="note">Mit Zugnummer meldet der Kalender Verspätung und Gleis.</p>` : ""}`;
+  else if (s === "fk") body = `<h3 class="tp-q">Worum geht's?</h3><div class="tp-g tp-wide">${FK_CHIP.map(([k, l]) => chip("data-tpfk", k, `${FK[k].i} ${l}`, t.fk === k)).join("")}</div>${own("✎ Etwas anderes, z. B. Rechnung bezahlen", t.fk ? "" : t.title, "tp-fk-go", "tp-fk", "Weiter")}`;
+  else if (s === "flead") { const sug = FK[t.fk]?.lead; body = `<h3 class="tp-q">Wie früh erinnern?</h3><div class="tp-g tp-wide">${[[7, "1 Woche vorher"], [14, "2 Wochen vorher"], [30, "1 Monat vorher"], [90, "3 Monate vorher"], [0, "Am Tag selbst"]].map(([k, l]) => chip("data-tplead", k, l + (sug && Math.abs(sug - k) <= 3 ? '<small class="tp-sug">Vorschlag</small>' : ""), t.lead === k)).join("")}</div>`; }
+  else if (s === "frenew") body = `<h3 class="tp-q">Läuft es danach weiter?</h3><div class="tp-g tp-wide">${chip("data-tprenew", "1", `Ja, ${FK[t.fk]?.renew === 2 ? "alle 2 Jahre" : "jährlich"}<small class="tp-sug">dann erinnert der Kalender wieder</small>`, t.renew === 1)}${chip("data-tprenew", "0", "Nein, einmalig", t.renew === 0)}</div>`;
+  else if (s === "oft") body = `<h3 class="tp-q">Wie oft möchtest du dich melden?</h3><div class="tp-g tp-wide">${[[2, "Alle 2 Wochen"], [4, "Alle 4 Wochen"], [8, "Alle 8 Wochen"], [13, "Alle 3 Monate"]].map(([k, l]) => chip("data-tpoft", k, l, t.every === k)).join("")}</div>`;
+  else if (s === "x-ort") { const P = tapPlaces(); body = `<h3 class="tp-q">${ty === "trip" || ty === "urlaub" ? "Unterkunft oder Ort?" : "Wo ist das?"}</h3>${P.length ? `<div class="tp-g tp-wide">${P.map(x => chip("data-tpplace", x, esc(x), x === t.place)).join("")}</div>` : ""}
+    ${own("Ort oder Adresse", P.includes(t.place) ? "" : t.place, "tp-place-go", "tp-place", "Fertig")}`; }
+  else if (s === "x-rep") { const hint = tapRepHint(), opts = [["none", "Nur einmal"], ["weekly", "Jede Woche"], ["w2", "Alle 2 Wochen"], ["monthly", "Jeden Monat"], ["m3", "Alle 3 Monate"], ["m6", "Alle 6 Monate"], ["yearly", "Jedes Jahr"]];
     if (hint && !opts.some(([k]) => k === hint)) opts.splice(1, 0, [hint, REPEAT[hint] || repLabel(hint)]);
     body = `<h3 class="tp-q">Wie oft?</h3><div class="tp-g tp-wide">${opts.map(([k, l]) => chip("data-tprep", k, esc(l) + (k === hint ? ' <small class="tp-sug">Vorschlag</small>' : ""), (t.rep || "none") === k)).join("")}</div><p class="note">Ein Ende der Wiederholung kannst du im Formular festlegen.</p>`; }
-  else if (t.step === "x-dauer") body = `<h3 class="tp-q">Wie lange?</h3><div class="tp-g">${[["30", "½ Std."], ["60", "1 Std."], ["90", "1½ Std."], ["120", "2 Std."], ["180", "3 Std."], ["", "Offen"]].map(([k, l]) => chip("data-tpdur", k, l, (t.dur || "") === k)).join("")}</div>
+  else if (s === "x-dauer") body = `<h3 class="tp-q">Wie lange?</h3><div class="tp-g">${[["30", "½ Std."], ["60", "1 Std."], ["90", "1½ Std."], ["120", "2 Std."], ["180", "3 Std."], ["", "Offen"]].map(([k, l]) => chip("data-tpdur", k, l, (t.dur || "") === k)).join("")}</div>
     <label class="tp-other">✎ Bis <input type="time" id="tp-end" value="${/^\d{2}:\d{2}$/.test(t.dur || "") ? t.dur : ""}"> Uhr</label>`;
-  else if (t.step === "x-notiz") body = `<h3 class="tp-q">Notiz</h3><textarea id="tp-note" class="in" rows="4" placeholder="z. B. Versichertenkarte mitnehmen">${esc(t.note || "")}</textarea><div class="btnrow"><button type="button" class="btn accent" id="tp-note-go">Fertig</button></div>`;
-  else if (t.step === "x-teilen") body = `<h3 class="tp-q">Wer soll das sehen?</h3>${shrChips("data-tpsh", t.sh || effTo({ ...tapEvent(), shareTo: [], shareNo: [] }))}<div class="btnrow"><button type="button" class="btn accent" id="tp-sh-go">Fertig</button></div>`;
-  else body = `<h3 class="tp-q">Passt das so?</h3><div class="tp-sum">
-      <button type="button" class="tp-line" data-tpedit="was"><span>Was</span><b>${esc(t.title)}</b><i>ändern</i></button>
-      <button type="button" class="tp-line" data-tpedit="wann"><span>Wann</span><b>${t.date ? esc(fmtY(t.date)) : "–"}</b><i>ändern</i></button>
-      <button type="button" class="tp-line" data-tpedit="zeit"><span>Uhrzeit</span><b>${esc(tapTime() ? tapTime() + (tapEnd() ? "–" + tapEnd() : "") : "ohne")}</b><i>ändern</i></button>
-      ${t.place ? xLine("ort", "Wo", t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", REPEAT[t.rep] || repLabel(t.rep)) : ""}${t.note ? xLine("notiz", "Notiz", t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
-    ${(() => { const free = tapXOrder().filter(k => !(k === "ort" && t.place) && !(k === "rep" && t.rep && t.rep !== "none") && !(k === "dauer" && t.dur) && !(k === "notiz" && t.note) && !(k === "teilen" && t.sh)); return free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${TAP_X[k][0]} ${TAP_X[k][1]}</button>`).join("")}</div>` : ""; })()}
+  else if (s === "x-notiz") body = `<h3 class="tp-q">${ty === "birthday" ? "Geschenkidee oder Notiz" : "Notiz"}</h3><textarea id="tp-note" class="in" rows="4" placeholder="${ty === "birthday" ? "z. B. wünscht sich ein Buch" : ty === "deadline" ? "z. B. Kundennummer, Kündigungsfrist 3 Monate" : "z. B. Versichertenkarte mitnehmen"}">${esc(t.note || "")}</textarea><div class="btnrow"><button type="button" class="btn accent" id="tp-note-go">Fertig</button></div>`;
+  else if (s === "x-teilen") body = `<h3 class="tp-q">Wer soll das sehen?</h3>${shrChips("data-tpsh", t.sh || effTo({ ...tapEvent(), shareTo: [], shareNo: [] }))}<div class="btnrow"><button type="button" class="btn accent" id="tp-sh-go">Fertig</button></div>`;
+  else { const XL = { ort: ty === "trip" || ty === "urlaub" ? "Unterkunft" : "Wo", notiz: ty === "birthday" ? "Geschenk/Notiz" : "Notiz" };
+    const free = tapXOrder().filter(k => !(k === "ort" && t.place) && !(k === "rep" && t.rep && t.rep !== "none") && !(k === "dauer" && t.dur) && !(k === "notiz" && t.note) && !(k === "teilen" && t.sh));
+    const xlbl = k => k === "ort" && (ty === "trip" || ty === "urlaub") ? "📍 Unterkunft" : k === "notiz" && ty === "birthday" ? "🎁 Geschenkidee" : `${TAP_X[k][0]} ${TAP_X[k][1]}`;
+    body = `<h3 class="tp-q">Passt das so?</h3><div class="tp-sum">${tapSummary()}
+      ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", REPEAT[t.rep] || repLabel(t.rep)) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
+    ${free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${xlbl(k)}</button>`).join("")}</div>` : ""}
     <button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>
-    <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`;
-  openSheet("Neuer Termin", sum || "Schritt für Schritt", `<div class="tap">${entrySw("tap")}${back}${body}</div>`, "tap");
-  setTimeout(() => { if (t.step === "was" && !t.title) $("tp-title")?.blur(); }, 0);
+    <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`; }
+  openSheet(TAP_HEAD[ty] || "Neu eintragen", sum || "Schritt für Schritt", `<div class="tap">${entrySw("tap")}${back}${body}</div>`, "tap");
 }
-async function tapSave() { const v = tapEvent(); if (!v.title) return tapGo("was");
-  showForm(v); const b = $("sheet"); if (b) b.style.visibility = "hidden"; try { await saveForm(); } finally { if (b) b.style.visibility = ""; }
-  if (sheetMode === "form") { /* Prüfung fehlgeschlagen – Formular mit Hinweis zeigen */ } }
+async function tapSave() { const t = TAP, v = tapEvent(); if (t.ty) store.set("ft-tap-ty", t.ty);
+  if (t.ty === "dienst" && (t.days || []).length > 1) {
+    showForm(v); const sh = $("sheet"); if (sh) sh.style.visibility = "hidden";
+    try { const v0 = formVals(), msg = validate(v0); if (msg) { $("f-err").textContent = msg; return; }
+      const undo = await applyChanges(t.days.map(d => ({ op: "add", event: { ...v0, from: d, to: d } })));
+      DRAFT_SAVED = true; closeSheet(); toast(`${t.days.length} Dienste eingetragen`, undo ? async () => { await undo(); } : null);
+    } catch { $("f-err") && ($("f-err").textContent = "Das hat gerade nicht geklappt – bitte noch einmal versuchen."); } finally { if (sh) sh.style.visibility = ""; }
+    return; }
+  showForm(v); const b = $("sheet"); if (b) b.style.visibility = "hidden"; try { await saveForm(); } finally { if (b) b.style.visibility = ""; } }
+// Bedienung im Antippen-Modus
+function tapSet(k, val, done) { TAP[k] = val; done ? tapDone() : tapGo(tapNext()); }
+document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") return; const q = s => ev.target.closest(s); let el;
+  const isX = TAP.step.startsWith("x-"), after = () => isX ? tapDone() : tapGo(tapNext());
+  if ((el = q("[data-tpty]"))) { const k = el.dataset.tpty; if (k !== TAP.ty) { const keep = { date: TAP.date, preset: TAP.preset, cal: TAP.cal }; TAP = { ...TAP, ty: k, title: "", hour: null, min: 0, allday: false, date2: null, mo: 0, day: 0, yr: undefined, dir: "", mode: "", no: "", noAsked: false, placeAsked: false, place: "", fk: undefined, lead: null, renew: null, days: null, dur: null, every: 0, rep: "none", note: "", sh: null, ...keep }; if (k === "urlaub" || k === "trip") TAP.date = keep.preset ? keep.date : null; if ((k === "birthday" || k === "anniversary") && keep.preset && keep.date) { TAP.mo = keep.date.getMonth() + 1; TAP.day = keep.date.getDate(); } } tapGo(tapNext()); return; }
+  if ((el = q("[data-tpt]"))) { TAP.title = el.dataset.tpt; if (TAP.ty === "dienst") tapDienstTimes(); tapGo(tapNext()); return; }
+  if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { $("tp-title")?.focus(); return; } TAP.title = v; if (TAP.ty === "dienst") tapDienstTimes(); tapGo(tapNext()); return; }
+  if ((el = q("[data-tpd]"))) { TAP.date = parseIso(el.dataset.tpd); tapGo(tapNext()); return; }
+  if ((el = q("[data-tph]"))) { if (el.dataset.tph === "x") { TAP.allday = true; TAP.hour = null; tapGo(tapNext()); } else { TAP.allday = false; TAP.hour = +el.dataset.tph; TAP.min = 0; tapGo("min"); } return; }
+  if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
+  if ((el = q("[data-tpclr]"))) { const k = el.dataset.tpclr; if (k === "ort") TAP.place = ""; if (k === "rep") TAP.rep = "none"; if (k === "notiz") TAP.note = ""; if (k === "teilen") TAP.sh = null; renderTap(); return; }
+  if ((el = q("[data-tpplace]"))) { TAP.place = el.dataset.tpplace; TAP.placeAsked = true; after(); return; }
+  if ((el = q("#tp-place-go"))) { TAP.place = ($("tp-place")?.value || "").trim(); TAP.placeAsked = true; after(); return; }
+  if ((el = q("[data-tprep]"))) { TAP.rep = el.dataset.tprep; tapDone(); return; }
+  if ((el = q("[data-tpdur]"))) { TAP.dur = el.dataset.tpdur; after(); return; }
+  if ((el = q("#tp-note-go"))) { TAP.note = ($("tp-note")?.value || "").trim(); tapDone(); return; }
+  if ((el = q("#tp-sh-go"))) { TAP.sh = [...chipSel("data-tpsh")]; tapDone(); return; }
+  if ((el = q("#tp-back"))) { tapBack(); return; }
+  if ((el = q("#tp-more"))) { showForm(tapEvent()); FROM_TAP = true; return; }
+  if ((el = q("#tp-save"))) { tapSave(); return; }
+  if ((el = q("[data-tpcalnav]"))) { const m = TAP.cal; TAP.cal = new Date(m.getFullYear(), m.getMonth() + +el.dataset.tpcalnav, 1); renderTap(); return; }
+  if ((el = q("[data-tpcal]"))) { const d = parseIso(el.dataset.tpcal);
+    if (TAP.step === "tage") { const s = new Set(TAP.days || []); s.has(iso(d)) ? s.delete(iso(d)) : s.add(iso(d)); TAP.days = [...s].sort(); renderTap(); return; }
+    if (!TAP.date || TAP.date2) { TAP.date = d; TAP.date2 = null; } else if (d < TAP.date) { TAP.date = d; } else TAP.date2 = d; renderTap(); return; }
+  if ((el = q("#tp-cal-go"))) { tapGo(tapNext()); return; }
+  if ((el = q("[data-tpmo]"))) { TAP.mo = +el.dataset.tpmo; if (TAP.day > [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][TAP.mo - 1]) TAP.day = 0; tapGo(TAP.day ? tapNext() : "tag"); return; }
+  if ((el = q("[data-tpday]"))) { TAP.day = +el.dataset.tpday; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpyr]"))) { TAP.yr = ""; tapGo(tapNext()); return; }
+  if ((el = q("#tp-yr-go"))) { const y = +($("tp-yr")?.value || 0); if (y && (y < 1900 || y > TODAY.getFullYear())) { $("tp-yr").focus(); return; } TAP.yr = y || ""; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpdir]"))) { TAP.dir = el.dataset.tpdir; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpmode]"))) { TAP.mode = el.dataset.tpmode; if (TAP.mode === "auto") TAP.noAsked = true; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpno]"))) { TAP.no = ""; TAP.noAsked = true; tapGo(tapNext()); return; }
+  if ((el = q("#tp-no-go"))) { TAP.no = ($("tp-no")?.value || "").trim().toUpperCase().replace(/^([A-Z]+)\s*(\d)/, "$1 $2"); TAP.noAsked = true; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpfk]"))) { TAP.fk = el.dataset.tpfk; TAP.title = FK[TAP.fk].t; TAP.lead = null; TAP.renew = null; tapGo(tapNext()); return; }
+  if ((el = q("#tp-fk-go"))) { const v = ($("tp-fk")?.value || "").trim(); if (!v) { $("tp-fk")?.focus(); return; } TAP.fk = ""; TAP.title = v; tapGo(tapNext()); return; }
+  if ((el = q("[data-tplead]"))) { TAP.lead = +el.dataset.tplead; tapGo(tapNext()); return; }
+  if ((el = q("[data-tprenew]"))) { TAP.renew = +el.dataset.tprenew; tapGo(tapNext()); return; }
+  if ((el = q("[data-tpoft]"))) { TAP.every = +el.dataset.tpoft; tapGo(tapNext()); return; }
+});
+// Dienst: Zeiten vom letzten gleichnamigen Dienst übernehmen – dann entfällt die Frage
+function tapDienstTimes() { const last = EV.filter(e => e.type === "dienst" && (e.title || "").toLowerCase() === (TAP.title || "").toLowerCase() && e.time).sort((a, b) => String(b.from).localeCompare(String(a.from)))[0];
+  if (last && TAP.hour == null) { TAP.hour = +last.time.slice(0, 2); TAP.min = +last.time.slice(3, 5); if (last.endTime) TAP.dur = last.endTime; } }
+document.addEventListener("change", ev => { const t = ev.target; if (!TAP || sheetMode !== "tap") return;
+  if (t.id === "tp-date" && parseIso(t.value)) { TAP.date = parseIso(t.value); tapGo(tapNext()); }
+  if (t.id === "tp-end" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.dur = t.value; TAP.step.startsWith("x-") ? tapDone() : tapGo(tapNext()); return; }
+  if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(tapNext()); } });
+document.addEventListener("keydown", ev => { if (ev.key !== "Enter" || sheetMode !== "tap") return; const go = { "tp-title": "tp-title-go", "tp-place": "tp-place-go", "tp-yr": "tp-yr-go", "tp-no": "tp-no-go", "tp-fk": "tp-fk-go" }[ev.target?.id]; if (go) { ev.preventDefault(); $(go)?.click(); } });
 function formDirty() { return sheetMode === "form" && !editing && ["f-title", "f-place", "f-note", "f-pk-who", "f-pk-no"].some(id => ($(id)?.value || "").trim() && !$(id)?.dataset.pre); }
 function asstDirty() { return sheetMode === "asst" && (!!($("a-in")?.value || "").trim() || !!$("a-out")?.querySelector(".acts-list")); }
 function switchEntry(m, keepPref) {
   if (!keepPref) store.set("ft-entry", m);
   if (sheetMode === "tap") { const t = TAP; if (m === "form") { showForm({ ...tapEvent(), title: t.title }); return; } ASST_DAY = t.date; ASST_TO = null; showAssistant(true); if (t.title) $("a-in").value = [t.title, t.date ? fmt(t.date) : "", tapTime()].filter(Boolean).join(" "); return; }
   if (m === "tap") { const d = sheetMode === "form" ? parseIso($("f-from")?.value || "") : ASST_DAY, ti = sheetMode === "form" ? ($("f-title")?.value || "").trim() : "";
-    showTap(d && !sameDay(d, TODAY) ? d : d, ti); return; }
+    showTap(d || null, ti, sheetMode === "form" ? $("f-type")?.value : "termin"); return; }
   if (m === "form") { ENTRY_TXT = ($("a-in")?.value || "").trim(); ASST_SNAP = asstDirty() ? { txt: $("a-in").value, html: $("a-out")?.innerHTML || "" } : null; }
   if (m === "form" && FORM_DRAFT && (!ENTRY_TXT || ENTRY_TXT === FORM_DRAFT.__txt)) { const d = FORM_DRAFT; FORM_DRAFT = null; showForm({ ...d, id: undefined }); fTimeOpen = !!d.time; syncFormFields(); qMark(); return; }
   if (m === "form") { const t = ($("a-in")?.value || "").trim().replace(/^vom\s+\d{1,2}\.\d{1,2}\.?\s*(bis\s+\d{1,2}\.\d{1,2}\.?)?\s*:?\s*/i, ""), A = ASST_DAY, B = ASST_TO;
@@ -4343,11 +4472,6 @@ async function saveNewPw() {
 }
 // Leerzeichen in E-Mail und Passwort sofort entfernen (Handy-Tastaturen setzen gern eins nach „.“)
 document.addEventListener("input", ev => { const t = ev.target; if (t?.id === "f-pk-who" || t?.id === "f-pk-st") delete t.dataset.pre; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
-document.addEventListener("change", ev => { const t = ev.target; if (!TAP || sheetMode !== "tap") return;
-  if (t.id === "tp-date" && parseIso(t.value)) { TAP.date = parseIso(t.value); tapGo(tapNext()); }
-  if (t.id === "tp-end" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.dur = t.value; tapDone(); return; }
-  if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(tapNext()); } });
-document.addEventListener("keydown", ev => { if (ev.key === "Enter" && ev.target?.id === "tp-title") { ev.preventDefault(); $("tp-title-go")?.click(); } if (ev.key === "Enter" && ev.target?.id === "tp-place") { ev.preventDefault(); $("tp-place-go")?.click(); } });
 document.addEventListener("focusin", ev => { if (ev.target?.id === "f-from") ev.target.dataset.prev = ev.target.value; });
 document.addEventListener("change", ev => { const t = ev.target;
   if (t?.id === "f-from" && t.dataset.prev && $("f-to")) { const p = parseIso(t.dataset.prev), n = parseIso(t.value), b = parseIso($("f-to").value); if (p && n && b && b >= p) $("f-to").value = iso(addDays(n, dayDiff(p, b))); else if (n && (!b || b < n)) $("f-to").value = t.value; t.dataset.prev = t.value; }
@@ -4837,22 +4961,6 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-wzpick]"))) { const k = el.dataset.wzpick; WZ.picked[k] = !WZ.picked[k]; renderWz(); return; }
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
   if ((el = q("[data-wkstep]"))) { setWk(addDays(wkStart, 7 * +el.dataset.wkstep), null); return; }
-  if ((el = q("[data-tpt]"))) { TAP.title = el.dataset.tpt; tapGo(tapNext()); return; }
-  if ((el = q("[data-tpd]"))) { TAP.date = parseIso(el.dataset.tpd); tapGo(tapNext()); return; }
-  if ((el = q("[data-tph]"))) { if (el.dataset.tph === "x") { TAP.allday = true; TAP.hour = null; tapGo(tapNext()); } else { TAP.allday = false; TAP.hour = +el.dataset.tph; TAP.min = 0; tapGo("min"); } return; }
-  if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(tapNext()); return; }
-  if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
-  if ((el = q("[data-tpclr]"))) { const k = el.dataset.tpclr; if (k === "ort") TAP.place = ""; if (k === "rep") TAP.rep = "none"; if (k === "notiz") TAP.note = ""; if (k === "teilen") TAP.sh = null; renderTap(); return; }
-  if ((el = q("[data-tpplace]"))) { TAP.place = el.dataset.tpplace; tapDone(); return; }
-  if ((el = q("#tp-place-go"))) { TAP.place = ($("tp-place")?.value || "").trim(); tapDone(); return; }
-  if ((el = q("[data-tprep]"))) { TAP.rep = el.dataset.tprep; tapDone(); return; }
-  if ((el = q("[data-tpdur]"))) { TAP.dur = el.dataset.tpdur; tapDone(); return; }
-  if ((el = q("#tp-note-go"))) { TAP.note = ($("tp-note")?.value || "").trim(); tapDone(); return; }
-  if ((el = q("#tp-sh-go"))) { TAP.sh = [...chipSel("data-tpsh")]; tapDone(); return; }
-  if ((el = q("#tp-back"))) { tapBack(); return; }
-  if ((el = q("#tp-title-go"))) { const v = ($("tp-title")?.value || "").trim(); if (!v) { $("tp-title")?.focus(); return; } TAP.title = v; tapGo(tapNext()); return; }
-  if ((el = q("#tp-more"))) { showForm(tapEvent()); FROM_TAP = true; return; }
-  if ((el = q("#tp-save"))) { tapSave(); return; }
   if ((el = q("[data-pg]"))) { goPage(el.dataset.pg); return; }
   if ((el = q("[data-wksel]"))) { if (Date.now() - swipedAt < 400) return; const d = parseIso(el.dataset.wksel); if (moving && d) { finishMove(d); return; } setWk(wkStart, wkSel && sameDay(wkSel, d) ? null : d); return; }
   if ((el = q("[data-catopen]"))) { catOpen = catOpen === el.dataset.catopen ? "" : el.dataset.catopen; showSettings("farben"); return; }
