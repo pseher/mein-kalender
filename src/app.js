@@ -4659,7 +4659,10 @@ document.addEventListener("submit", ev => { const id = ev.target.id; if (id === 
 document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-aumode]"); if (m) { auEmail(); AU.mode = m.dataset.aumode; AU.msg = ""; auRender(); return; }
   const o = ev.target.closest?.("[data-auop]"); if (o) { ev.preventDefault(); auOp(o.dataset.auop); } });
 // Google-Kalender verbinden – bei E-Mail-Konten wird Google an dasselbe Konto gehängt
-async function gConnect() {
+const G_UNVERIFIED = true;   // bis Google PlanFlink geprüft hat: Hinweis auf die Warnseite
+const G_WARN = "Solange Google PlanFlink noch prüft, zeigt Google den Hinweis „Google hat diese App nicht überprüft“. Tippe dann auf „Erweitert“ und „Weiter zu planflink.de“ – und erlaube beide Kalender-Häkchen.";
+async function gConnect(go) {
+  if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Termine sehen und eintragen darf.</p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
   const r = await window.mkConnectGoogle?.();
   if (r?.error) { const c = r.error.code || "";
     toast(c === "identity_already_exists" ? "Dieses Google-Konto gehört schon zu einem anderen PlanFlink-Konto." : c === "manual_linking_disabled" ? "Google verbinden ist für E-Mail-Konten noch nicht freigeschaltet." : "Google-Verbindung hat nicht geklappt: " + (r.error.message || c)); }
@@ -4816,7 +4819,7 @@ function renderWz() {
       ${W.gMsg ? `<div class="wz-box warn"><span>${esc(W.gMsg)}</span></div>` : ""}
       ${mcp ? `<button type="button" class="wz-big accent" id="wz-g-yes"${busy ? " disabled" : ""}>${busy ? "Verbinde mit Google …" : "Ja, Google verbinden"}</button>` : ""}
       <button type="button" class="wz-big ${mcp ? "ghost" : "accent"}" id="wz-g-no">${mcp ? "Ohne Google weiter" : "Ohne Google starten"}</button>
-      ${mcp ? `<p class="note">${APP ? "Google fragt dich einmal, ob der Kalender deine Termine sehen und eintragen darf. Bitte beide Häkchen setzen." : "Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen."}</p>` : ""}</div>`;
+      ${mcp ? `<p class="note">${APP ? "Google fragt dich einmal, ob PlanFlink deine Termine sehen und eintragen darf. Bitte beide Häkchen setzen." + (G_UNVERIFIED ? " " + G_WARN.split(" – ")[0] + "." : "") : "Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen."}</p>` : ""}</div>`;
   }
   if (W.step === "cals") {
     const cals = [{ id: "primary" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary)]; store.set("ft-gcal-asked", "1");
@@ -4913,7 +4916,7 @@ function wzReadState() { if ($("wz-name")) WZ.name = $("wz-name").value.trim(); 
 async function wzConnectGoogle() {
   WZ.gBusy = true; WZ.gMsg = ""; renderWz(); gTry = 0;
   await initGoogle(); WZ.gBusy = false;
-  if (APP && FATAL.includes(gState) && gState !== "api_disabled") { gConnect(); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
+  if (APP && FATAL.includes(gState) && gState !== "api_disabled") { gConnect(true); return; }   // eigene App: Google-Freigabe holen, danach geht es hier weiter
   if (gState === "ok" && !gPrimarySummary) { try { const r = await withTimeout(mcp.callTool(GSERVER, "list_events", { pageSize: 1 }), 12000); gPrimarySummary = String(r?.payload?.summary || ""); } catch {} }
   if (gState === "ok") { WZ.useG = true; gShow = true; store.set("ft-gshow", "1"); wzGo("cals"); }
   else { WZ.gMsg = gStatusText() || "Google antwortet gerade nicht. Versuch es noch einmal oder mach ohne Google weiter."; renderWz(); }
@@ -5226,6 +5229,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-bday]"))) { const o = OCC.find(x => x.ev.id === el.dataset.bday && x.a.getFullYear() === selYear) || OCC.find(x => x.ev.id === el.dataset.bday); if (o) showEvent(o); else { const e = EV.find(x => x.id === el.dataset.bday); if (e) showForm(e); } return; }
   if ((el = q("[data-emode]"))) { if (el.getAttribute("aria-selected") !== "true") switchEntry(el.dataset.emode); return; }
   if ((el = q("[data-add]"))) { newEntry(el.dataset.add); return; }
+  if ((el = q("#g-conn-go"))) { el.disabled = true; el.textContent = "Öffne Google …"; gConnect(true); return; }
   if ((el = q("[data-tkadd]"))) { if (dbState === "off") return showSignin(); TAP_KEEP = null; showTap(parseIso(el.dataset.tkadd), "", "aufgabe"); return; }
   if ((el = q("[data-tkaddev]"))) { const e = EV.find(x => x.id === el.dataset.tkaddev); if (!e) return; TAP_KEEP = null; showTap(null, "", "aufgabe"); TAP.tkEv = e.id; renderTap(); return; }
   if ((el = q("[data-ftask]"))) { const ti = ($("f-title")?.value || "").trim(); FORM_TYPE_SET = false; showTap(null, ti, "aufgabe"); return; }

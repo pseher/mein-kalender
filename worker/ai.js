@@ -36,8 +36,22 @@ export default {
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
     if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: VERSION, model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { r2: !!env.DOCS, admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
     if (route === "/files" || route.startsWith("/files/")) return await filesRoute(req, env, route, cors, allowed, origin);   // Dokumente in R2
-    if (req.method !== "POST" || !["/ai", "/google/token", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train", "/admin/plan", "/billing/status", "/billing/simulate", "/billing/play/verify", "/billing/family/invite", "/billing/family/peek", "/billing/family/join", "/billing/family/remove", "/billing/family/leave"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/google/exchange", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train", "/admin/plan", "/billing/status", "/billing/simulate", "/billing/play/verify", "/billing/family/invite", "/billing/family/peek", "/billing/family/join", "/billing/family/remove", "/billing/family/leave"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
+
+    // Google-Anmeldung direkt auf der eigenen Adresse: Code gegen Schlüssel tauschen (vor der Anmeldung, daher ohne Supabase-Prüfung)
+    if (route === "/google/exchange") {
+      let b = {}; try { b = await req.json(); } catch {}
+      const code = String(b.code || ""), ru = String(b.redirect_uri || "");
+      let ok = false; try { const u = new URL(ru); ok = u.pathname === "/app/" && (!allowed.length || allowed.includes(u.origin)) && u.origin === origin; } catch {}
+      if (!code || !ok) return out(400, { code: "bad_request" });
+      if (!env.GOOGLE_CLIENT_SECRET) return out(500, { code: "google_error", detail: "GOOGLE_CLIENT_SECRET fehlt im Worker" });
+      const g = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: ru, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET }) });
+      const gb = await g.json().catch(() => ({}));
+      if (!g.ok) return out(400, { code: gb.error || "google_error", detail: gb.error_description || "" });
+      return out(200, { id_token: gb.id_token || "", access_token: gb.access_token || "", refresh_token: gb.refresh_token || "", expires_in: gb.expires_in || 3600, scope: gb.scope || "" });
+    }
 
     // 1) Wer fragt? (Supabase-Anmeldung prüfen)
     const auth = req.headers.get("Authorization") || "";

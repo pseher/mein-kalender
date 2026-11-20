@@ -5,6 +5,15 @@
 window.MK_APP = true;
 (() => {
   const CFG = window.MK_CFG;
+  // Google-Anmeldung direkt (ohne Umweg über die Supabase-Adresse): Rückkehr mit ?code=&state= hier abholen
+  let G_PEND = null;
+  try { const P = new URLSearchParams(location.search), st = P.get("state") || "", want = sessionStorage.getItem("mk-g-state") || "";
+    if (st && want && st === want && (P.get("code") || P.get("error"))) {
+      G_PEND = { code: P.get("code") || "", error: P.get("error") || "", purpose: st.split(".")[0] };
+      sessionStorage.removeItem("mk-g-state");
+      ["code", "state", "scope", "authuser", "prompt", "hd", "error", "iss"].forEach(k => P.delete(k));
+      history.replaceState(null, "", location.pathname + (P.toString() ? "?" + P : "") + location.hash);
+    } } catch {}
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   window.mkSupabase = sb;
   // Fehler aus der Rückleitung (Google/Supabase) festhalten, bevor supabase-js die Adresse aufräumt
@@ -12,7 +21,19 @@ window.MK_APP = true;
     if (P.get("type") === "recovery") sessionStorage.setItem("mk-newpw", "1");
     if (e) { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
   let session = null;
-  const ready = sb.auth.getSession().then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
+  const gDone = G_PEND ? (async () => {
+    const fail = m => { window.mkAuthErr = m; try { sessionStorage.setItem("mk-auth-err", m); } catch {} };
+    if (G_PEND.error) { if (G_PEND.error !== "access_denied") fail("Google: " + G_PEND.error); return; }
+    let b = {}; try { const r = await fetch(CFG.workerUrl + "/google/exchange", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: G_PEND.code, redirect_uri: location.origin + "/app/" }) });
+      b = await r.json().catch(() => ({})); if (!r.ok) return fail("Die Google-Anmeldung hat nicht geklappt (" + (b.code || r.status) + "). Bitte noch einmal versuchen."); }
+    catch { return fail("Keine Verbindung – bitte noch einmal versuchen."); }
+    if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
+    const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
+    if (G_PEND.purpose === "login" || !cur) { if (!b.id_token) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.");
+      const x = await sb.auth.signInWithIdToken({ provider: "google", token: b.id_token }).catch(e => ({ error: e }));
+      if (x?.error) fail("Die Google-Anmeldung hat nicht geklappt: " + (x.error.message || x.error.code || "")); }
+  })().catch(() => {}) : Promise.resolve();
+  const ready = gDone.then(() => sb.auth.getSession()).then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
   // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),
   // nie während die Seite selbst die Anmeldung aus der Adresse übernimmt – sonst lädt sie endlos neu.
   let startedWith = undefined;   // undefined = Start läuft noch, sonst: true/false
@@ -27,9 +48,17 @@ window.MK_APP = true;
   // Eine Anmeldung für beides: Konto + Zugriff auf Google Kalender (Google fragt die Kalender-Rechte einzeln ab)
   const G_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
   // Zustimmungsseite nur, wenn auf diesem Gerät noch kein Erneuerungsschlüssel liegt (Google gibt ihn nur dabei heraus)
-  window.mkSignIn = (force) => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", include_granted_scopes: "true", prompt: force || !lsGet(GK.rt) ? "consent" : "select_account" } } });
+  const G_LOGIN = "openid email profile";
+  const gGo = (purpose, scope, extra = {}) => { const st = purpose + "." + (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+    try { sessionStorage.setItem("mk-g-state", st); } catch {}
+    const q = new URLSearchParams({ client_id: CFG.googleClientId, redirect_uri: location.origin + "/app/", response_type: "code", scope, state: st, include_granted_scopes: "true", ...extra });
+    location.assign("https://accounts.google.com/o/oauth2/v2/auth?" + q); return new Promise(() => {}); };
+  // Anmelden mit Google: nur Name und E-Mail – der Kalenderzugriff wird erst beim „Google Kalender verbinden“ erfragt
+  window.mkSignIn = () => gGo("login", G_LOGIN, { prompt: "select_account" });
+  window.mkSignInOld = (force) => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", include_granted_scopes: "true", prompt: force || !lsGet(GK.rt) ? "consent" : "select_account" } } });
   // Mit E-Mail angemeldet: Google-Kalender an DIESES Konto hängen (sonst entstünde ein zweites Konto)
   window.mkConnectGoogle = async () => { try { sessionStorage.setItem("mk-wz-g", "1"); } catch {}
+    const me = session?.user; return gGo("cal", G_LOGIN + " " + G_SCOPES, { access_type: "offline", prompt: "consent", ...(me?.email ? { login_hint: me.email } : {}) });
     const u = session?.user, hasG = !u || u.app_metadata?.provider === "google" || (u.identities || []).some(i => i.provider === "google");
     if (hasG) return window.mkSignIn(true);
     const r = await sb.auth.linkIdentity({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", prompt: "consent" } } }).catch(e => ({ error: e }));
