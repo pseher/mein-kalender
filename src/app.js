@@ -260,7 +260,11 @@ function expand() {
   groupTrips();
 }
 // ---- Reise bündeln: Hotels, Flüge, Unterkünfte innerhalb einer Reise gehören zur Reise ----
-const PART_RE = /🏨|✈|🚆|\b(hotel|stay at|aufenthalt|flug|flight|zug|bahn|ice|ferienwohnung|ferienhaus|apartment|wohnung|airbnb|booking|unterkunft|check-?in|mietwagen|rental car|fähre|ferry|pension|hostel|resort|lodge)\b/i;
+// Unterkünfte auch in zusammengesetzten Wörtern: „Landhotel“, „Strandhotel“, „Ferienpension“
+const PART_RE = /🏨|✈|🚆|\b(stay at|aufenthalt|flug|flight|zug|bahn|ice|apartment|wohnung|airbnb|booking|check-?in|mietwagen|rental car|fähre|ferry)\b|hotel|ferienwohnung|ferienhaus|unterkunft|pension\b|hostel|resort|lodge|gasthof|gästehaus|herberge/i;
+// gleiche Tage und ein gemeinsames Wort im Titel/Ort (z. B. „Landhotel Burg“) – gehört zur selben Reise
+const tripWords = e => new Set(`${e.title || ""} ${e.place || ""}`.toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w => w.length >= 5 && !/^(urlaub|reise|ferien|auszeit|zimmer|termin)$/.test(w)));
+const sameTrip = (o, t) => sameDay(o.a, t.a) && sameDay(o.b, t.b) && [...tripWords(o.ev)].some(w => tripWords(t.ev).has(w));
 const GENERIC_TRIP = /^\s*(urlaub|reise|ferien|auszeit|trip)\b/i;
 // Wer wird bei gleich langen Einträgen der Reise-Kopf? Eigene Reise > allgemeiner Titel („Urlaub“) > Google-Reise; bei Gleichstand fest nach id
 const headRank = o => (o.ev.type === "trip" ? 4 : 0) + (GENERIC_TRIP.test(o.ev.title) ? 2 : 0) + (isTrip(o) ? 1 : 0);
@@ -271,7 +275,7 @@ function groupTrips() {
   if (!trips.length) return;
   OCC.forEach(o => {
     const e = o.ev; if (["birthday", "anniversary", "contact", "mina", "info"].includes(e.type) || e.type === "season") return;
-    if (!PART_RE.test(`${e.title} ${shortName(e)}`) && !isTrip(o)) return;
+    if (!PART_RE.test(`${e.title} ${shortName(e)}`) && !isTrip(o) && !trips.some(t => t !== o && t.ev !== e && sameTrip(o, t))) return;
     const ol = dayDiff(o.a, o.b); let best = null;
     trips.forEach(t => {
       if (t === o || t.ev === e || o.a < addDays(t.a, -1) || o.b > addDays(t.b, 1)) return;
