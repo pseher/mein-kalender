@@ -6,7 +6,7 @@ keep_vars = true                                        # im Dashboard gesetzte 
 [vars]
 SUPABASE_URL = "https://vhwajjbrpibdurlovrrz.supabase.co"      # aus Supabase → Project Settings → API
 SUPABASE_ANON_KEY = "sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45"                     # öffentlicher Schlüssel, darf hier stehen
-ALLOWED_ORIGINS = "https://mein-kalender-czb.pages.dev"      # später + eigene Domain, mit Komma getrennt
+ALLOWED_ORIGINS = "https://mein-kalender-czb.pages.dev,https://planflink.de,https://www.planflink.de"      # mit Komma getrennt
 MODEL_QUICK = "claude-haiku-5-5"                        # günstig: Packlisten, Merklisten, Geschenkideen (0,10/0,50 $ je 1 Mio. Tokens)
 MODEL_QUICK_FALLBACK = "claude-haiku-4-5-20251001"      # falls Haiku 5.5 nicht verfügbar ist
 MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente auswerten
