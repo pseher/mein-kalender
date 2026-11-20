@@ -3144,7 +3144,9 @@ function asstBack() {
 let FROM_TAP = false;
 function tapFromForm() { const t = TAP; FROM_TAP = false; if (!t) return closeSheet();
   const ti = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), tm = ($("f-time")?.value || "").trim();
-  if (ti) t.title = ti; if (d) t.date = d; t.place = ($("f-place")?.value || "").trim(); t.note = ($("f-note")?.value || "").trim(); t.rep = $("f-rep")?.value && $("f-rep").value !== "custom" ? $("f-rep").value : t.rep; if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { t.hour = +tm.slice(0, 2); t.min = +tm.slice(3); t.allday = false; } t.step = "fertig"; renderTap(); }
+  if (t.ty === "abholen") { const w = ($("f-pk-who")?.value || "").trim(); if (w) t.title = w; t.place = ($("f-pk-st")?.value || "").trim(); t.no = ($("f-pk-no")?.value || "").trim(); } else { if (ti) t.title = ti; t.place = ($("f-place")?.value || "").trim(); }
+  if (d) t.date = d; { const e2 = parseIso($("f-to")?.value || ""); if (e2 && d && e2 > d && !["birthday", "anniversary", "deadline", "contact", "abholen"].includes(t.ty)) t.date2 = e2; }
+  t.note = ($("f-note")?.value || "").trim(); if (!["birthday", "anniversary"].includes(t.ty)) { t.rep = $("f-rep")?.value && $("f-rep").value !== "custom" ? $("f-rep").value : t.rep; t.until = $("f-until")?.value || t.until; } if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { t.hour = +tm.slice(0, 2); t.min = +tm.slice(3); t.allday = false; } t.step = "fertig"; renderTap(); }
 function showForm(e, preset) {
   ADJ = null; FROM_TAP = false;
   if (!arguments[0]) FORM_FILES = [];
@@ -3569,13 +3571,14 @@ function habits() {
   const add = (ty, title, a, time, endTime, place, id) => { const key = habKey(title); if (!key || key.length > 40) return;
     const age = (now - +a) / 864e5, w = age > 730 ? 0 : age > 365 ? .4 : 1; if (!w) return;
     const T = (H[ty] ??= {}), h = (T[key] ??= { t: String(title).trim(), n: 0, ev: 0, time: {}, wd: {}, mo: {}, dur: {}, place: {}, last: null, dates: [] });
+    const dk = ty + "|" + key + "|" + iso(a); if (seen.has(dk)) return; seen.add(dk);
     if (!seen.has(ty + "|" + id)) { seen.add(ty + "|" + id); h.ev += w; }
     h.n += w; if (time) h.time[time] = (h.time[time] || 0) + w; h.wd[a.getDay()] = (h.wd[a.getDay()] || 0) + w; h.mo[a.getMonth()] = (h.mo[a.getMonth()] || 0) + w;
     if (time && endTime) { const d = (+endTime.slice(0, 2) * 60 + +endTime.slice(3)) - (+time.slice(0, 2) * 60 + +time.slice(3)); if (d > 0) h.dur[d] = (h.dur[d] || 0) + w; else h.dur[endTime] = (h.dur[endTime] || 0) + w; }
     if (place) h.place[place] = (h.place[place] || 0) + w;
     if (a <= TODAY && (!h.last || a > h.last)) h.last = a; if (h.dates.length < 60) h.dates.push(+a); };
   for (const e of EV) { if (e.shared || e.mOnly || !e.title) continue; const a = parseIso(e.from); if (!a) continue;
-    if (e.type === "abholen" && e.pick?.who) { const w = habKey(e.pick.who), p = (P[w] ??= { who: e.pick.who, n: 0, mode: {}, no: {}, place: {}, time: {} }); p.n++; p.mode[e.pick.mode] = (p.mode[e.pick.mode] || 0) + 1; if (e.pick.no) p.no[e.pick.no] = (p.no[e.pick.no] || 0) + 1; if (e.place) p.place[e.place] = (p.place[e.place] || 0) + 1; if (e.time) p.time[e.time] = (p.time[e.time] || 0) + 1; continue; }
+    if (e.type === "abholen" && e.pick?.who) { const w = habKey(e.pick.who) + "|" + (e.pick.dir === "dep" ? "dep" : "arr"), p = (P[w] ??= { who: e.pick.who, n: 0, mode: {}, no: {}, place: {}, time: {} }); p.n++; p.mode[e.pick.mode] = (p.mode[e.pick.mode] || 0) + 1; if (e.pick.no) p.no[e.pick.no] = (p.no[e.pick.no] || 0) + 1; if (e.place) p.place[e.place] = (p.place[e.place] || 0) + 1; if (e.time) p.time[e.time] = (p.time[e.time] || 0) + 1; continue; }
     add(e.type, e.title, a, e.time, e.endTime, e.place, e.id); }
   for (const o of gl) { const e = o.ev; if (!e?.title || e.title === "(ohne Titel)") continue; add("termin", e.title, o.a, e.time, e.endTime, e.place || e.location || "", e.rid || e.gid); }
   return (HABC = { H, P }, HABK = k, HABC); }
@@ -3590,10 +3593,10 @@ function habFor(ty, title) { const h = (habits().H[ty] || {})[habKey(title)]; if
   const ds = [...new Set(h.dates)].sort((a, b) => a - b), gaps = ds.slice(1).map((x, i) => (x - ds[i]) / 864e5).filter(g => g >= 5).sort((a, b) => a - b);
   const gap = gaps.length >= 2 ? gaps[Math.floor(gaps.length / 2)] : 0;
   return { time, wd: wd != null ? +wd : null, place, dur: d, gap, last: h.last, n: h.n }; }
-const habPick = who => { const p = habits().P[habKey(who)]; if (!p) return null; return { mode: habTop(p.mode, .5, 1), no: habTop(p.no, .5, 1), place: habTop(p.place, .5, 1), time: habTop(p.time, .6, 2) }; };
+const habPick = (who, dir) => { const p = habits().P[habKey(who) + "|" + (dir === "dep" ? "dep" : "arr")]; if (!p) return null; return { mode: habTop(p.mode, .5, 1), no: habTop(p.no, .5, 1), place: habTop(p.place, .5, 1), time: habTop(p.time, .6, 2) }; };
 // nach der Titelwahl: übliche Uhrzeit, Dauer, Ort und Wochentag vorschlagen (nur vorbelegt, sichtbar auf „Passt das so?“)
 function tapApplyHabits() { const t = TAP; if (!t || !t.title) return; t.auto = t.auto || {};
-  if (t.ty === "abholen") { const p = habPick(t.title); if (!p) return;
+  if (t.ty === "abholen") { const p = habPick(t.title, t.dir); if (!p) return;
     if (p.place && !t.placeAsked) { t.place = p.place; t.placeAsked = true; t.auto.place = 1; }
     if (p.no && !t.noAsked && (!p.mode || p.mode === t.mode)) { t.no = p.no; t.noAsked = true; t.auto.no = 1; }
     if (p.time && t.hour == null) { t.hour = +p.time.slice(0, 2); t.min = +p.time.slice(3, 5); t.auto.time = 1; } return; }
@@ -3602,7 +3605,7 @@ function tapApplyHabits() { const t = TAP; if (!t || !t.title) return; t.auto = 
     if (h.time && t.hour == null && !t.allday) { t.hour = +h.time.slice(0, 2); t.min = +h.time.slice(3, 5); t.auto.time = 1; }
     if (h.dur && t.dur == null && t.hour != null) { t.dur = /:/.test(h.dur) ? h.dur : String(h.dur); t.auto.dur = 1; } }
   if (h.place && !t.place && ["termin", "trip"].includes(t.ty)) { t.place = h.place; t.auto.place = 1; }
-  if (h.wd != null && !t.date && t.ty === "termin") { let d = TODAY; for (let i = 0; i < 7; i++) { if (d.getDay() === h.wd) break; d = addDays(d, 1); } t.date = d; t.auto.date = 1; } }
+  if (h.wd != null && !t.date && t.ty === "termin") { let d = h.gap && h.last ? addDays(h.last, Math.round(h.gap)) : TODAY; if (d < TODAY) d = TODAY; for (let i = 0; i < 7; i++) { if (d.getDay() === h.wd) break; d = addDays(d, 1); } t.date = d; t.auto.date = 1; } }
 // ---- 👆 Antippen: jede Art in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
 let TAP = null;
 const TAP_TYPES = [["termin", "📅", "Termin"], ["birthday", "🎂", "Geburtstag"], ["abholen", "🚉", "Abholen / Bringen"], ["urlaub", "🏖️", "Urlaub"], ["trip", "🧳", "Reise"], ["deadline", "⏰", "Frist"], ["dienst", "👷", "Dienst"], ["info", "💡", "Hinweis"]];
@@ -3614,7 +3617,7 @@ const TAP_FLOW = { termin: ["was", "wann", "zeit"], info: ["was", "wann"], urlau
   deadline: ["fk", "fdat", "flead", "frenew"], dienst: ["was", "tage", "zeit", "ende"], contact: ["was", "oft"] };
 const TAP_Q = { termin: "Was steht an?", info: "Woran soll der Kalender erinnern?", urlaub: "Was ist es?", trip: "Wohin geht's?", birthday: "Wer hat Geburtstag?", anniversary: "Welcher Jahrestag?", abholen: "Wen?", dienst: "Welcher Dienst?", contact: "Mit wem möchtest du in Kontakt bleiben?" };
 const TAP_X = { ort: ["📍", "Wo?"], rep: ["🔁", "Wiederholen"], dauer: ["⏱", "Bis wann?"], notiz: ["📝", "Notiz"], teilen: ["👥", "Teilen"] };
-const TAP_XT = { termin: null, abholen: ["notiz", "teilen"], urlaub: ["ort", "notiz", "teilen"], trip: ["ort", "notiz", "teilen"], birthday: ["notiz", "teilen"], anniversary: ["notiz", "teilen"], deadline: ["notiz"], dienst: ["notiz"], info: ["notiz"], contact: ["notiz"] };
+const TAP_XT = { termin: null, abholen: ["rep", "notiz", "teilen"], urlaub: ["ort", "notiz", "teilen"], trip: ["ort", "notiz", "teilen"], birthday: ["notiz", "teilen"], anniversary: ["notiz", "teilen"], deadline: ["notiz"], dienst: ["notiz"], info: ["rep", "notiz"], contact: ["notiz"] };
 const tapTime = () => TAP?.allday || TAP?.hour == null ? "" : `${p2(TAP.hour)}:${p2(TAP.min || 0)}`;
 const tapEnd = () => { const t = TAP; if (!t || t.hour == null || t.allday || !t.dur) return ""; if (/^\d{2}:\d{2}$/.test(t.dur)) return t.dur; const m = t.hour * 60 + (t.min || 0) + +t.dur; return m >= 24 * 60 ? "23:59" : `${p2(Math.floor(m / 60))}:${p2(m % 60)}`; };
 const tapMD = () => TAP.mo && TAP.day ? `${p2(TAP.day)}.${p2(TAP.mo)}.` : "";
@@ -3624,7 +3627,7 @@ function tapDone_(k) { const t = TAP;
     case "monat": return !!t.mo; case "tag": return !!t.day; case "jahr": return t.yr !== undefined;
     case "pdir": return !!t.dir; case "pmode": return !!t.mode; case "pwo": return t.place !== undefined && t.placeAsked; case "pno": return !!t.noAsked;
     case "fk": return t.fk !== undefined; case "fdat": return !!t.date; case "flead": return t.lead != null; case "frenew": return ["ausweis", "pass", "garantie", "rueckgabe"].includes(t.fk) || t.renew != null;
-    case "tage": return !!t.days?.length; case "ende": return t.dur != null; case "oft": return !!t.every; case "tmode": return t.tmode !== undefined; }
+    case "tage": return !!t.days?.length; case "ende": return t.dur != null || t.allday; case "oft": return !!t.every; case "tmode": return t.tmode !== undefined; }
   return true; }
 document.addEventListener("input", ev => { if (ev.target?.id === "tp-place" && sheetMode === "tap") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(osmExpand(v), false, 350, { inp: "tp-place", box: "tp-place-sug" }); else { const b = $("tp-place-sug"); if (b) b.hidden = true; } } });
 const tapNext = () => !TAP.ty ? "art" : (TAP_FLOW[TAP.ty] || []).find(k => !tapDone_(k)) || "fertig";
@@ -3679,14 +3682,14 @@ function tapCal(multi) { const t = TAP, m0 = t.cal, first = (m0.getDay() + 6) % 
 function tapSummary() { const t = TAP, ty = t.ty, tm = tapTime() ? tapTime() + (tapEnd() ? "–" + tapEnd() : "") : "ohne", range = t.date ? fmtY(t.date) + (t.date2 && +t.date2 !== +t.date ? " – " + fmtY(t.date2) : "") : "";
   if (ty === "info") return sLine("Was", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann");
   if (ty === "urlaub") return sLine("Was", t.title, "was") + sLine("Zeitraum", range, "zeitraum");
-  if (ty === "trip") return sLine("Wohin", t.title, "was") + sLine("Zeitraum", range, "zeitraum") + sLine("Anreise", { auto: "🚗 Auto", zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus" }[t.tmode] || "offen", "tmode") + (t.tmode ? sLine("Abfahrt", tm, "zeit") : "");
+  if (ty === "trip") return sLine("Wohin", t.title, "was") + sLine("Zeitraum", range, "zeitraum") + sLine("Anreise", { auto: "🚗 Auto", zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus" }[t.tmode] || "offen", "tmode") + (t.tmode ? sLine(t.tmode === "flug" ? "Abflug" : "Abfahrt", tm, "zeit") : "");
   if (ty === "birthday") return sLine("Wer", t.title, "was") + sLine("Geburtstag", tapMD(), "monat") + sLine("Jahrgang", t.yr || "unbekannt", "jahr");
   if (ty === "anniversary") return sLine("Was", t.title, "was") + sLine("Datum", tapMD(), "monat") + sLine("Seit", t.yr || "–", "jahr");
-  if (ty === "abholen") return sLine(t.dir === "dep" ? "Bringen" : "Abholen", { zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus", auto: "🚗 Sonst" }[t.mode] || "", "pdir") + sLine("Wen", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann") + sLine(t.dir === "dep" ? "Abfahrt" : "Ankunft", tm, "zeit") + sLine("Wo", t.place || "–", "pwo") + (t.mode === "auto" ? "" : sLine(t.mode === "flug" ? "Flug-Nr." : "Zug/Bus", t.no || "–", "pno"));
-  if (ty === "deadline") return sLine("Worum", t.fk ? FK[t.fk].t : t.title, "fk") + sLine("Bis wann", t.date && fmtY(t.date), "fdat") + sLine("Erinnern", t.lead ? `${t.lead} Tage vorher` : "am Tag", "flead") + (["ausweis", "pass", "garantie", "rueckgabe"].includes(t.fk) ? "" : sLine("Läuft weiter", t.renew ? (t.renew === 1 ? "jährlich" : `alle ${t.renew} Jahre`) : "nein, einmalig", "frenew"));
+  if (ty === "abholen") return sLine(t.dir === "dep" ? "Bringen" : "Abholen", { zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus", auto: "🚗 Schule/Adresse" }[t.mode] || "", "pdir") + sLine("Wen", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann") + sLine(t.mode === "auto" ? "Uhrzeit" : t.dir === "dep" ? "Abfahrt" : "Ankunft", tm, "zeit") + sLine("Wo", t.place || "–", "pwo") + (t.mode === "auto" ? "" : sLine(t.mode === "flug" ? "Flug-Nr." : "Zug/Bus", t.no || "–", "pno"));
+  if (ty === "deadline") return sLine("Worum", t.fk ? FK[t.fk].t : t.title, "fk") + sLine("Bis wann", t.date && fmtY(t.date), "fdat") + sLine("Erinnern", ({ 0: "am Tag selbst", 7: "1 Woche vorher", 14: "2 Wochen vorher", 30: "1 Monat vorher", 90: "3 Monate vorher", 180: "6 Monate vorher" })[t.lead] || `${t.lead} Tage vorher`, "flead") + (["ausweis", "pass", "garantie", "rueckgabe"].includes(t.fk) ? "" : sLine("Läuft weiter", t.renew ? (t.renew === 1 ? "jährlich" : `alle ${t.renew} Jahre`) : "nein, einmalig", "frenew"));
   if (ty === "dienst") return sLine("Dienst", t.title, "was") + sLine("Tage", (t.days || []).map(d => fmt(parseIso(d))).join(", "), "tage") + sLine("Uhrzeit", tm, "zeit");
   if (ty === "contact") return sLine("Mit wem", t.title, "was") + sLine("Melden", t.every === 13 ? "alle 3 Monate" : `alle ${t.every} Wochen`, "oft");
-  return sLine("Was", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann") + sLine("Uhrzeit", tm, "zeit"); }
+  return sLine("Was", t.title, "was") + sLine("Wann", t.date2 && +t.date2 !== +t.date ? range : t.date && fmtY(t.date), "wann") + sLine("Uhrzeit", tm, "zeit"); }
 function renderTap() {
   const t = TAP, ty = t.ty, sum = [ty === "abholen" ? tapEvent().title : t.title, ty === "birthday" || ty === "anniversary" ? tapMD() : t.date ? fmt(t.date) + (t.date2 && +t.date2 !== +t.date ? "–" + fmt(t.date2) : "") : "", tapTime()].filter(Boolean).join(" · ");
   const chip = (attr, val, label, on) => `<button type="button" class="tp-c${on ? " on" : ""}" ${attr}="${esc(String(val))}">${label}</button>`;
@@ -3704,9 +3707,10 @@ function renderTap() {
     const hw = s === "wann" && t.title ? habFor(t.ty, t.title)?.wd : null;
     if (hw != null) { const i = opts.findIndex(([d]) => d.getDay() === hw); if (i > 0) { const [o] = opts.splice(i, 1); opts.unshift([o[0], o[1] + '<small class="tp-sug">wie meist</small>']); } else if (i === 0) opts[0][1] += '<small class="tp-sug">wie meist</small>'; }
     body = `<h3 class="tp-q">${s === "fdat" ? "Bis wann?" : "Wann?"}</h3><div class="tp-g${s === "fdat" ? " tp-wide" : ""}">${opts.map(([d, l]) => chip("data-tpd", iso(d), l + (s === "fdat" ? `<small class="tp-sug">${fmt(d)}</small>` : ""), t.date && sameDay(t.date, d))).join("")}</div>
+    ${s === "wann" && ty === "termin" ? `<div class="tp-g">${chip("data-tpmulti", "1", "📅 Mehrere Tage", !!t.date2)}</div>` : ""}
     <label class="tp-other">📅 Anderes Datum <input type="date" id="tp-date" value="${t.date ? iso(t.date) : ""}" min="${iso(START)}" max="${iso(END)}"></label>`; }
-  else if (s === "zeit") body = `<h3 class="tp-q">${ty === "abholen" ? (t.dir === "dep" ? "Wann fährt es ab?" : "Wann kommt es an?") : ty === "trip" ? "Abfahrt um wie viel Uhr?" : ty === "dienst" ? "Dienstbeginn?" : "Um wie viel Uhr?"}</h3><div class="tp-g tp-h">${Array.from({ length: ty === "dienst" ? 24 : 17 }, (_, i) => ty === "dienst" ? i : i + 6).map(h => chip("data-tph", h, `${h}`, t.hour === h)).join("")}</div>
-    ${ty === "abholen" || ty === "dienst" ? "" : `<div class="tp-g">${chip("data-tph", "x", "Ohne Uhrzeit", t.allday)}</div>`}`;
+  else if (s === "zeit") body = `<h3 class="tp-q">${ty === "abholen" ? (t.mode === "auto" ? (t.dir === "dep" ? `Wann bringst du ${esc(t.title || "")}?` : `Wann holst du ${esc(t.title || "")} ab?`) : t.dir === "dep" ? (t.mode === "flug" ? "Wann geht der Flug?" : "Wann fährt es ab?") : (t.mode === "flug" ? "Wann landet der Flug?" : "Wann kommt es an?")) : ty === "trip" ? (t.tmode === "flug" ? "Abflug um wie viel Uhr?" : "Abfahrt um wie viel Uhr?") : ty === "dienst" ? "Dienstbeginn?" : "Um wie viel Uhr?"}</h3><div class="tp-g tp-h">${Array.from({ length: ty === "dienst" ? 24 : 18 }, (_, i) => ty === "dienst" ? i : i + 6).map(h => chip("data-tph", h, `${h}`, t.hour === h)).join("")}</div>
+    ${ty === "abholen" ? "" : `<div class="tp-g">${chip("data-tph", "x", ty === "dienst" ? "Ohne Uhrzeit (z. B. Homeoffice)" : "Ohne Uhrzeit", t.allday)}</div>`}`;
   else if (s === "min") body = `<h3 class="tp-q">${t.hour} Uhr und …?</h3><div class="tp-g tp-m">${[0, 15, 30, 45].map(m => chip("data-tpm", m, `${t.hour}:${p2(m)}`, t.min === m)).join("")}</div>
     <label class="tp-other">✎ Genaue Zeit <input type="time" id="tp-time" value="${p2(t.hour)}:${p2(t.min || 0)}"></label>`;
   else if (s === "ende") body = `<h3 class="tp-q">Dienstende?</h3><div class="tp-g tp-h">${Array.from({ length: 24 }, (_, i) => i).map(h => chip("data-tpdur", `${p2(h)}:00`, `${h}`, t.dur === `${p2(h)}:00`)).join("")}</div>
@@ -3717,7 +3721,7 @@ function renderTap() {
     <div class="tp-g">${chip("data-tphn", "x", "Ohne Hausnummer", false)}</div>`;
   else if (s === "zeitraum") body = `<h3 class="tp-q">${!t.date ? "Erster Tag?" : !t.date2 ? "Und der letzte Tag?" : "Passt der Zeitraum?"}</h3>${tapCal(false)}
     <p class="note">${t.date && !t.date2 ? `Ab ${fmt(t.date)} – jetzt den letzten Tag antippen (nur ein Tag: denselben noch einmal).` : t.date2 ? `${fmt(t.date)} – ${fmt(t.date2)}` : "Erst den ersten, dann den letzten Tag antippen."}</p>
-    ${t.date && t.date2 ? `<div class="btnrow"><button type="button" class="btn accent" id="tp-cal-go">Weiter</button></div>` : ""}`;
+    ${t.date && t.date2 ? `<div class="btnrow"><button type="button" class="btn accent" id="tp-cal-go">Weiter</button></div>` : t.date ? `<div class="tp-g">${chip("data-tponeday", "1", `Nur ${fmt(t.date)}`, false)}</div>` : ""}`;
   else if (s === "tage") body = `<h3 class="tp-q">An welchen Tagen?</h3>${tapCal(true)}<p class="note">Alle Tage antippen, an denen du ${esc(t.title || "Dienst")} hast.</p>
     ${t.days?.length ? `<div class="btnrow"><button type="button" class="btn accent" id="tp-cal-go">Weiter (${t.days.length} ${t.days.length === 1 ? "Tag" : "Tage"})</button></div>` : ""}`;
   else if (s === "monat") body = `<h3 class="tp-q">In welchem Monat?</h3><div class="tp-g tp-mo3">${MON.map((m, i) => chip("data-tpmo", i + 1, m.slice(0, 3), t.mo === i + 1)).join("")}</div>`;
@@ -3733,7 +3737,7 @@ function renderTap() {
   else if (s === "pno") body = `<h3 class="tp-q">${t.mode === "flug" ? "Flugnummer?" : "Zug- oder Busnummer?"}</h3>${own(t.mode === "flug" ? "z. B. LH 123" : "z. B. ICE 553, RE 1", t.no, "tp-no-go", "tp-no", "Fertig")}
     <div class="tp-g">${chip("data-tpno", "x", "Weiß ich nicht", false)}</div>${t.mode === "zug" ? `<p class="note">Mit Zugnummer meldet der Kalender Verspätung und Gleis.</p>` : ""}`;
   else if (s === "fk") body = `<h3 class="tp-q">Worum geht's?</h3><div class="tp-g tp-wide">${FK_CHIP.map(([k, l]) => chip("data-tpfk", k, `${FK[k].i} ${l}`, t.fk === k)).join("")}</div>${own("✎ Etwas anderes, z. B. Rechnung bezahlen", t.fk ? "" : t.title, "tp-fk-go", "tp-fk", "Weiter")}`;
-  else if (s === "flead") { const sug = FK[t.fk]?.lead; body = `<h3 class="tp-q">Wie früh erinnern?</h3><div class="tp-g tp-wide">${[[7, "1 Woche vorher"], [14, "2 Wochen vorher"], [30, "1 Monat vorher"], [90, "3 Monate vorher"], [0, "Am Tag selbst"]].map(([k, l]) => chip("data-tplead", k, l + (sug && Math.abs(sug - k) <= 3 ? '<small class="tp-sug">Vorschlag</small>' : ""), t.lead === k)).join("")}</div>`; }
+  else if (s === "flead") { const sug = FK[t.fk]?.lead; body = `<h3 class="tp-q">Wie früh erinnern?</h3><div class="tp-g tp-wide">${[[7, "1 Woche vorher"], [14, "2 Wochen vorher"], [30, "1 Monat vorher"], [90, "3 Monate vorher"], ...(["ausweis", "pass"].includes(t.fk) ? [[180, "6 Monate vorher"]] : []), [0, "Am Tag selbst"]].map(([k, l]) => chip("data-tplead", k, l + (sug && Math.abs(sug - k) <= 3 ? '<small class="tp-sug">Vorschlag</small>' : ""), t.lead === k)).join("")}</div>`; }
   else if (s === "frenew") { const sug = FK[t.fk]?.renew || 0; body = `<h3 class="tp-q">Kommt das wieder?</h3><div class="tp-g tp-wide">${[[0, "Nein, einmalig"], [1, "Jedes Jahr"], [2, "Alle 2 Jahre"], [3, "Alle 3 Jahre"], [5, "Alle 5 Jahre"]].map(([k, l]) => chip("data-tprenew", k, l + (sug && sug === k ? '<small class="tp-sug">Vorschlag</small>' : ""), t.renew === k)).join("")}</div><p class="note">Dann erinnert der Kalender beim nächsten Mal wieder.</p>`; }
   else if (s === "oft") body = `<h3 class="tp-q">Wie oft möchtest du dich melden?</h3><div class="tp-g tp-wide">${[[2, "Alle 2 Wochen"], [4, "Alle 4 Wochen"], [8, "Alle 8 Wochen"], [13, "Alle 3 Monate"]].map(([k, l]) => chip("data-tpoft", k, l, t.every === k)).join("")}</div>`;
   else if (s === "x-ort") { const P = tapPlaces(); body = `<h3 class="tp-q">${ty === "trip" || ty === "urlaub" ? "Unterkunft oder Ort?" : "Wo ist das?"}</h3>${P.length ? `<div class="tp-g tp-wide">${P.map(x => chip("data-tpplace", x, esc(x), x === t.place)).join("")}</div>` : ""}
@@ -3753,7 +3757,7 @@ function renderTap() {
     const xlbl = k => k === "ort" && (ty === "trip" || ty === "urlaub") ? "📍 Unterkunft" : k === "notiz" && ty === "birthday" ? "🎁 Geschenkidee" : `${TAP_X[k][0]} ${TAP_X[k][1]}`;
     const au = t.auto && Object.keys(t.auto).length ? `<p class="tp-auto">✨ Vorgeschlagen wie bei deinen bisherigen Einträgen „${esc(t.title)}“ – bitte kurz prüfen.</p>` : "";
     body = `<h3 class="tp-q">Passt das so?</h3>${au}<div class="tp-sum">${tapSummary()}
-      ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", (REPEAT[t.rep] || repLabel(t.rep)) + (t.until ? " · bis " + fmt(parseIso(t.until)) : " · ohne Ende")) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
+      ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", (REPEAT[t.rep] || repLabel(t.rep)) + (t.until ? " · bis " + fmtY(parseIso(t.until)) : " · ohne Ende")) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
     ${free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${xlbl(k)}</button>`).join("")}</div>` : ""}
     ${ty === "dienst" && (t.days || []).length > 1 ? "" : `<button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>`}
     <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`; }
@@ -3799,6 +3803,8 @@ document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") retu
     if (TAP.step === "tage") { const s = new Set(TAP.days || []); s.has(iso(d)) ? s.delete(iso(d)) : s.add(iso(d)); TAP.days = [...s].sort(); renderTap(); return; }
     if (!TAP.date || TAP.date2) { TAP.date = d; TAP.date2 = null; } else if (d < TAP.date) { TAP.date = d; } else TAP.date2 = d; renderTap(); return; }
   if ((el = q("#tp-cal-go"))) { tapGo(tapNext()); return; }
+  if ((el = q("[data-tpmulti]"))) { TAP.date2 = null; if (TAP.date && TAP.date < TODAY) TAP.date = null; TAP.cal = new Date((TAP.date || TODAY).getFullYear(), (TAP.date || TODAY).getMonth(), 1); tapGo("zeitraum"); return; }
+  if ((el = q("[data-tponeday]"))) { TAP.date2 = TAP.date; tapGo(tapNext()); return; }
   if ((el = q("[data-tpmo]"))) { TAP.mo = +el.dataset.tpmo; if (TAP.day > [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][TAP.mo - 1]) TAP.day = 0; tapGo("tag"); return; }
   if ((el = q("[data-tpday]"))) { TAP.day = +el.dataset.tpday; tapGo(tapNext()); return; }
   if ((el = q("[data-tpyr]"))) { TAP.yr = ""; tapGo(tapNext()); return; }
