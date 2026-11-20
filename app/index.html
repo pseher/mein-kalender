@@ -11,7 +11,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261120160659";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261120161108";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -781,7 +781,7 @@ td.mid { text-align: center; }
 .tp-auto { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 10px; padding: 8px 12px; margin: -4px 0 10px; font-size: 14px; }
 .tchips.f-tclosed { display: none; } .f-artchg { display: block; margin: 0 0 8px; padding: 6px 0; font-size: 14px; }
 label.tp-c { display: flex; align-items: center; justify-content: center; text-align: center; }
-.mt .tkc { position: absolute; bottom: 4px; right: 4px; z-index: 2; display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; line-height: 1; font-weight: 800; color: #fff; background: #e8710a; border-radius: 9px; padding: 2px 6px 2px 4px; box-shadow: 0 1px 2px rgba(0,0,0,.25); pointer-events: none; }
+.mt .tkc { position: absolute; bottom: 4px; right: 4px; z-index: 2; display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; line-height: 1; font-weight: 800; color: #fff; background: var(--tkc, #e8710a); border-radius: 9px; padding: 2px 6px 2px 4px; box-shadow: 0 1px 2px rgba(0,0,0,.25); pointer-events: none; }
 .mt .tkc.late { background: #d50000; } .mt.out .tkc { opacity: .6; }
 .mt .tkc::before { content: ""; width: 8px; height: 8px; border: 1.6px solid #fff; border-radius: 2px; }
 .tk-day { margin: 6px 0 10px; } .fr.tk-dn .fr-btn { text-decoration: line-through; color: var(--muted); }
@@ -1809,7 +1809,7 @@ const whoId = w => { if (!w) return ""; const c = whoCols()[whoKey(w)]; if (c &&
 const ownHex = ev => ev.color && ECOLM[ev.color] ? ECOLM[ev.color] : ev.who ? ECOLM[whoId(ev.who)] : "";
 // Farben nach Art (Label) – voreingestellt, unter ☰ → Anzeigen → Farben änderbar; gilt auch für erkannte Google-Termine
 const CATS = Object.entries(TYPES).filter(([k]) => k !== "google").map(([k, t]) => [k, t.label, `var(${t.color})`]);   // exakt die Arten aus dem Formular
-const CATD = Object.fromEntries(CATS.map(([k, , c]) => [k, c]));
+const CATD = { ...Object.fromEntries(CATS.map(([k, , c]) => [k, c])), aufgabe: "#e8710a" };   // Aufgaben: eigene Farbe, auch einstellbar
 let CATC = null; const catCols = () => (CATC ??= (() => { try { return JSON.parse(store.get("ft-catc") || "{}"); } catch { return {}; } })());
 const catColor = k => ECOLM[catCols()[k]] || CATD[k] || "var(--c-termin)";
 let catOpen = "";
@@ -1874,6 +1874,7 @@ function weekBars(wdays, two) {
   }).join("");
 }
 function renderBigMonth() {
+  document.documentElement.style.setProperty("--tkc", catColor("aufgabe"));
   const two = view === "two", fill = compact() && document.documentElement.classList.contains("fill");
   let days, lead = 0, y, m;
   if (two) days = Array.from({ length: 14 }, (_, i) => addDays(twoStart, i));
@@ -2797,7 +2798,7 @@ function showSettings(sub) {
   } else if (setSub === "farben") {
     const C = catCols();
     html = `${back}<div class="sg-t">Farben nach Art</div><p class="sg-n" style="margin-top:0">Gilt für alle Einträge dieser Art. Einzelne Einträge kannst du im Formular trotzdem anders einfärben. „A“ = Standardfarbe.</p>
-      ${CATS.map(([k, n]) => `<div class="catrow"><button type="button" class="catn" data-catopen="${k}" aria-expanded="${catOpen === k}"><i class="catsw" style="background:${catColor(k)}"></i><span>${n}</span><em>${C[k] ? ECOL.find(x => x[0] === C[k])?.[1] || "" : "Standard"}</em><b aria-hidden="true">${catOpen === k ? "▴" : "▾"}</b></button>${catOpen !== k ? "" : `<div class="fcols sm">${[["", "Standard", ""], ...ECOL].map(([id, nm, hex]) => `<button type="button" class="fcol" data-catc="${k}|${id}" title="${nm}" aria-label="${n}: ${nm}" aria-checked="${(C[k] || "") === id}" style="${hex ? `background:${hex}` : `background:${CATD[k]};color:#fff`}">${hex ? "" : "A"}</button>`).join("")}</div>`}</div>`).join("")}
+      ${[...CATS, ["aufgabe", "Aufgaben ☐"]].map(([k, n]) => `<div class="catrow"><button type="button" class="catn" data-catopen="${k}" aria-expanded="${catOpen === k}"><i class="catsw" style="background:${catColor(k)}"></i><span>${n}</span><em>${C[k] ? ECOL.find(x => x[0] === C[k])?.[1] || "" : "Standard"}</em><b aria-hidden="true">${catOpen === k ? "▴" : "▾"}</b></button>${catOpen !== k ? "" : `<div class="fcols sm">${[["", "Standard", ""], ...ECOL].map(([id, nm, hex]) => `<button type="button" class="fcol" data-catc="${k}|${id}" title="${nm}" aria-label="${n}: ${nm}" aria-checked="${(C[k] || "") === id}" style="${hex ? `background:${hex}` : `background:${CATD[k]};color:#fff`}">${hex ? "" : "A"}</button>`).join("")}</div>`}</div>`).join("")}
       <div class="sg" style="margin-top:12px"><label class="sr2"><i class="dotc" style="--c:var(--gcal)"></i><span>Google-Termine nach Art einfärben <small>Reisen, Urlaub, Geburtstage, Dienste … werden erkannt; sonst Farbe des Google-Kalenders</small></span><input type="checkbox" class="swi" id="set-gcat"${gCatOn() ? " checked" : ""}></label></div>`;
   } else if (setSub === "test") {
     html = `${back}<div class="sg-t">Einrichtung ausprobieren</div>

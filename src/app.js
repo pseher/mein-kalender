@@ -332,7 +332,7 @@ const whoId = w => { if (!w) return ""; const c = whoCols()[whoKey(w)]; if (c &&
 const ownHex = ev => ev.color && ECOLM[ev.color] ? ECOLM[ev.color] : ev.who ? ECOLM[whoId(ev.who)] : "";
 // Farben nach Art (Label) – voreingestellt, unter ☰ → Anzeigen → Farben änderbar; gilt auch für erkannte Google-Termine
 const CATS = Object.entries(TYPES).filter(([k]) => k !== "google").map(([k, t]) => [k, t.label, `var(${t.color})`]);   // exakt die Arten aus dem Formular
-const CATD = Object.fromEntries(CATS.map(([k, , c]) => [k, c]));
+const CATD = { ...Object.fromEntries(CATS.map(([k, , c]) => [k, c])), aufgabe: "#e8710a" };   // Aufgaben: eigene Farbe, auch einstellbar
 let CATC = null; const catCols = () => (CATC ??= (() => { try { return JSON.parse(store.get("ft-catc") || "{}"); } catch { return {}; } })());
 const catColor = k => ECOLM[catCols()[k]] || CATD[k] || "var(--c-termin)";
 let catOpen = "";
@@ -397,6 +397,7 @@ function weekBars(wdays, two) {
   }).join("");
 }
 function renderBigMonth() {
+  document.documentElement.style.setProperty("--tkc", catColor("aufgabe"));
   const two = view === "two", fill = compact() && document.documentElement.classList.contains("fill");
   let days, lead = 0, y, m;
   if (two) days = Array.from({ length: 14 }, (_, i) => addDays(twoStart, i));
@@ -1320,7 +1321,7 @@ function showSettings(sub) {
   } else if (setSub === "farben") {
     const C = catCols();
     html = `${back}<div class="sg-t">Farben nach Art</div><p class="sg-n" style="margin-top:0">Gilt für alle Einträge dieser Art. Einzelne Einträge kannst du im Formular trotzdem anders einfärben. „A“ = Standardfarbe.</p>
-      ${CATS.map(([k, n]) => `<div class="catrow"><button type="button" class="catn" data-catopen="${k}" aria-expanded="${catOpen === k}"><i class="catsw" style="background:${catColor(k)}"></i><span>${n}</span><em>${C[k] ? ECOL.find(x => x[0] === C[k])?.[1] || "" : "Standard"}</em><b aria-hidden="true">${catOpen === k ? "▴" : "▾"}</b></button>${catOpen !== k ? "" : `<div class="fcols sm">${[["", "Standard", ""], ...ECOL].map(([id, nm, hex]) => `<button type="button" class="fcol" data-catc="${k}|${id}" title="${nm}" aria-label="${n}: ${nm}" aria-checked="${(C[k] || "") === id}" style="${hex ? `background:${hex}` : `background:${CATD[k]};color:#fff`}">${hex ? "" : "A"}</button>`).join("")}</div>`}</div>`).join("")}
+      ${[...CATS, ["aufgabe", "Aufgaben ☐"]].map(([k, n]) => `<div class="catrow"><button type="button" class="catn" data-catopen="${k}" aria-expanded="${catOpen === k}"><i class="catsw" style="background:${catColor(k)}"></i><span>${n}</span><em>${C[k] ? ECOL.find(x => x[0] === C[k])?.[1] || "" : "Standard"}</em><b aria-hidden="true">${catOpen === k ? "▴" : "▾"}</b></button>${catOpen !== k ? "" : `<div class="fcols sm">${[["", "Standard", ""], ...ECOL].map(([id, nm, hex]) => `<button type="button" class="fcol" data-catc="${k}|${id}" title="${nm}" aria-label="${n}: ${nm}" aria-checked="${(C[k] || "") === id}" style="${hex ? `background:${hex}` : `background:${CATD[k]};color:#fff`}">${hex ? "" : "A"}</button>`).join("")}</div>`}</div>`).join("")}
       <div class="sg" style="margin-top:12px"><label class="sr2"><i class="dotc" style="--c:var(--gcal)"></i><span>Google-Termine nach Art einfärben <small>Reisen, Urlaub, Geburtstage, Dienste … werden erkannt; sonst Farbe des Google-Kalenders</small></span><input type="checkbox" class="swi" id="set-gcat"${gCatOn() ? " checked" : ""}></label></div>`;
   } else if (setSub === "test") {
     html = `${back}<div class="sg-t">Einrichtung ausprobieren</div>
