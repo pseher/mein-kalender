@@ -8,7 +8,7 @@
 <title>PlanFlink – dein Alltagsassistent für Familien und Paare</title>
 <script>
   // Wer den Kalender schon einmal geöffnet hat (oder vom Startbildschirm kommt), landet direkt im Kalender.
-  var CAL = /onrender\.com$/.test(location.hostname) ? "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" : "/app/";   // neue Domain: eigene App
+  var CAL = /onrender\.com$/.test(location.hostname) ? "/app/" : "/app/";   // neue Domain: eigene App
   (function () { var q = new URLSearchParams(location.search), seen = false;
     try { seen = localStorage.getItem("mk-consent") === "yes" && localStorage.getItem("mk-open") === "1"; } catch (e) {}
     window.MK_INSTALL = q.has("install");
@@ -36,9 +36,9 @@
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://planflink.de/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="/favicon.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<meta name="apple-mobile-web-app-title" content="Kalender">
+<meta name="apple-mobile-web-app-title" content="PlanFlink">
 <link rel="stylesheet" href="/site.css">
 <style>
   :root { --ink: #10161a; --text: #1f2a30; --soft: #4d5a61; --line: #dfe7e6; --bg: #ffffff; --card: #fff; --acc: #0f6e73; --acc-2: #e4f2f0; --acc-3: #c9e6e2; --warm: #b4610f; --warm-2: #fcefdc; --sh: 0 18px 50px rgba(15,60,62,.10), 0 2px 8px rgba(15,60,62,.06); }
@@ -183,14 +183,24 @@
   @font-face { font-family: Roboto; font-weight: 400; font-display: swap; src: url(/fonts/roboto-latin-400-normal.woff2) format("woff2"); }
   @font-face { font-family: Roboto; font-weight: 500; font-display: swap; src: url(/fonts/roboto-latin-500-normal.woff2) format("woff2"); }
   @font-face { font-family: Roboto; font-weight: 700; font-display: swap; src: url(/fonts/roboto-latin-700-normal.woff2) format("woff2"); }
-  :root { --ink: #111; --text: #1b1b1b; --soft: #3a3d40; --line: #dadce0; --bg: #fff; --card: #fff; --gray: #f1f3f4; --acc: #0b7a5f; --acc-2: #e8f3ee; --warm-2: #fbf1e4; --sh: none; --lift: 0 1px 2px rgba(60,64,67,.10), 0 10px 28px rgba(60,64,67,.10); }
-  body { font-family: Roboto, system-ui, sans-serif; background: #fff; color: var(--ink); -webkit-font-smoothing: auto; }
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url(/app/vendor/fonts/ibm-plex-sans-latin-400-normal.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 500; font-display: swap; src: url(/app/vendor/fonts/ibm-plex-sans-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url(/app/vendor/fonts/ibm-plex-sans-latin-600-normal.woff2) format("woff2"); }
+  @font-face { font-family: Fraunces; font-weight: 600; font-display: swap; src: url(/app/vendor/fonts/fraunces-latin-600-normal.woff2) format("woff2"); }
+  :root { --ink: #10161a; --text: #1f2a30; --soft: #4d5a61; --line: #dfe7e6; --bg: #fff; --card: #fff; --gray: #f1f4f4; --acc: #0f6e73; --acc-2: #e4f2f0; --warm-2: #fbf1e4; --sh: none; --lift: 0 1px 2px rgba(60,64,67,.10), 0 10px 28px rgba(60,64,67,.10); }
+  body { font-family: "IBM Plex Sans", system-ui, sans-serif; background: #fff; color: var(--ink); -webkit-font-smoothing: auto; }
   h1, h2, h3, .h2 { font-weight: 400; letter-spacing: 0; }
-  .hero h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.12; font-weight: 500; } .hero h1 em { color: var(--acc); }
+  h1, h2, .h2, .sk h2, .cta h2, .claim h2 { font-family: Fraunces, Georgia, serif; font-weight: 600; letter-spacing: -.3px; }
+  .hero h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.1; } .hero h1 em { color: var(--acc); font-style: normal; }
+  .claimline { margin: 10px 0 16px; font-size: 17px; color: var(--acc); font-weight: 500; }
+  .kick .kb { color: var(--acc); font-weight: 600; }
+  .brand { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 22px; letter-spacing: -.2px; } .brand span, .foot-brand b span { color: var(--acc); }
+  .foot-brand { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; color: var(--soft); } .foot-brand img { width: 22px; height: 22px; border-radius: 5px; } .foot-brand b { font-family: Fraunces, Georgia, serif; font-weight: 600; color: var(--ink); font-size: 16px; } .foot-brand a { color: var(--acc); }
+  .cta-logo { width: 56px; height: 56px; border-radius: 13px; display: block; margin: 0 auto 10px; }
   .h2, .sk h2, .cta h2 { font-size: clamp(26px, 3.6vw, 36px); line-height: 1.2; }
   h3, .s3 h3, .step strong, .tile b, .list li b { font-weight: 500; }
   .lead, .sub, .sk p { color: var(--text); }
-  .btn { border-radius: 8px; box-shadow: none; background: var(--acc); font-weight: 500; padding: 12px 24px; font-size: 15.5px; } .btn:hover { transform: none; box-shadow: none; background: #08664f; }
+  .btn { border-radius: 8px; box-shadow: none; background: var(--acc); font-weight: 500; padding: 12px 24px; font-size: 15.5px; } .btn:hover { transform: none; box-shadow: none; background: #0b4f53; }
   .btn.ghost { background: #fff; color: var(--acc); border: 1px solid var(--line); } .btn.ghost:hover { background: var(--acc-2); }
   .nav { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 1px solid var(--line); }
   .nav .wrap { font-weight: 500; font-size: 20px; color: var(--ink); } .nav img { border-radius: 8px; }
@@ -214,7 +224,7 @@
   .sk .pv .phone { box-shadow: 0 16px 40px rgba(60,64,67,.18); }
   .sk .tx { text-align: center; } .sk .tx p { margin-left: auto; margin-right: auto; } .sk .chips { justify-content: center; }
   @media (min-width: 900px) { .sk .tx { padding: 48px 40px 48px 56px; } }
-  .claim { background: #202124; color: #fff; border-radius: 28px; } .claim h2 { font-weight: 400; } .claim h2 span { color: #7fd3b6; } .claim p { color: #c4c7c5; }
+  .claim { background: #202124; color: #fff; border-radius: 28px; } .claim h2 { font-weight: 400; } .claim h2 span { color: #5fc3c8; } .claim p { color: #c4c7c5; }
   .tile { background: var(--acc-2); border: 0; border-radius: 16px; box-shadow: var(--lift); } .tile:nth-child(even) { background: var(--warm-2); }
   .tile .ic { display: none; } .tile > span:last-child { display: block; color: var(--text); }
   .step b { background: var(--acc-2); color: var(--acc); font-weight: 500; }
@@ -233,15 +243,16 @@
 <script>if (/[?&]geloescht=1/.test(location.search)) document.addEventListener("DOMContentLoaded", function () { var d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "background:#0f6e73;color:#fff;padding:12px 16px;text-align:center;font-weight:600"; d.textContent = "Dein Konto und alle Daten wurden gelöscht. Danke, dass du PlanFlink ausprobiert hast."; document.body.prepend(d); try { history.replaceState(null, "", "/?info"); } catch (e) {} });</script>
 <div id="backhint" hidden style="position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:60;max-width:520px;margin:0 auto;background:#111317;color:#fff;border-radius:16px;padding:14px 16px;font-size:15px;line-height:1.5;box-shadow:0 12px 30px rgba(0,0,0,.25)">Tippe oben links auf <b>✕</b> bzw. „Zurück“ – dann bist du wieder in deinem Kalender.</div>
 
-<nav class="nav" id="nav"><div class="wrap"><img src="icon-192.png" alt=""> PlanFlink<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div></nav>
+<nav class="nav" id="nav"><div class="wrap"><img src="favicon.svg" alt=""> <span class="brand">Plan<span>Flink</span></span><a class="nb" href="/app/" onclick="return openCal()">Öffnen</a></div></nav>
 
 <header class="hero">
   <div class="wrap">
     <div>
-      <span class="kick">Für Familien &amp; Paare · kostenlos</span>
-      <h1>„Du sagst, was ansteht.<br><em>Den Rest erledigt dein Kalender.“</em></h1>
+      <span class="kick"><b class="kb">PlanFlink</b> · für Familien &amp; Paare · kostenlos</span>
+      <h1>„Du sagst, was ansteht.<br><em>Den Rest erledigt PlanFlink.“</em></h1>
+      <p class="claimline">Der Kalender, der an das denkt, was du vergisst.</p>
       <p class="lead">Nicht noch ein Kalender, sondern dein Alltagsassistent: Termine landen von selbst im Kalender, Erinnerungen kommen rechtzeitig, und PlanFlink behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage für euch im Blick.</p>
-      <div class="ctas"><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a><a class="btn ghost" href="#so">So funktioniert’s</a></div>
+      <div class="ctas"><a class="btn" href="/app/" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a><a class="btn ghost" href="#so">So funktioniert’s</a></div>
       <p class="free">Läuft im Browser und als App auf dem Handy – mit oder ohne Google Kalender.</p>
     </div>
     <div class="phone" aria-label="Beispiel: Aus einer Nachricht wird eine Reise mit allem Drumherum">
@@ -313,7 +324,7 @@
 
 <section>
   <div class="wrap">
-    <div class="claim rv"><h2>Nicht noch ein Kalender.<br><span>Ein Assistent, der mitdenkt.</span></h2>
+    <div class="claim rv"><h2>Nicht noch ein Kalender.<br><span>PlanFlink denkt mit.</span></h2>
       <p>Die meisten Kalender merken sich, was du einträgst. Dieser kümmert sich auch um das, was du sonst im Kopf behalten müsstest – damit mehr Zeit füreinander bleibt.</p></div>
   </div>
 </section>
@@ -346,17 +357,15 @@
   </div>
 </section>
 
-<div class="cta"><h2>Probier’s aus.</h2><p>Schreib einfach deinen ersten Termin – den Rest erledigt dein Kalender.</p><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a></div>
+<div class="cta"><img class="cta-logo" src="favicon.svg" alt=""><h2>PlanFlink ausprobieren.</h2><p>Schreib einfach deinen ersten Termin – den Rest erledigt PlanFlink.</p><a class="btn" href="/app/" onclick="return openCal()">PlanFlink kostenlos starten <span aria-hidden="true">→</span></a></div>
 <footer>Hinweise zu Visum, Einreise, Maut und Vignette sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen. Live-Daten: Deutsche Bahn und AirLabs, ohne Gewähr.<br>
   PlanFlink ist ein privates Projekt und nutzt Claude von Anthropic für KI-Funktionen.
+  <div class="foot-brand"><img src="favicon.svg" alt=""> <b>Plan<span>Flink</span></b> · Der Kalender, der an das denkt, was du vergisst. · <a href="mailto:kontakt@planflink.de">kontakt@planflink.de</a></div>
   <div class="foot-links"><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="/ki-hinweise.html">KI-Hinweise</a><a href="#" onclick="document.getElementById('consent').hidden=false;return false">Speicher-Einstellungen</a></div></footer>
 <div class="consent" id="consent" hidden role="dialog" aria-label="Speicher-Einstellungen">
   <b>Nächstes Mal direkt zum Kalender?</b> Dein Browser merkt sich nur, dass du ihn schon geöffnet hast – keine Cookies, kein Tracking. <a href="/datenschutz.html">Mehr dazu</a>
   <div class="row"><button class="ok" onclick="consent('yes')">Ja, direkt öffnen</button><button onclick="consent('no')">Nein, nur jetzt</button></div></div>
 <script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
-<script>if (!/onrender\.com$/.test(location.hostname)) document.querySelectorAll('a[href^="https://claude.ai/artifact/"]').forEach(function (a) { a.href = "/app/"; });</script>
-<script>if (BACK) document.querySelectorAll('a[onclick="return openCal()"]').forEach(function (a) { a.innerHTML = a.classList.contains("nb") ? "Zurück" : "← Zurück zum Kalender"; });</script>
-<script>if (!/onrender\.com$/.test(location.hostname)) document.querySelectorAll('a[href^="https://claude.ai/artifact/"]').forEach(function (a) { a.href = "/app/"; });</script>
 <script>
 (function () {
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;

@@ -775,7 +775,7 @@ function showFamShare() {
   const cals = gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary), G = famGroups();
   const people = [...new Set(FAM().map(p => p.name.trim()).filter(Boolean))];
   const free = cals.filter(c => !G.some(g => g.cal === c.id));
-  const card = (g, i) => { const nm = calName(g.cal), inv = `Hallo! Ich nutze „PlanFlink“ – da sehen wir unsere gemeinsamen Termine. Ich habe dir in Google den Kalender „${nm}“ freigegeben. Öffne diesen Link, melde dich an und wähle „${nm}“ als gemeinsamen Kalender: ${appUrl()}`;
+  const card = (g, i) => { const nm = calName(g.cal), inv = `Hallo! Ich nutze PlanFlink – da sehen wir unsere gemeinsamen Termine. Ich habe dir in Google den Kalender „${nm}“ freigegeben. Öffne diesen Link, melde dich an und wähle „${nm}“ als gemeinsamen Kalender: ${appUrl()}`;
     return `<div class="sg-t">👪 ${esc(nm)}${g.std ? " · Standard" : ""}</div><div class="sg grp">
       <div class="sr2"><i class="dotc" style="--c:${gColor(g.cal)[0]}"></i><span>Google-Kalender</span><select class="fin" data-grpcal="${i}">${cals.map(c => `<option value="${esc(c.id)}"${c.id === g.cal ? " selected" : ""}${c.id !== g.cal && G.some(x => x.cal === c.id) ? " disabled" : ""}>${esc(c.summary)}</option>`).join("")}</select></div>
       <div class="grp-m"><span class="grp-l">Wer gehört dazu?</span><div class="xchips">${people.length ? people.map(n => { const on = g.members.some(m => famKey(m) === famKey(n)); return `<label class="xchip" style="--c:var(--both)"><input type="checkbox" data-grpm="${i}|${esc(n)}"${on ? " checked" : ""}><i></i>${esc(n)}</label>`; }).join("") : `<span class="sg-n">Erst unter Familie &amp; Liebste Personen eintragen.</span>`}</div></div>
@@ -916,7 +916,7 @@ async function tkDel(id) { const t = TASKS.find(x => x.id === id); try { await C
   closeSheet(); toast("Aufgabe gelöscht", t ? async () => { try { await COLL("tasks").doc(id).set({ ...t, id: undefined }); } catch {} } : null); }
 async function tkSet(id, v) { try { await COLL("tasks").doc(id).update(v); } catch (err) { toast(writeErr(err)); } }
 
-// =================== Teilen mit Personen (innerhalb von „PlanFlink“, Ende-zu-Ende verschlüsselt) ===================
+// =================== Teilen mit Personen (innerhalb von PlanFlink, Ende-zu-Ende verschlüsselt) ===================
 // Ablage: out/<uid> (öffentlich: nur Verbindungs-IDs), out/<uid>/x/<L> (verschlüsselter Name), out/<uid>/ev/<sid>_<L> (verschlüsselter Termin).
 // Nur der Inhaber schreibt in sein „out“; lesen kann nur, wer den Einladungscode kennt.
 let shrLoaded = false; const shrDelSeen = new Set();
@@ -1058,7 +1058,7 @@ function shrChips(attr, sel) {
     ${SHR.groups.filter(g => g.members.length).map(g => `<label class="xchip" style="--c:var(--trip)"><input type="checkbox" ${attr}="g:${esc(g.id)}"${g.members.every(L => S.has(L)) ? " checked" : ""}><i></i>👥 ${esc(g.name)}</label>`).join("")}</div>`; }
 function chipSel(attr, root = document) { const out = new Set(); root.querySelectorAll(`[${attr}]:checked`).forEach(i => { const v = i.getAttribute(attr); if (v.startsWith("g:")) (SHR.groups.find(g => g.id === v.slice(2))?.members || []).forEach(L => out.add(L)); else out.add(v); }); return [...out]; }
 // ---- Verwaltung: Personen & Gruppen ----
-const INVITE_URL = APP ? location.origin : "https://mein-kalender.onrender.com"; // Einladungsseite mit eigenem Vorschaubild (eigene App: gleiche Domain)
+const INVITE_URL = APP ? location.origin : "https://planflink.de"; // Einladungsseite mit eigenem Vorschaubild (eigene App: gleiche Domain)
 // Eigene App: Einladungscode aus dem Link merken (überlebt die Google-Anmeldung) und nach der Einrichtung automatisch annehmen
 const INVITE_KEY = "mk-invite";
 if (APP) { const h = new URLSearchParams(location.hash.slice(1)); const c = (h.get("invite") || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
@@ -1181,8 +1181,8 @@ async function showAdmin(reload) {
 }
 function showShareMgr() {
   const C = SHR.contacts, me = myName();
-  const inv = c => `Hallo ${c.name.split(/\s+/)[0]},\n\nich möchte Termine mit dir in „PlanFlink“ teilen – dann sehen wir beide, was ansteht.\n\nTipp einfach auf diesen Link, dort kannst du den Code mit einem Tipp kopieren:\n${INVITE_URL}/einladung.html#c=${normCode(c.code)}&von=${encodeURIComponent(me)}\n\nDein Code: ${fmtCode(c.code)}\n\nLiebe Grüße\n${me}`;
-  openSheet("Teilen mit …", "Termine mit anderen teilen, die auch „PlanFlink“ nutzen. Verschlüsselt – nur ihr beide könnt sie lesen.", `<div class="setv">
+  const inv = c => `Hallo ${c.name.split(/\s+/)[0]},\n\nich möchte Termine mit dir in PlanFlink teilen – dann sehen wir beide, was ansteht.\n\nTipp einfach auf diesen Link, dort kannst du den Code mit einem Tipp kopieren:\n${INVITE_URL}/einladung.html#c=${normCode(c.code)}&von=${encodeURIComponent(me)}\n\nDein Code: ${fmtCode(c.code)}\n\nLiebe Grüße\n${me}`;
+  openSheet("Teilen mit …", "Termine mit anderen teilen, die auch PlanFlink nutzen. Verschlüsselt – nur ihr beide könnt sie lesen.", `<div class="setv">
     ${shrAcc?.from ? invBox() : ""}
     <div class="sg-t">Personen</div><div class="sg">
       ${C.length ? C.map(c => `<div class="shp"><div class="sr2"><i class="dotc" style="--c:${c.uid ? "var(--both)" : "var(--muted)"}"></i><span>${esc(c.name)}<small>${c.uid ? "verbunden" : "wartet auf Annahme"}</small></span>
@@ -2757,7 +2757,7 @@ async function showNotify(msg) {
   const times = ["18:00", "19:00", "20:00", "21:00", "22:00"].map(t => `<option${N.eveTime === t ? " selected" : ""}>${t}</option>`).join("");
   const leads = [[15, "15 Min."], [30, "30 Min."], [60, "1 Std."], [120, "2 Std."], [1440, "1 Tag"]].map(([v, l]) => `<option value="${v}"${+N.evLead === v ? " selected" : ""}>${l} vorher</option>`).join("");
   const status = !ntSupported() ? `<p class="note">Dieses Gerät oder dieser Browser kann keine Benachrichtigungen empfangen.</p>`
-    : ntIOSNeedsInstall() ? `<p class="note">Auf dem iPhone kommen Benachrichtigungen nur, wenn „PlanFlink“ auf dem Home-Bildschirm installiert ist: in Safari <b>Teilen → Zum Home-Bildschirm</b>, dann von dort öffnen.</p>`
+    : ntIOSNeedsInstall() ? `<p class="note">Auf dem iPhone kommen Benachrichtigungen nur, wenn PlanFlink auf dem Home-Bildschirm installiert ist: in Safari <b>Teilen → Zum Home-Bildschirm</b>, dann von dort öffnen.</p>`
     : Notification.permission === "denied" ? `<p class="note">Benachrichtigungen sind für diese Seite blockiert. Erlaube sie in den Browser- bzw. App-Einstellungen (Website-Einstellungen → Benachrichtigungen) und öffne dieses Fenster erneut.</p>`
     : on ? `<div class="nt-st on">🔔 Auf diesem Gerät eingeschaltet</div><div class="btnrow"><button type="button" class="btn ghost small" id="nt-test">Test senden</button><button type="button" class="btn ghost small" id="nt-off">Auf diesem Gerät aus</button></div>`
     : `<div class="nt-st">Auf diesem Gerät noch aus</div><button type="button" class="btn accent big" id="nt-on">🔔 Benachrichtigungen einschalten</button>`;
@@ -4662,7 +4662,7 @@ document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-
 async function gConnect() {
   const r = await window.mkConnectGoogle?.();
   if (r?.error) { const c = r.error.code || "";
-    toast(c === "identity_already_exists" ? "Dieses Google-Konto gehört schon zu einem anderen Mein-Kalender-Konto." : c === "manual_linking_disabled" ? "Google verbinden ist für E-Mail-Konten noch nicht freigeschaltet." : "Google-Verbindung hat nicht geklappt: " + (r.error.message || c)); }
+    toast(c === "identity_already_exists" ? "Dieses Google-Konto gehört schon zu einem anderen PlanFlink-Konto." : c === "manual_linking_disabled" ? "Google verbinden ist für E-Mail-Konten noch nicht freigeschaltet." : "Google-Verbindung hat nicht geklappt: " + (r.error.message || c)); }
 }
 
 const UA = navigator.userAgent || "", IS_IOS = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1), IS_ANDROID = /Android/i.test(UA);
@@ -4773,16 +4773,16 @@ function loginUrl() {
 function showGate() {
   WZ = { step: "gate" }; wzOpen();
   if (APP) { wzEl().innerHTML = `<div class="wz-card wz-center">
-    <div class="wz-logo" aria-hidden="true"><svg viewBox="0 0 48 48" width="56" height="56"><rect x="6" y="9" width="36" height="33" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M6 19h36M16 5v8M32 5v8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="31" r="3.5" fill="currentColor"/></svg></div>
-    <h1>PlanFlink</h1>
+    <div class="wz-logo" aria-hidden="true"><img src="/favicon.svg" width="76" height="76" alt="" style="display:block;border-radius:18px"></div>
+    <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
     <div class="au-wrap">${auBox()}</div>${window.mkAuthErr ? `<p class="err" role="alert">Die Anmeldung hat nicht geklappt: ${esc(window.mkAuthErr)}</p>` : ""}
     <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
-    <div class="wz-logo" aria-hidden="true"><svg viewBox="0 0 48 48" width="56" height="56"><rect x="6" y="9" width="36" height="33" rx="8" fill="none" stroke="currentColor" stroke-width="3"/><path d="M6 19h36M16 5v8M32 5v8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="30" r="4" fill="currentColor"/></svg></div>
-    <h1>PlanFlink</h1>
+    <div class="wz-logo" aria-hidden="true"><img src="/favicon.svg" width="76" height="76" alt="" style="display:block;border-radius:18px"></div>
+    <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Du brauchst ein kostenloses Claude-Konto.</b><span>Damit sind deine Termine privat gespeichert – nur du siehst sie. Die Anmeldung dauert eine Minute, mit E-Mail oder Google.</span></div>
     <a class="wz-big accent" href="${loginUrl()}" target="_blank" rel="noopener">Anmelden oder kostenlos registrieren</a>
@@ -5599,7 +5599,7 @@ renderAll();
   if (APP) { const m = $("open-a2hs"); if (m) m.hidden = IS_STANDALONE; }
   if (APP && /[?&]umzug=1/.test(location.search)) {   // vom alten pages.dev hierher umgeleitet
     try { history.replaceState(null, "", location.pathname + location.search.replace(/[?&]umzug=1/, "").replace(/^&/, "?") + location.hash); } catch {}
-    document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note" id="moved-new"><div><b>Neue Adresse: planflink.de</b><span>Deine Termine sind alle da. Bitte melde dich hier einmal neu an. Hattest du die App auf dem Startbildschirm? Dann das alte Symbol löschen und von hier neu hinzufügen. Benachrichtigungen bitte im Menü neu einschalten.</span></div><a href="#" onclick="this.parentNode.remove();return false">Verstanden</a></div>`); }
+    (document.querySelector("header.top") ? document.querySelector("header.top").insertAdjacentHTML.bind(document.querySelector("header.top"), "afterend") : document.body.insertAdjacentHTML.bind(document.body, "afterbegin"))(`<div class="moved" role="note" id="moved-new"><div><b>Neue Adresse: planflink.de</b><span>Deine Termine sind alle da. Bitte melde dich hier einmal neu an. Hattest du die App auf dem Startbildschirm? Dann das alte Symbol löschen und von hier neu hinzufügen. Benachrichtigungen bitte im Menü neu einschalten.</span></div><a href="#" onclick="this.parentNode.remove();return false">Verstanden</a></div>`); }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>PlanFlink ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforebegin", `<button type="button" class="mi" data-mi id="mi-account"><i class="dotc" style="--c:var(--muted)"></i>Konto<em class="mi-v">${esc((meName || "").split(/\s+/)[0])}</em></button>`); } }
@@ -5717,7 +5717,7 @@ const HELP = [
   ["Wie trage ich einen Termin alle 2 Wochen / alle 3 Jahre ein?", "Im Formular unter „Mehr Optionen“ bei „Wiederholung“ eine Auswahl treffen oder „anders …“ wählen – dann z. B. „alle 3 Jahre“. Darunter kannst du ein Ende festlegen."],
   ["Geht das Tablet auch quer?", "Ja – einfach drehen. Im Querformat siehst du den ganzen Monat breiter."],
 ];
-const HELP_GUIDE = `Du bist die Hilfe der App „PlanFlink“ (deutschsprachige Kalender-App, als App auf Handy/Tablet/PC). Antworte kurz (2–5 Sätze), freundlich, in einfachen Worten für ältere Menschen, mit konkreten Tipp-Schritten. Sprich die Person immer mit „du“ an (nie „Sie“). Erfinde keine Funktionen; wenn du etwas nicht sicher weißt, sag das.
+const HELP_GUIDE = `Du bist die Hilfe der App PlanFlink (deutschsprachige Kalender-App, als App auf Handy/Tablet/PC). Antworte kurz (2–5 Sätze), freundlich, in einfachen Worten für ältere Menschen, mit konkreten Tipp-Schritten. Sprich die Person immer mit „du“ an (nie „Sie“). Erfinde keine Funktionen; wenn du etwas nicht sicher weißt, sag das.
 Bedienung: Unten rechts „+ Eintragen“ öffnet die Eingabe mit zwei Reitern: „✍️ Freitext“ (einfach schreiben oder Mail/WhatsApp/Buchung einfügen, auch PDF/Foto anhängen; die KI trägt ein) und „📋 Formular“ (Art wählen: Termin, Reise, Urlaub, Dienst, Abholen, Hinweis, Geburtstag, Umgang, Jahrestag, Frist, Kontakt; Felder ausfüllen; „Mehr Optionen“ für Wiederholung, Farbe, Notiz, Google-Kalender, Teilen).
 Dokumente an einen VORHANDENEN Eintrag hängen (Ticket, Flugticket, Hotelbuchung): den Eintrag im Kalender antippen → unten im Feld „Dokumente“ „📎 Datei hinzufügen“ → Datei wählen → „✨ Auswerten“ → „Übernehmen“. Dann landen Zeiten, Zug-/Flugnummer, Aufgaben (z. B. Stornofrist) und Packliste in genau diesem Eintrag. NICHT über „+ Eintragen“ – das legt einen neuen Eintrag an.
 Einen Eintrag antippen zeigt Details mit Knöpfen: Bearbeiten, Verschieben, Mit … teilen, Als Bild/Text, Packliste (Reisen), Route, Löschen; darüber „🎨 Farbe“ für diesen Eintrag.

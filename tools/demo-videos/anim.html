@@ -39,14 +39,14 @@ const BOX={"hotel":{"dates":[50,548,981,97],"addr":[50,673,981,97],"storno":[50,
 const D = {
  hotel:{ img:"hotel.jpg", box:BOX.hotel, end:33.4,
   intro:["Hotel gebucht?","Screenshot rein – fertig."],
-  caps:[[2.8,"1 · Hochladen","Hotelbestätigung auswählen","Ein Screenshot genügt."],[8,"2 · Lesen","Mein Kalender liest mit","Du tippst kein Wort."],[11.6,"3 · Eintragen","Die Reise steht im Kalender","Datum, Check-in und Adresse."],[15.6,"4 · Mitdenken","Daran wird gedacht","Fristen, Zahlung, Packliste."]],
+  caps:[[2.8,"1 · Hochladen","Hotelbestätigung auswählen","Ein Screenshot genügt."],[8,"2 · Lesen","PlanFlink liest mit","Du tippst kein Wort."],[11.6,"3 · Eintragen","Die Reise steht im Kalender","Datum, Check-in und Adresse."],[15.6,"4 · Mitdenken","Daran wird gedacht","Fristen, Zahlung, Packliste."]],
   scanHL:["dates","addr","storno","price"],
   ev:{t:"Hotel Seeblick Warnemünde",l:["Fr 11.12. – So 13.12.","Check-in ab 15:00 · Check-out 11:00","📍 Seestraße 12, Rostock-Warnemünde"],at:12.4,snip:"dates"},
   items:[["storno","⏰","<b>Kostenlos stornieren</b> bis Mi 09.12., 18 Uhr","Erinnerung"],["pay","💶","<b>312 € im Hotel bezahlen</b> – am Fr 11.12.",""],["pool","🧳","<b>Packliste:</b> Ausweis, Badesachen (Pool & Sauna)",""],["addr","🧭","<b>Route zum Hotel</b> – mit einem Tipp",""]],
   itemsAt:16.2, step:3.2, outro:29.6 },
  zug:{ img:"ticket.jpg", box:BOX.ticket, end:34.6,
   intro:["Zugticket gebucht?","Hochladen – den Rest macht der Kalender."],
-  caps:[[2.8,"1 · Hochladen","Ticket an die Reise hängen","Screenshot oder PDF."],[7.6,"2 · Lesen","Mein Kalender liest mit","Du tippst kein Wort."],[11.2,"3 · Beobachten","Hin- und Rückfahrt im Blick","Beide Züge werden live verfolgt."],[18.6,"4 · Mitdenken","Daran wird gedacht","Zugbindung und Ausweis."],[25.6,"5 · Melden","Verspätung? Gleiswechsel?","Du erfährst es sofort."]],
+  caps:[[2.8,"1 · Hochladen","Ticket an die Reise hängen","Screenshot oder PDF."],[7.6,"2 · Lesen","PlanFlink liest mit","Du tippst kein Wort."],[11.2,"3 · Beobachten","Hin- und Rückfahrt im Blick","Beide Züge werden live verfolgt."],[18.6,"4 · Mitdenken","Daran wird gedacht","Zugbindung und Ausweis."],[25.6,"5 · Melden","Verspätung? Gleiswechsel?","Du erfährst es sofort."]],
   scanHL:["hin","rueck","bind","ausweis"],
   trip:{t:"Hotel Seeblick Warnemünde",l:["Fr 11.12. – So 13.12.","📍 Seestraße 12, Rostock-Warnemünde"]},
   items:[["hin","🚆","<b>Hinfahrt</b> Fr 11.12., 09:12 · ICE 1707 ab Berlin Hbf","live"],["rueck","🚆","<b>Rückfahrt</b> So 13.12., 16:44 · IC 2239 ab Rostock Hbf","live"],["bind","⚠️","<b>Zugbindung:</b> nur ICE 1707 und IC 2239 nutzen",""],["ausweis","🪪","<b>Ausweis einpacken</b> – Ticket nur mit Ausweis gültig",""]],
@@ -56,7 +56,7 @@ const add=(h,p=R)=>p.appendChild(H(h));
 // --- Grundgerüst ---
 const caps=D.caps.map(c=>add(`<div class="abs cap"><div class="st">${c[1]}</div><h1>${c[2]}</h1><p>${c[3]}</p></div>`));
 const phone=add(`<div id="phone" class="abs"><div id="scr"></div></div>`), scr=phone.firstChild;
-add(`<div class="abs hd"><span>Mein Kalender</span><i></i></div>`,scr);
+add(`<div class="abs hd"><span>PlanFlink</span><i></i></div>`,scr);
 // Ebene 1: Hochladen
 let L1;
 if (SC==="hotel") L1=add(`<div class="abs lay"><div style="font:700 44px R;margin:10px 4px 24px">Eintragen</div><div class="inp">Schreib, was ansteht – oder füge ein Ticket an …</div>
@@ -64,7 +64,7 @@ if (SC==="hotel") L1=add(`<div class="abs lay"><div style="font:700 44px R;margi
 else L1=add(`<div class="abs lay"><div class="card ev"><b>${D.trip.t}</b>${D.trip.l.map(x=>`<div>${x}</div>`).join("")}</div>
   <div class="lbl">Dokumente</div><div class="att" id="att"><img src="${D.img}"><span>Zugticket.jpg</span></div><div class="btn" id="b1">📎 Datei hinzufügen</div></div>`,scr);
 // Ebene 2: Lesen
-const L2=add(`<div class="abs doc"><img src="${D.img}"><div class="abs scan"></div><div class="abs rd">🔎 Mein Kalender liest …</div></div>`,scr);
+const L2=add(`<div class="abs doc"><img src="${D.img}"><div class="abs scan"></div><div class="abs rd">🔎 PlanFlink liest …</div></div>`,scr);
 const k=840/1080, hls=D.scanHL.map(n=>{ const [x,y,w,h]=D.box[n]; return add(`<div class="abs hl" style="left:${x*k-8}px;top:${y*k-8}px;width:${w*k+16}px;height:${h*k+16}px"></div>`,L2); });
 // Ebene 3: Kalender
 const L3=add(`<div class="abs lay"></div>`,scr);
@@ -81,7 +81,7 @@ const veil=add(`<div class="abs" style="inset:0;background:rgba(232,243,238,.66)
 const tap=add(`<div class="abs tap"></div>`);
 const ntf=SC==="zug"?add(`<div class="abs ntf"><img src="icon.png"><div style="flex:1"><b>ICE 1707 · +12 Min.</b>Abfahrt ca. 09:24 · Gleis 7 statt 5</div><span style="color:#777;font-size:26px;align-self:flex-start">jetzt</span></div>`,scr):null;
 const intro=add(`<div class="abs full"><img src="icon.png"><h1>${D.intro[0]}</h1><p>${D.intro[1]}</p></div>`);
-const outro=add(`<div class="abs full"><img src="icon.png"><h1>Ohne ein Wort zu tippen.</h1><p>Mein Kalender – dein Alltagsassistent</p></div>`);
+const outro=add(`<div class="abs full"><img src="icon.png"><h1>Ohne ein Wort zu tippen.</h1><p>PlanFlink – dein Alltagsassistent</p></div>`);
 // --- Zeitsteuerung ---
 const cl=x=>Math.max(0,Math.min(1,x)), ez=x=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;};
 const win=(t,a,b,f=.45)=>Math.min(ez((t-a)/f), b==null?1:ez((b-t)/f));

@@ -1,6 +1,6 @@
 // PlanFlink – Service Worker: App startet auch ohne Netz, Updates kommen trotzdem sofort
 const V = "mk-__BUILD__";
-const SHELL = ["/app/", "/app/supabase.js", "/app/591.supabase.js", "/icon-192.png", "/icon-512.png", "/app/manifest.webmanifest"];
+const SHELL = ["/app/", "/app/supabase.js", "/app/591.supabase.js", "/icon-192.png", "/icon-512.png", "/favicon.svg", "/app/manifest.webmanifest"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {

@@ -463,6 +463,7 @@ label.tp-c { display: flex; align-items: center; justify-content: center; text-a
 .tk-day { margin: 6px 0 10px; } .fr.tk-dn .fr-btn { text-decoration: line-through; color: var(--muted); }
 .day-add { margin-top: 10px; } .day-add .btn { flex: 1; } .day-add2 { display: flex; gap: 14px; }
 .lr .lr-ck { margin-right: 6px; color: var(--muted); } .tk-addev { margin-top: 4px; }
+.hd-logo { width: 28px; height: 28px; border-radius: 7px; vertical-align: -5px; margin-right: 8px; } .hd-f { color: var(--accent); }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
 .seg.emode button { white-space: nowrap; }
@@ -1005,7 +1006,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
 <div class="wrap" lang="de">
   <section class="page p0" id="p0">
   <header class="top">
-    <h1>PlanFlink<small id="hdr-states"></small></h1>
+    <h1><img class="hd-logo" src="/favicon.svg" alt="">Plan<span class="hd-f">Flink</span><small id="hdr-states"></small></h1>
     <div class="tb">
     <button type="button" class="tb-b tb-g" id="g-btn" hidden aria-label="Google Kalender: Status und abgleichen"><span id="g-lbl">G</span><i id="g-dot"></i><span class="badge" id="g-badge" hidden></span></button>
     <button type="button" class="tb-b" id="menu-btn" aria-label="Menü" aria-expanded="false" aria-controls="menu"><span class="hb" aria-hidden="true"></span><i class="rdot" id="menu-dot" hidden></i></button></div>
@@ -1026,14 +1027,14 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
       <button type="button" class="mi" data-mi id="mi-help"><i class="dotc" style="--c:var(--c-info, var(--both))"></i>Hilfe – Wie geht …?</button>
       <button type="button" class="mi" data-mi id="mi-plan" hidden><i class="dotc" style="--c:var(--both)"></i> Tarif</button>
       <button type="button" class="mi" data-mi id="open-a2hs"><i class="dotc" style="--c:var(--muted)"></i>Als App installieren</button>
-      <div class="mi-legal"><a data-mi href="https://mein-kalender.onrender.com/?info&back=1" target="_blank" rel="noopener">Über</a><a data-mi href="https://mein-kalender.onrender.com/impressum.html" target="_blank" rel="noopener">Impressum</a><a data-mi href="https://mein-kalender.onrender.com/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a><a data-mi href="https://mein-kalender.onrender.com/ki-hinweise.html" target="_blank" rel="noopener">KI-Hinweise</a></div>
+      <div class="mi-legal"><a data-mi href="https://planflink.de/?info&back=1" target="_blank" rel="noopener">Über</a><a data-mi href="https://planflink.de/impressum.html" target="_blank" rel="noopener">Impressum</a><a data-mi href="https://planflink.de/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a><a data-mi href="https://planflink.de/ki-hinweise.html" target="_blank" rel="noopener">KI-Hinweise</a></div>
     </nav>
   </header>
   <div class="today-lbl" id="today-lbl"></div>
   <div class="hint-card inv" id="inv-card" hidden><b id="inv-card-t">Einladung</b><span>Wenn du annimmst, seht ihr die Termine, die ihr teilt, beide – auch in Google.</span><button type="button" class="btn accent" id="inv-card-go">Einladung ansehen</button></div>
   <div class="hint-card" id="signin-card" hidden><b>Dein eigener Kalender – kostenlos</b><span>Melde dich bei Claude an, um Termine einzutragen und erinnert zu werden. Deine Einträge sieht nur du.</span><button type="button" class="btn accent small" id="signin-open">Anmelden – so geht’s</button></div>
   <div class="hint-card" id="quota-card" hidden><b>KI-Kontingent fast aufgebraucht</b><span></span><div class="btnrow"><button type="button" class="btn accent small" id="card-quota-go">Tarife ansehen</button><button type="button" class="btn ghost small" id="card-quota-x">OK</button></div></div>
-  <div class="hint-card" id="app-card" hidden><b>Du bist gerade im Browser</b><span>Öffne PlanFlink lieber über das App-Symbol „PlanFlink“ auf deinem Startbildschirm – dort kommen Erinnerungen und Neuerungen zuverlässig an.</span><div class="btnrow"><button type="button" class="btn ghost small" id="card-app-x">Verstanden</button></div></div>
+  <div class="hint-card" id="app-card" hidden><b>Du bist gerade im Browser</b><span>Öffne PlanFlink lieber über das PlanFlink-Symbol auf deinem Startbildschirm – dort kommen Erinnerungen und Neuerungen zuverlässig an.</span><div class="btnrow"><button type="button" class="btn ghost small" id="card-app-x">Verstanden</button></div></div>
   <div class="hint-card" id="gdev-card" hidden><b>Google auf diesem Gerät verbinden</b><span>Auf einem anderen Gerät nutzt du schon Google Kalender. Damit Einträge auch von hier aus in Google landen, verbinde Google einmal auf diesem Gerät.</span><div class="btnrow"><button type="button" class="btn accent small" id="card-gdev-go">Mit Google verbinden</button><button type="button" class="btn ghost small" id="card-gdev-x">Später</button></div></div>
   <div class="hint-card" id="ntdev-card" hidden><b>🔔 Erinnerungen auf diesem Gerät einschalten?</b><span>Hier kommen noch keine Benachrichtigungen an – z. B. vor Terminen, bei Zugverspätungen oder Geburtstagen.</span><div class="btnrow"><button type="button" class="btn accent small" id="card-nt-go">Einschalten</button><button type="button" class="btn ghost small" id="card-nt-x">Später</button></div></div>
   <div class="hint-card first" id="first-card" hidden><b>Los geht’s: dein erster Termin</b><span>Tippe auf <b>+ Eintragen</b> und schreib einfach drauflos, z. B. „Freitag 19 Uhr Essen mit Anna“ – oder füge eine WhatsApp-Nachricht ein.</span><div class="btnrow"><button type="button" class="btn accent small" id="first-add">+ Ersten Termin eintragen</button><button type="button" class="btn ghost small" id="first-no">Später</button></div></div>
