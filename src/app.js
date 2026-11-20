@@ -3556,7 +3556,7 @@ async function useFlush() { const q = USE_Q; USE_Q = {}; if (!Object.keys(q).len
 window.addEventListener("pagehide", () => useFlush());   // im Kalender gewählter Tag – gilt im Freitext, solange dort kein anderes Datum steht
 function newEntry(preset) { if (dbState === "off") return showSignin(); TAP_KEEP = null; if (entryMode() === "tap") return showTap(preset ? parseIso(preset) : null); if (entryMode() === "form") showForm(null, preset || iso(TODAY)); else { ASST_DAY = preset ? parseIso(preset) : null; ASST_TO = null; showAssistant(); } }
 let ENTRY_TXT = "";   // längerer Freitext (Mail, WhatsApp) bleibt beim Hin- und Herwechseln erhalten
-let FORM_DRAFT = null, ASST_SNAP = null, TAP_KEEP = null;
+let FORM_DRAFT = null, ASST_SNAP = null, TAP_KEEP = null, TAP_KEEP_V = null;
 // ---- 👆 Antippen: jede Art in wenigen Schritten – eine Frage pro Bildschirm, große Knöpfe ----
 let TAP = null;
 const TAP_TYPES = [["termin", "📅", "Termin"], ["birthday", "🎂", "Geburtstag"], ["abholen", "🚉", "Abholen / Bringen"], ["urlaub", "🏖️", "Urlaub"], ["trip", "🧳", "Reise"], ["deadline", "⏰", "Frist"], ["dienst", "👷", "Dienst"], ["info", "💡", "Hinweis"]];
@@ -3765,13 +3765,14 @@ function formDirty() { return sheetMode === "form" && !editing && ["f-title", "f
 function asstDirty() { return sheetMode === "asst" && (!!($("a-in")?.value || "").trim() || !!$("a-out")?.querySelector(".acts-list")); }
 function switchEntry(m, keepPref) {
   if (!keepPref) store.set("ft-entry", m);
-  if (sheetMode === "tap") { TAP_KEEP = TAP; } if (sheetMode === "tap") { const t = TAP; if (m === "form") { showForm({ ...tapEvent(), title: t.title }); return; } ASST_DAY = t.date; ASST_TO = null; showAssistant(true); if (t.title) $("a-in").value = [t.title, t.date ? fmt(t.date) : "", tapTime()].filter(Boolean).join(" "); return; }
-  if (m === "tap" && TAP_KEEP && TAP_KEEP.ty) { TAP = TAP_KEEP; TAP_KEEP = null;
-    if (sheetMode === "form") { const ti = ($("f-title")?.value || "").trim(), d = parseIso($("f-from")?.value || ""), tm = ($("f-time")?.value || "").trim(); if (ti && TAP.ty !== "abholen" && TAP.ty !== "deadline") TAP.title = ti; if (d && !["birthday", "anniversary", "contact"].includes(TAP.ty)) TAP.date = d; if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { TAP.hour = +tm.slice(0, 2); TAP.min = +tm.slice(3); TAP.allday = false; } }
+  if (sheetMode === "tap") { TAP_KEEP = TAP; TAP_KEEP_V = TAP.ty ? tapEvent() : null; } if (sheetMode === "tap") { const t = TAP; if (m === "form") { if (!t.ty) showForm(null, t.preset && t.date ? iso(t.date) : undefined); else showForm({ ...tapEvent(), title: t.title }); return; } ASST_DAY = t.date; ASST_TO = null; showAssistant(true); if (t.title) $("a-in").value = [t.title, t.date ? fmt(t.date) : "", tapTime()].filter(Boolean).join(" "); return; }
+  if (m === "tap" && TAP_KEEP && !(sheetMode === "form" && FORM_TYPE_SET && $("f-type")?.value && $("f-type").value !== TAP_KEEP.ty)) { TAP = TAP_KEEP; TAP_KEEP = null;
+    if (sheetMode === "form" && TAP_KEEP_V) { const V = TAP_KEEP_V, ti = ($("f-title")?.value || "").trim(), fd = $("f-from")?.value || "", d = parseIso(fd), tm = fTimeOpen ? ($("f-time")?.value || "").trim() : "";
+      if (ti && ti !== V.title && TAP.ty !== "abholen" && TAP.ty !== "deadline") TAP.title = ti; if (d && fd !== V.from && !["birthday", "anniversary", "contact"].includes(TAP.ty)) TAP.date = d; if (/^\d{2}:\d{2}$/.test(tm) && tm !== V.time) { TAP.hour = +tm.slice(0, 2); TAP.min = +tm.slice(3); TAP.allday = false; } }
     TAP.step = tapNext(); renderTap(); return; }
-  TAP_KEEP = null;
+  if (m === "tap") TAP_KEEP = null;
   if (m === "tap") { const d = sheetMode === "form" ? parseIso($("f-from")?.value || "") : ASST_DAY, ti = sheetMode === "form" ? ($("f-title")?.value || "").trim() : "";
-    showTap(d || null, ti, sheetMode === "form" ? $("f-type")?.value : "termin"); return; }
+    showTap(d || null, ti, sheetMode === "form" && FORM_TYPE_SET ? $("f-type")?.value : ""); return; }
   if (m === "form") { ENTRY_TXT = ($("a-in")?.value || "").trim(); ASST_SNAP = asstDirty() ? { txt: $("a-in").value, html: $("a-out")?.innerHTML || "" } : null; }
   if (m === "form" && FORM_DRAFT && (!ENTRY_TXT || ENTRY_TXT === FORM_DRAFT.__txt)) { const d = FORM_DRAFT; FORM_DRAFT = null; showForm({ ...d, id: undefined }); fTimeOpen = !!d.time; syncFormFields(); qMark(); return; }
   if (m === "form") { const t = ($("a-in")?.value || "").trim().replace(/^vom\s+\d{1,2}\.\d{1,2}\.?\s*(bis\s+\d{1,2}\.\d{1,2}\.?)?\s*:?\s*/i, ""), A = ASST_DAY, B = ASST_TO;
