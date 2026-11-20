@@ -2990,7 +2990,7 @@ async function doDeleteAccount() {
   const btn = $("delacc-go"); if (!btn || btn.disabled) return;
   btn.disabled = true; btn.textContent = "Wird gelöscht …"; $("delacc-err").textContent = "";
   try { await window.mkDeleteAccount(); }
-  catch (e) { btn.disabled = false; btn.textContent = "Endgültig löschen"; $("delacc-err").textContent = "Das hat nicht geklappt – bitte später noch einmal versuchen oder an kontakt@herdzeit.de schreiben." + (e?.message ? ` (${e.message})` : ""); }
+  catch (e) { btn.disabled = false; btn.textContent = "Endgültig löschen"; $("delacc-err").textContent = "Das hat nicht geklappt – bitte später noch einmal versuchen oder an kontakt@planflink.de schreiben." + (e?.message ? ` (${e.message})` : ""); }
 }
 function openSheet(title, sub, html, mode, ctx) {
   // Zurück-Taste/-Geste des Handys schließt das Fenster statt die App (ein Verlaufseintrag pro offenem Fenster)
