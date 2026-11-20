@@ -1924,7 +1924,7 @@ async function setPlace(o, addr) {
       if (canW) { try { const inp = { eventId: e.gid, location: addr }; if (e.calId !== "primary") inp.calendarId = e.calId; await mcp.callTool(GSERVER, "update_event", inp); ok = true; mcp.invalidate(GSERVER, "list_events").catch(() => {}); } catch {} }
       const G = gPlace(); G[e.gid] = addr; try { localStorage.setItem("ft-gplace", JSON.stringify(G)); } catch {}
       e.note = addr; toast(ok ? "Ort in Google eingetragen" : "Ort gemerkt – in Google selbst ist er nicht änderbar");
-    } else { await COLL("events").doc(e.id).update({ place: addr }); e.place = addr; toast("Ort eingetragen"); }
+    } else { await COLL("events").doc(e.id).update({ place: addr }); e.place = addr; toast("Ort eingetragen"); if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e }).then(() => gResync(400)).catch(() => {}); }
     renderAll(); const o2 = findOcc(e.id, iso(o.a)) || o; e.type === "google" ? showGoogleEvent(o2) : showEvent(o2);
   } catch (err) { toast(writeErr(err)); }
 }
@@ -2280,7 +2280,7 @@ async function docApply() {
   if (pk.length) up.packlist = [...pk, ...(e.packlist || [])];
   const tk = DAI.tk.filter((_, i) => on(`[data-daitk="${i}"]`));
   try {
-    if (Object.keys(up).length) { await COLL("events").doc(e.id).update(up); Object.assign(e, up); }
+    if (Object.keys(up).length) { await COLL("events").doc(e.id).update(up); Object.assign(e, up); if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e }).then(() => gResync(400)).catch(() => {}); }
     for (const t of tk) await addTask({ title: `${t.t} („${e.title}“)`, due: t.due, ev: e.id });
     const n = pk.length + tk.length + ["note", "mode", "place"].filter(k => k in up).length;
     toast(n ? `${n} Punkt${n > 1 ? "e" : ""} übernommen` : "Nichts übernommen");
@@ -3168,7 +3168,7 @@ function showForm(e, preset) {
   openSheet(editing ? "Bearbeiten" : "Neu eintragen", editing ? TYPES[v.type]?.label || "" : "Felder ausfüllen und speichern", `
     <form id="f" class="form" novalidate>${editing ? "" : entrySw("form")}
       <label>Was möchtest du eintragen?</label>
-      <div class="tchips" role="radiogroup" aria-label="Art">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<button type="button" role="radio" class="tchip" data-ftype="${k}" aria-checked="${v.type === k}" title="${esc(t.label)}" style="--c:${catColor(k)}"><span class="ti">${TYPE_ICON[k] || ""}</span><span class="tl">${TYPE_SHORT[k] || t.label}</span></button>`).join("")}</div>
+      ${editing ? `<button type="button" class="link f-artchg" id="f-artchg">Art: ${esc(TYPES[v.type]?.label || "")} · ändern</button>` : ""}<div class="tchips${editing ? " f-tclosed" : ""}" role="radiogroup" aria-label="Art">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<button type="button" role="radio" class="tchip" data-ftype="${k}" aria-checked="${v.type === k}" title="${esc(t.label)}" style="--c:${catColor(k)}"><span class="ti">${TYPE_ICON[k] || ""}</span><span class="tl">${TYPE_SHORT[k] || t.label}</span></button>`).join("")}</div>
       <div class="two"><div hidden><label for="f-type">Art</label>
       <select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "google" && (k !== "mina" || v.type === "mina" || EV.some(x => x.type === "mina"))).map(([k, t]) => `<option value="${k}"${v.type === k ? " selected" : ""}>${t.label}</option>`).join("")}</select></div>
       <div id="f-rep-wrap"><label for="f-rep">Wiederholung</label>
@@ -3263,7 +3263,7 @@ function formLayout(ty) {
   if (ty === "abholen") { $("f-to-wrap").hidden = true; $("f-time-add").hidden = true; $("f-time-wrap").hidden = false; $("f-end").closest("div").hidden = true; pickPreview(); } else { $("f-end").closest("div").hidden = false; $("f-time-l").textContent = "Uhrzeit"; }
   const sug = $("f-tsug"); if (sug) { const L = titleSug(ty);
     sug.innerHTML = ty === "deadline" ? FK_CHIP.map(([k, l]) => `<button type="button" class="tkq" data-ffk="${k}"${$("f-fk")?.value === k ? ' aria-pressed="true"' : ""}>${FK[k].i} ${esc(l)}</button>`).join("")
-      : L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = ty !== "deadline" && !L.length; sug.classList.toggle("fk2", ty === "deadline"); sugClamp(sug, ty === "deadline" ? 2 : 1); }
+      : L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = (ty !== "deadline" && !L.length) || (!!editing && !!($("f-title")?.value || "").trim()); sug.classList.toggle("fk2", ty === "deadline"); sugClamp(sug, ty === "deadline" ? 2 : 1); }
   if ($("f-renew-wrap")) $("f-renew-wrap").hidden = ty !== "deadline";
   const tt = $("f-att-t"); if (tt) tt.textContent = "Datei";
   if (!$("f-title").value && TITLE_PH[ty]) $("f-title").placeholder = TITLE_PH[ty];
@@ -3437,6 +3437,7 @@ function gInput(v) {
     else { const [h, m] = tpad(v.time).split(":"); const d = parseIso(v.from); d.setHours(+h + 1, +m); inp.endTime = localStamp(d); }
   } else { inp.allDay = true; inp.startTime = `${v.from}T00:00:00`; inp.endTime = `${iso(addDays(parseIso(to), 1))}T00:00:00`; }
   if (v.note) inp.description = v.note;
+  if (v.place) inp.location = v.place;
   if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal;
   return inp;
 }
@@ -5100,6 +5101,7 @@ document.addEventListener("click", ev => {
     timeOpen(!t?.value && f && +f === +TODAY && $("f-type")?.value === "termin" ? `${p2(Math.min(23, new Date().getHours() + 1))}:00` : ""); t?.focus(); return; }
   if ((el = q("[data-qd]"))) { const f = $("f-from"), t = $("f-to"), a = parseIso(f.value), b = parseIso(t.value), n = parseIso(el.dataset.qd); const dur = a && b && b >= a && ["trip", "urlaub"].includes($("f-type")?.value) ? dayDiff(a, b) : 0;
     f.value = el.dataset.qd; f.dataset.prev = ""; t.value = iso(addDays(n, dur)); f.dispatchEvent(new Event("change", { bubbles: true })); qMark(); return; }
+  if ((el = q("#f-artchg"))) { document.querySelector(".tchips.f-tclosed")?.classList.remove("f-tclosed"); el.remove(); return; }
   if ((el = q("#f-time-x"))) { fTimeOpen = false; $("f-time").value = ""; $("f-end").value = ""; $("f-time-wrap").hidden = true; $("f-time-add").hidden = false; qMark(); return; }
   if ((el = q("[data-qt]"))) { timeOpen(el.dataset.qt); $("f-time").dispatchEvent(new Event("change", { bubbles: true })); return; }
   if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
