@@ -3870,18 +3870,19 @@ function showAssistant(keepFiles) {
   micStop();
   if (dbState === "off") return showSignin();
   if (!keepFiles) ASST_FILES = [];
-  const ex = ["Zahnarzt Donnerstag 16 Uhr", "Lena vom Zug abholen: RE 4, Berlin Hbf, 13:55", "Nächste Woche Freitag Elternabend 19 Uhr", "Urlaub vom 3. bis 10. August", "Verschieb den Termin am Montag auf Dienstag", "Was steht nächste Woche an?"];
-  openSheet("Eintragen", "Schreib einfach, was ansteht oder sich ändert", `
+  const ex = ["Zahnarzt Donnerstag 16 Uhr", "Lena vom Zug abholen: RE 4, Berlin Hbf, 13:55", "Urlaub vom 3. bis 10. August", "Was steht nächste Woche an?"];
+  openSheet("Eintragen", "Schreib oder sprich, was ansteht", `
     <div class="asst">${entrySw("text")}
       ${ASST_DAY ? `<div class="a-day" id="a-day">📅 für <b>${fmt(ASST_DAY)}${ASST_TO ? ` – ${fmt(ASST_TO)}` : ""}${(ASST_TO || ASST_DAY).getFullYear() !== TODAY.getFullYear() ? " " + (ASST_TO || ASST_DAY).getFullYear() : ""}</b><button type="button" class="link" data-act="a-day-x" aria-label="Datum entfernen">✕</button></div>` : ""}
-      <textarea class="in" id="a-in" rows="4" placeholder="Schreib, was ansteht – oder füge eine Mail, WhatsApp-Nachricht oder einen Link zur Buchung ein"></textarea>
-      ${sample && canWrite ? `<div class="a-att"><label class="btn ghost small">📎 Ticket, Foto oder PDF<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" id="a-cam"></label><div id="a-kind" hidden></div><span class="note" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => f.name).join(", ")) : "daraus wird der Eintrag erstellt"}</span></div>` : ""}
+      <textarea class="in" id="a-in" rows="3" placeholder="Was steht an? Einfach schreiben – oder Mail bzw. Nachricht einfügen"></textarea>
+      ${sample && canWrite ? `<div class="a-tools"><label class="btn ghost small">📎 Datei<input type="file" hidden multiple accept="application/pdf,image/*" id="a-files"></label><label class="btn ghost small cam" title="Mit der Kamera fotografieren">📷 Foto<input type="file" hidden accept="image/*" capture="environment" id="a-cam"></label>${SR() ? `<button type="button" class="btn ghost small mic" id="a-mic" aria-pressed="false">🎤 Sprechen</button>` : ""}</div>
+        <div id="a-kind" hidden></div><span class="note a-fl" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => "📎 " + f.name).join(", ")) : ""}</span>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
-      <div class="btnrow"><button type="button" class="btn accent" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button>${sample && SR() ? `<button type="button" class="btn ghost mic" id="a-mic" aria-pressed="false">🎤 Sprechen</button>` : ""}<span class="note mic-st" id="a-mic-st" aria-live="polite"></span></div>
-      <div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
+      <span class="note mic-st" id="a-mic-st" aria-live="polite"></span>
+      <div class="btnrow"><button type="button" class="btn accent wide" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button></div>
+      <details class="ex-d"><summary>💡 Beispiele</summary><div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div></details>
       <div id="a-out"></div>
     </div>`, "asst");
-  setTimeout(() => $("a-in")?.focus(), 50);
 }
 function evCompact(e) { return { id: e.id, type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || undefined, repeat: e.repeat !== "none" ? e.repeat : undefined, birthYear: e.birthYear || undefined, note: e.note || undefined }; }
 // Nachschlagen für den Assistenten: eigene + Google-Termine in einem Zeitraum
@@ -5303,7 +5304,7 @@ document.addEventListener("change", ev => {
   if (ev.target.id === "st-vac") { REMP.vacation = Math.max(0, +ev.target.value || 0); (db && COLL("prefs")).doc("reminders").set(REMP).catch(() => {}); renderStats(); return; }
   if (ev.target.dataset?.notify) { const set = new Set(notifyCals()); ev.target.checked ? set.add(ev.target.dataset.notify) : set.delete(ev.target.dataset.notify); saveNotify({ cals: [...set] }).then(scanOthers); return; }
   if (ev.target.id === "a-cam") { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) { ASST_FILES = [...ASST_FILES, ...fs].slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = ASST_FILES.map(f => "📎 " + f.name).join(", "); if (!($("a-in")?.value || "").trim()) runAssistant?.(); } return; }
-  if (ev.target.id === "a-files") { const all = [...ASST_FILES, ...ev.target.files]; ev.target.value = ""; ASST_FILES = all.slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = (ASST_FILES.map(f => "📎 " + f.name).join(", ") || "daraus wird der Eintrag erstellt") + (all.length > 6 ? ` – nur die ersten 6 von ${all.length} Dateien` : ""); if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
+  if (ev.target.id === "a-files") { const all = [...ASST_FILES, ...ev.target.files]; ev.target.value = ""; ASST_FILES = all.slice(0, 6); const l = $("a-files-l"); if (l) l.textContent = (ASST_FILES.map(f => "📎 " + f.name).join(", ") || "") + (all.length > 6 ? ` – nur die ersten 6 von ${all.length} Dateien` : ""); if (ASST_FILES.length && !$("a-in").value.trim()) runAssistant(); return; }
   if (ev.target.id === "f-files") { formPickFiles([...ev.target.files]); ev.target.value = ""; return; }
   if (ev.target.id === "f-cam") { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) formPickFiles([...FORM_FILES, ...fs].slice(0, 6)); return; }   // mehrere Seiten nacheinander fotografieren
   if (ev.target.id === "f-type" && $("f-rep")) { const r = $("f-rep");
