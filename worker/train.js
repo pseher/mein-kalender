@@ -1,4 +1,4 @@
-// Mein Kalender – Zug-Wächter: Verspätung, Gleiswechsel, Ausfall
+// PlanFlink – Zug-Wächter: Verspätung, Gleiswechsel, Ausfall
 // Datenquelle: offizielle DB Timetables API (DB API Marketplace, kostenlos) – Secrets DB_CLIENT_ID und DB_API_KEY
 const TT = "https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1";
 let LASTERR = "";

@@ -1,4 +1,4 @@
-// Mein Kalender – Flug-Wächter: Verspätung, Gate, Gepäckband, Landung, Ausfall (Daten: AirLabs, Secret AIRLABS_KEY)
+// PlanFlink – Flug-Wächter: Verspätung, Gate, Gepäckband, Landung, Ausfall (Daten: AirLabs, Secret AIRLABS_KEY)
 const AL = "https://airlabs.co/api/v9/flight";
 export const STAT = { al: 0 };   // AirLabs-Aufrufe im aktuellen Lauf (fürs Dashboard)
 const hmT = (d, tz) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz || "Europe/Berlin" });

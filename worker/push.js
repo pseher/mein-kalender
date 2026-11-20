@@ -1,4 +1,4 @@
-// Mein Kalender – Web-Push (RFC 8291 aes128gcm + VAPID RFC 8292), nur WebCrypto, keine Pakete
+// PlanFlink – Web-Push (RFC 8291 aes128gcm + VAPID RFC 8292), nur WebCrypto, keine Pakete
 import { trainCheck } from "./train.js";
 import { flightCheck, STAT } from "./flight.js";
 import { planMap, mode as billMode } from "./billing.js";
@@ -134,6 +134,6 @@ export async function pushTo(env, uid, msg) {
 export async function testPush(env, uid) {
   const subs = await getDocs(env, `user_id=eq.${uid}&coll=eq.pushsub&select=user_id,id,data`);
   if (!subs.length) return { ok: false, code: "no_subscription" };
-  const n = await sendToUser(env, uid, subs, [{ title: "🔔 Test von Mein Kalender", body: "So sehen deine Benachrichtigungen aus.", tag: "test", url: "/app/", urgent: true }]);
+  const n = await sendToUser(env, uid, subs, [{ title: "🔔 Test von PlanFlink", body: "So sehen deine Benachrichtigungen aus.", tag: "test", url: "/app/", urgent: true }]);
   return { ok: n > 0, sent: n, devices: subs.length };
 }

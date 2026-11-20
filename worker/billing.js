@@ -1,4 +1,4 @@
-// Mein Kalender – Tarife (Kostenlos / Plus / Familie)
+// PlanFlink – Tarife (Kostenlos / Plus / Familie)
 //
 // BILLING_MODE (Variable im Cloudflare-Dashboard):
 //   "off"      – keine Tarif-Grenzen (nur die allgemeinen Schutzgrenzen gelten)

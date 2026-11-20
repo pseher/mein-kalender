@@ -5,7 +5,7 @@
 <script>if(/onrender\.com$|pages\.dev$|^www\./.test(location.hostname))location.replace("https://planflink.de"+location.pathname+location.search+location.hash)</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Mein Kalender – dein Alltagsassistent für Familien und Paare</title>
+<title>PlanFlink – dein Alltagsassistent für Familien und Paare</title>
 <script>
   // Wer den Kalender schon einmal geöffnet hat (oder vom Startbildschirm kommt), landet direkt im Kalender.
   var CAL = /onrender\.com$/.test(location.hostname) ? "https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" : "/app/";   // neue Domain: eigene App
@@ -25,12 +25,12 @@
   function backToApp() { try { window.close(); } catch (e) {}
     setTimeout(function () { var h = document.getElementById("backhint"); if (h) h.hidden = false; }, 300); }
 </script>
-<meta name="description" content="Nicht noch ein Kalender, sondern dein Alltagsassistent: Du schreibst, was ansteht – Mein Kalender trägt ein, erinnert rechtzeitig und behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage im Blick.">
+<meta name="description" content="Nicht noch ein Kalender, sondern dein Alltagsassistent: Du schreibst, was ansteht – PlanFlink trägt ein, erinnert rechtzeitig und behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage im Blick.">
 <meta name="theme-color" content="#0f6e73">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Mein Kalender">
-<meta property="og:title" content="Mein Kalender – dein Alltagsassistent">
-<meta property="og:description" content="Du schreibst, was ansteht. Um den Rest kümmert sich Mein Kalender – Reisen, Zug- und Flug-Updates, Schichten, gemeinsame Ferien, Geburtstage.">
+<meta property="og:site_name" content="PlanFlink">
+<meta property="og:title" content="PlanFlink – dein Alltagsassistent">
+<meta property="og:description" content="Du schreibst, was ansteht. Um den Rest kümmert sich PlanFlink – Reisen, Zug- und Flug-Updates, Schichten, gemeinsame Ferien, Geburtstage.">
 <meta property="og:image" content="https://planflink.de/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -230,17 +230,17 @@
 </script>
 </head>
 <body>
-<script>if (/[?&]geloescht=1/.test(location.search)) document.addEventListener("DOMContentLoaded", function () { var d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "background:#0f6e73;color:#fff;padding:12px 16px;text-align:center;font-weight:600"; d.textContent = "Dein Konto und alle Daten wurden gelöscht. Danke, dass du Mein Kalender ausprobiert hast."; document.body.prepend(d); try { history.replaceState(null, "", "/?info"); } catch (e) {} });</script>
+<script>if (/[?&]geloescht=1/.test(location.search)) document.addEventListener("DOMContentLoaded", function () { var d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "background:#0f6e73;color:#fff;padding:12px 16px;text-align:center;font-weight:600"; d.textContent = "Dein Konto und alle Daten wurden gelöscht. Danke, dass du PlanFlink ausprobiert hast."; document.body.prepend(d); try { history.replaceState(null, "", "/?info"); } catch (e) {} });</script>
 <div id="backhint" hidden style="position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:60;max-width:520px;margin:0 auto;background:#111317;color:#fff;border-radius:16px;padding:14px 16px;font-size:15px;line-height:1.5;box-shadow:0 12px 30px rgba(0,0,0,.25)">Tippe oben links auf <b>✕</b> bzw. „Zurück“ – dann bist du wieder in deinem Kalender.</div>
 
-<nav class="nav" id="nav"><div class="wrap"><img src="icon-192.png" alt=""> Mein Kalender<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div></nav>
+<nav class="nav" id="nav"><div class="wrap"><img src="icon-192.png" alt=""> PlanFlink<a class="nb" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Öffnen</a></div></nav>
 
 <header class="hero">
   <div class="wrap">
     <div>
       <span class="kick">Für Familien &amp; Paare · kostenlos</span>
       <h1>„Du sagst, was ansteht.<br><em>Den Rest erledigt dein Kalender.“</em></h1>
-      <p class="lead">Nicht noch ein Kalender, sondern dein Alltagsassistent: Termine landen von selbst im Kalender, Erinnerungen kommen rechtzeitig, und Mein Kalender behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage für euch im Blick.</p>
+      <p class="lead">Nicht noch ein Kalender, sondern dein Alltagsassistent: Termine landen von selbst im Kalender, Erinnerungen kommen rechtzeitig, und PlanFlink behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage für euch im Blick.</p>
       <div class="ctas"><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a><a class="btn ghost" href="#so">So funktioniert’s</a></div>
       <p class="free">Läuft im Browser und als App auf dem Handy – mit oder ohne Google Kalender.</p>
     </div>
@@ -259,7 +259,7 @@
   </div>
 </header>
 
-<div class="band" aria-label="Woran Mein Kalender denkt"><div class="rail" id="rail">
+<div class="band" aria-label="Woran PlanFlink denkt"><div class="rail" id="rail">
   <span>🛂 ESTA für die USA</span><span>🇬🇧 ETA für Großbritannien</span><span>📄 Visum</span><span>🚗 Vignette Österreich</span><span>🛣️ Maut</span><span>🚆 Gleiswechsel</span><span>⏱️ Verspätung</span><span>✈️ Gate &amp; Check-in</span><span>🎂 Geburtstage mit Vorlauf</span><span>🎁 Geschenkideen</span><span>🎒 Packliste</span><span>🏖️ Gemeinsam frei in den Ferien</span><span>🕐 Schichten</span><span>🚉 Abholen am Bahnhof</span><span>🗑️ Müll alle 2 Wochen</span><span>📌 Fristen</span>
 </div></div>
 
@@ -267,7 +267,7 @@
   <div class="wrap center">
     <span class="eyebrow rv">So einfach geht’s</span>
     <h2 class="h2 rv">Ein Satz genügt.</h2>
-    <p class="sub rv d1">Schreib, was ansteht – in deinen Worten, aus einer WhatsApp oder als Foto vom Ticket. Mein Kalender versteht es, trägt es ein und denkt an das, was dazugehört.</p>
+    <p class="sub rv d1">Schreib, was ansteht – in deinen Worten, aus einer WhatsApp oder als Foto vom Ticket. PlanFlink versteht es, trägt es ein und denkt an das, was dazugehört.</p>
     <div class="three">
       <div class="s3 rv"><span class="n">1</span><div class="bub"><b>Anna</b>Samstag 19 Uhr Essen bei Antonio? 🍝</div><h3>Du schreibst oder fügst ein</h3><p>Nachricht, Mail, Buchungsbestätigung oder ein Foto vom Ticket – egal wie.</p></div>
       <div class="s3 rv d1"><span class="n">2</span><div class="evc"><i></i><div><b>Essen bei Antonio</b><span>Sa 21.11. · 19:00 · mit Anna</span></div></div><h3>Wird eingetragen</h3><p>Datum, Uhrzeit, Ort und Personen landen an der richtigen Stelle – auch in Google Kalender.</p></div>
@@ -348,7 +348,7 @@
 
 <div class="cta"><h2>Probier’s aus.</h2><p>Schreib einfach deinen ersten Termin – den Rest erledigt dein Kalender.</p><a class="btn" href="https://claude.ai/artifact/V4VhQBviYQpo7nLrFvfxC1" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a></div>
 <footer>Hinweise zu Visum, Einreise, Maut und Vignette sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen. Live-Daten: Deutsche Bahn und AirLabs, ohne Gewähr.<br>
-  Mein Kalender ist ein privates Projekt und nutzt Claude von Anthropic für KI-Funktionen.
+  PlanFlink ist ein privates Projekt und nutzt Claude von Anthropic für KI-Funktionen.
   <div class="foot-links"><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="/ki-hinweise.html">KI-Hinweise</a><a href="#" onclick="document.getElementById('consent').hidden=false;return false">Speicher-Einstellungen</a></div></footer>
 <div class="consent" id="consent" hidden role="dialog" aria-label="Speicher-Einstellungen">
   <b>Nächstes Mal direkt zum Kalender?</b> Dein Browser merkt sich nur, dass du ihn schon geöffnet hast – keine Cookies, kein Tracking. <a href="/datenschutz.html">Mehr dazu</a>

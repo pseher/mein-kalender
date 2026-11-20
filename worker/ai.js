@@ -1,5 +1,5 @@
-// Mein Kalender – Worker (wird bei Änderungen in worker/ automatisch von Cloudflare bereitgestellt)
-// Mein Kalender – KI-Worker (Cloudflare Worker)
+// PlanFlink – Worker (wird bei Änderungen in worker/ automatisch von Cloudflare bereitgestellt)
+// PlanFlink – KI-Worker (Cloudflare Worker)
 // Nimmt KI-Anfragen der App entgegen, prüft Anmeldung und Tageslimits,
 // fragt das Modell und protokolliert die Nutzung. Der API-Schlüssel bleibt hier.
 //
@@ -93,7 +93,7 @@ export default {
       if (u.protocol !== "https:" || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[)/.test(u.hostname) || !u.hostname.includes(".")) return out(400, { code: "bad_url" });
       const ctl = new AbortController(), tmo = setTimeout(() => ctl.abort(), 9000);
       try {
-        const r = await fetch(u.toString(), { signal: ctl.signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (Mein Kalender Link-Vorschau)", "Accept-Language": "de-DE,de;q=0.9" } });
+        const r = await fetch(u.toString(), { signal: ctl.signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (PlanFlink Link-Vorschau)", "Accept-Language": "de-DE,de;q=0.9" } });
         const ct = r.headers.get("content-type") || "";
         if (!r.ok) return out(200, { ok: false, status: r.status });
         if (/pdf/.test(ct)) { const buf = new Uint8Array(await r.arrayBuffer()); if (buf.length > 6e6) return out(200, { ok: false, status: 413 });

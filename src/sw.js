@@ -1,4 +1,4 @@
-// Mein Kalender – Service Worker: App startet auch ohne Netz, Updates kommen trotzdem sofort
+// PlanFlink – Service Worker: App startet auch ohne Netz, Updates kommen trotzdem sofort
 const V = "mk-__BUILD__";
 const SHELL = ["/app/", "/app/supabase.js", "/app/591.supabase.js", "/icon-192.png", "/icon-512.png", "/app/manifest.webmanifest"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -23,7 +23,7 @@ self.addEventListener("fetch", e => {
 // ---- Benachrichtigungen ----
 self.addEventListener("push", e => {
   let m = {}; try { m = e.data ? e.data.json() : {}; } catch { m = { body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(m.title || "Mein Kalender", { body: m.body || "", tag: m.tag || undefined, renotify: !!m.tag,
+  e.waitUntil(self.registration.showNotification(m.title || "PlanFlink", { body: m.body || "", tag: m.tag || undefined, renotify: !!m.tag,
     icon: "/icon-192.png", badge: "/icon-192.png", data: { url: m.url || "/app/", route: m.route || "" }, actions: m.route ? [{ action: "route", title: "🧭 Route" }] : [] }));
 });
 self.addEventListener("notificationclick", e => {

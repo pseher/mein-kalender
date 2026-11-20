@@ -1,6 +1,6 @@
 {
-  "name": "Mein Kalender",
-  "short_name": "Kalender",
+  "name": "PlanFlink",
+  "short_name": "PlanFlink",
   "description": "Der Kalender, der an das denkt, was du vergisst.",
   "lang": "de",
   "id": "/app/",
