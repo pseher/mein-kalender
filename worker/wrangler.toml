@@ -13,7 +13,7 @@ MODEL_DEFAULT = "claude-sonnet-5-5"                     # stärker: Dokumente au
 # KI-Grenzen pro Nutzer stellst du im Cloudflare-Dashboard ein (Worker → Einstellungen → Variablen und Geheimnisse):
 #   DAILY_LIMIT (40), IMAGE_DAILY_LIMIT (30), MONTHLY_LIMIT (400), MONTHLY_TOKENS (3000000), MONTHLY_USD (3, 0 = aus)
 #   Fehlt ein Wert, gilt die Zahl in Klammern. Hier bewusst NICHT eintragen – sonst überschreibt jedes Bereitstellen die Werte aus dem Dashboard.
-GOOGLE_CLIENT_ID = "15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"
 
 # Dokumente (Tickets, Buchungen) in Cloudflare R2
 # (R2 → Bucket erstellen → Name „mein-kalender-dokumente“, Standort/Jurisdiction: EU). Ohne Bindung speichert die App wie bisher in der Datenbank.
