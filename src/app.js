@@ -420,7 +420,7 @@ function renderBigMonth() {
       const oc = occOn(dt), hol = d && d.h && SHOW.hol ? d.h.name : "", ntk = tkForDay(dt, false).length;
       const title = [hol, ...oc.map(o => evName(o.ev)), ntk ? `${ntk} Aufgabe${ntk > 1 ? "n" : ""}` : ""].filter(Boolean).join(" · ");
       const mo = two && (dd === 1 || (w === 0 && c === 0)) ? `<span class="mo">${MON[dt.getMonth()].slice(0, 3)}</span>` : "";
-      h += `<button type="button" class="${cl.join(" ")}" style="grid-area:${row}/${c + 1}" data-day="${iso(dt)}" data-w="${w}" data-c="${c}" aria-label="${dd}. ${MON[dt.getMonth()]}${title ? ": " + esc(title) : ""}"${title ? ` title="${esc(title)}"` : ""}><span class="num">${dd}${mo}</span>${c === 0 ? `<span class="kwi" aria-hidden="true">${isoWeek(dt)}</span>` : ""}${xStripe(d)}${ntk ? `<span class="tkc" aria-hidden="true">☐${ntk > 1 ? ntk : ""}</span>` : ""}</button>`;
+      h += `<button type="button" class="${cl.join(" ")}" style="grid-area:${row}/${c + 1}" data-day="${iso(dt)}" data-w="${w}" data-c="${c}" aria-label="${dd}. ${MON[dt.getMonth()]}${title ? ": " + esc(title) : ""}"${title ? ` title="${esc(title)}"` : ""}><span class="num">${dd}${mo}</span>${c === 0 ? `<span class="kwi" aria-hidden="true">${isoWeek(dt)}</span>` : ""}${xStripe(d)}${ntk ? `<span class="tkc${sameDay(dt, TODAY) && TASKS.some(t => !t.done && t.state !== "no" && t.due && t.due < iso(TODAY)) ? " late" : ""}" aria-hidden="true">${ntk}</span>` : ""}</button>`;
     });
     h += `<div class="wb" style="grid-area:${row}/1/${row + 1}/8" data-w="${w}" aria-hidden="true">${weekBars(wd, two)}</div>`;
   }
