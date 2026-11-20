@@ -3628,7 +3628,7 @@ function tapDone_(k) { const t = TAP;
 document.addEventListener("input", ev => { if (ev.target?.id === "tp-place" && sheetMode === "tap") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(osmExpand(v), false, 350, { inp: "tp-place", box: "tp-place-sug" }); else { const b = $("tp-place-sug"); if (b) b.hidden = true; } } });
 const tapNext = () => !TAP.ty ? "art" : (TAP_FLOW[TAP.ty] || []).find(k => !tapDone_(k)) || "fertig";
 function tapEvent() { const t = TAP, ty = t.ty || "termin", d0 = t.date || TODAY, Y = TODAY.getFullYear();
-  const v = { type: ty, title: t.title || "", from: iso(d0), to: iso(t.date2 || d0), time: tapTime(), endTime: tapEnd(), repeat: t.rep || "none", until: "", birthYear: "", note: t.note || "", place: t.place || "", gcal: gWritable() ? "primary" : "", ...(t.sh ? shSplit(t.sh) : {}) };
+  const v = { type: ty, title: t.title || "", from: iso(d0), to: iso(t.date2 || d0), time: tapTime(), endTime: tapEnd(), repeat: t.rep || "none", until: t.rep && t.rep !== "none" && t.until ? t.until : "", birthYear: "", note: t.note || "", place: t.place || "", gcal: gWritable() ? "primary" : "", ...(t.sh ? shSplit(t.sh) : {}) };
   if (ty === "info" || ty === "urlaub") { v.time = ""; v.endTime = ""; }
   if (ty === "trip") { v.mode = t.tmode || ""; v.endTime = ""; }
   if (ty === "birthday" || ty === "anniversary") { const md = `${Y}-${p2(t.mo || 1)}-${p2(t.day || 1)}`; Object.assign(v, { from: md, to: md, time: "", endTime: "", repeat: "yearly" }); if (ty === "birthday") v.birthYear = t.yr || ""; else v.startYear = t.yr || 0; }
@@ -3736,7 +3736,10 @@ function renderTap() {
     ${own("Ort oder Adresse", P.includes(t.place) ? "" : t.place, "tp-place-go", "tp-place", "Fertig")}<div id="tp-place-sug" class="osm-sug" hidden></div>`; }
   else if (s === "x-rep") { const hint = tapRepHint(), opts = [["none", "Nur einmal"], ["weekly", "Jede Woche"], ["w2", "Alle 2 Wochen"], ["monthly", "Jeden Monat"], ["m3", "Alle 3 Monate"], ["m6", "Alle 6 Monate"], ["yearly", "Jedes Jahr"]];
     if (hint && !opts.some(([k]) => k === hint)) opts.splice(1, 0, [hint, REPEAT[hint] || repLabel(hint)]);
-    body = `<h3 class="tp-q">Wie oft?</h3><div class="tp-g tp-wide">${opts.map(([k, l]) => chip("data-tprep", k, esc(l) + (k === hint ? ' <small class="tp-sug">Vorschlag</small>' : ""), (t.rep || "none") === k)).join("")}</div><p class="note">Ein Ende der Wiederholung kannst du im Formular festlegen.</p>`; }
+    body = `<h3 class="tp-q">Wie oft?</h3><div class="tp-g tp-wide">${opts.map(([k, l]) => chip("data-tprep", k, esc(l) + (k === hint ? ' <small class="tp-sug">Vorschlag</small>' : ""), (t.rep || "none") === k)).join("")}</div>`; }
+  else if (s === "x-until") { const d0 = t.date || TODAY, opts = [["", "Ohne Ende"], [iso(new Date(d0.getFullYear(), 11, 31)), "Bis Jahresende"], [iso(addDays(d0, 91)), "3 Monate lang"], [iso(addDays(d0, 182)), "6 Monate lang"], [iso(addDays(d0, 365)), "1 Jahr lang"]];
+    body = `<h3 class="tp-q">Bis wann wiederholen?</h3><div class="tp-g tp-wide">${opts.map(([k, l]) => chip("data-tpuntil", k, l + (k ? `<small class="tp-sug">bis ${fmt(parseIso(k))}</small>` : ""), (t.until || "") === k)).join("")}</div>
+    <label class="tp-other">📅 Bis zum <input type="date" id="tp-until" value="${esc(t.until || "")}" min="${iso(d0)}" max="${iso(END)}"></label>`; }
   else if (s === "x-dauer") body = `<h3 class="tp-q">Wie lange?</h3><div class="tp-g">${[["30", "½ Std."], ["60", "1 Std."], ["90", "1½ Std."], ["120", "2 Std."], ["180", "3 Std."], ["", "Offen"]].map(([k, l]) => chip("data-tpdur", k, l, (t.dur || "") === k)).join("")}</div>
     <label class="tp-other">✎ Bis <input type="time" id="tp-end" value="${/^\d{2}:\d{2}$/.test(t.dur || "") ? t.dur : ""}"> Uhr</label>`;
   else if (s === "x-notiz") body = `<h3 class="tp-q">${ty === "birthday" ? "Geschenkidee oder Notiz" : "Notiz"}</h3><textarea id="tp-note" class="in" rows="4" placeholder="${ty === "birthday" ? "z. B. wünscht sich ein Buch" : ty === "deadline" ? "z. B. Kundennummer, Kündigungsfrist 3 Monate" : "z. B. Versichertenkarte mitnehmen"}">${esc(t.note || "")}</textarea><div class="btnrow"><button type="button" class="btn accent" id="tp-note-go">Fertig</button></div>`;
@@ -3746,7 +3749,7 @@ function renderTap() {
     const xlbl = k => k === "ort" && (ty === "trip" || ty === "urlaub") ? "📍 Unterkunft" : k === "notiz" && ty === "birthday" ? "🎁 Geschenkidee" : `${TAP_X[k][0]} ${TAP_X[k][1]}`;
     const au = t.auto && Object.keys(t.auto).length ? `<p class="tp-auto">✨ Vorgeschlagen wie bei deinen bisherigen Einträgen „${esc(t.title)}“ – bitte kurz prüfen.</p>` : "";
     body = `<h3 class="tp-q">Passt das so?</h3>${au}<div class="tp-sum">${tapSummary()}
-      ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", REPEAT[t.rep] || repLabel(t.rep)) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
+      ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", (REPEAT[t.rep] || repLabel(t.rep)) + (t.until ? " · bis " + fmt(parseIso(t.until)) : " · ohne Ende")) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
     ${free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${xlbl(k)}</button>`).join("")}</div>` : ""}
     ${ty === "dienst" && (t.days || []).length > 1 ? "" : `<button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>`}
     <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`; }
@@ -3772,11 +3775,12 @@ document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") retu
   if ((el = q("[data-tph]"))) { if (el.dataset.tph === "x") { TAP.allday = true; TAP.hour = null; tapGo(tapNext()); } else { TAP.allday = false; TAP.hour = +el.dataset.tph; TAP.min = 0; tapGo("min"); } return; }
   if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(TAP.ty === "dienst" ? "ende" : tapNext()); return; }
   if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
-  if ((el = q("[data-tpclr]"))) { const k = el.dataset.tpclr; if (k === "ort") TAP.place = ""; if (k === "rep") TAP.rep = "none"; if (k === "notiz") TAP.note = ""; if (k === "teilen") TAP.sh = null; renderTap(); return; }
+  if ((el = q("[data-tpclr]"))) { const k = el.dataset.tpclr; if (k === "ort") TAP.place = ""; if (k === "rep") { TAP.rep = "none"; TAP.until = ""; } if (k === "notiz") TAP.note = ""; if (k === "teilen") TAP.sh = null; renderTap(); return; }
   if ((el = q("[data-osm]")) && el.dataset.osmin === "tp-place") { TAP.place = el.dataset.osm; TAP.placeAsked = true; after(); return; }
   if ((el = q("[data-tpplace]"))) { TAP.place = el.dataset.tpplace; TAP.placeAsked = true; after(); return; }
   if ((el = q("#tp-place-go"))) { TAP.place = ($("tp-place")?.value || "").trim(); TAP.placeAsked = true; after(); return; }
-  if ((el = q("[data-tprep]"))) { TAP.rep = el.dataset.tprep; tapDone(); return; }
+  if ((el = q("[data-tprep]"))) { TAP.rep = el.dataset.tprep; if (TAP.rep === "none") { TAP.until = ""; tapDone(); } else TAP.step = "x-until", renderTap(); return; }
+  if ((el = q("[data-tpuntil]"))) { TAP.until = el.dataset.tpuntil; tapDone(); return; }
   if ((el = q("[data-tpdur]"))) { TAP.dur = el.dataset.tpdur; if (TAP.step === "ende") { tapGo("endmin"); return; } after(); return; }
   if ((el = q("[data-tpendm]"))) { TAP.dur = `${(TAP.dur || "00:00").slice(0, 2)}:${p2(+el.dataset.tpendm)}`; tapGo(tapNext()); return; }
   if ((el = q("#tp-note-go"))) { TAP.note = ($("tp-note")?.value || "").trim(); tapDone(); return; }
@@ -3808,6 +3812,7 @@ document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") retu
 function tapDienstTimes() { const last = EV.filter(e => e.type === "dienst" && (e.title || "").toLowerCase() === (TAP.title || "").toLowerCase() && e.time).sort((a, b) => String(b.from).localeCompare(String(a.from)))[0];
   if (last && TAP.hour == null) { TAP.hour = +last.time.slice(0, 2); TAP.min = +last.time.slice(3, 5); if (last.endTime) TAP.dur = last.endTime; } }
 document.addEventListener("change", ev => { const t = ev.target; if (!TAP || sheetMode !== "tap") return;
+  if (t.id === "tp-until" && parseIso(t.value)) { TAP.until = t.value; tapDone(); return; }
   if (t.id === "tp-date" && parseIso(t.value)) { TAP.date = parseIso(t.value); tapGo(tapNext()); }
   if (t.id === "tp-end" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.dur = t.value; TAP.step.startsWith("x-") ? tapDone() : tapGo(tapNext()); return; }
   if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(TAP.ty === "dienst" ? "ende" : tapNext()); } });
