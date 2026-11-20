@@ -2219,13 +2219,15 @@ const TRAIN_RULE = `ZÜGE (wichtig, damit die App den Zug live beobachten kann):
 FLÜGE: note immer im Format "<Airline> <Flugnummer falls sichtbar>: <IATA> HH:MM → <IATA> HH:MM" je Teilstrecke, getrennt mit "; " (z. B. "Lufthansa LH 2043: BER 18:55 → MUC 20:05; LH 2420: MUC 21:40 → ARN 23:55"). time = Abflugzeit der ersten Teilstrecke, flight = true, mode = "flug". Keine Flugnummer erfinden.`;
 const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45 · Buchung ABC123"). Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.
 ${TRAIN_RULE}`;
-async function docAnalyze(e) {
-  const fs = e.files || []; if (!fs.length || !sample) return;
-  openSheet("Dokumente auswerten", `„${e.title}“ · ${fs.length} Dokument${fs.length > 1 ? "e" : ""}`, `<p class="note" id="dai-msg">Ich lese die Dokumente …</p><div id="dai-body"></div>`, "dai", { id: e.id });
+async function docAnalyze(e, extra) {
+  const fs = e.files || []; if ((!fs.length && !extra?.link && !extra?.mail) || !sample) return;
+  openSheet("Dokumente auswerten", `„${e.title}“ · ${extra?.link ? "Link" : extra?.mail ? "Mail-Text" : fs.length + " Dokument" + (fs.length > 1 ? "e" : "")}`, `<p class="note" id="dai-msg">Ich lese die Dokumente …</p><div id="dai-body"></div>`, "dai", { id: e.id });
   const say = t => { const m = $("dai-msg"); if (m) m.textContent = t; };
   try {
     const lim = await sample.limits().catch(() => null), maxImg = lim?.images?.maxCount || 0, imgs = [], texts = [];
-    const FL = fs.slice(-6);
+    if (extra?.mail) texts.push(`--- Mail/Nachricht ---\n${extra.mail.slice(0, 12000)}`);
+    if (extra?.link) { const lk = await linksForAI(extra.link, say).catch(() => ({ texts: [] })); texts.push(...(lk.texts || [])); }
+    const FL = extra?.link || extra?.mail ? [] : fs.slice(-6);
     for (const [fi, f] of FL.entries()) {
       const b = await fileBlob(f).catch(() => null); if (!b) continue;
       if (isPdfF(f)) { const { pages } = await pdfPages(b, 3, 1.4).catch(() => ({ pages: [] }));
@@ -2980,7 +2982,7 @@ document.addEventListener("focusin", ev => {
 });
 let POP_CLOSING = false, DRAFT_SAVED = false;
 function closeSheet() { try { if (MIC) micStop(); } catch {}
-  if (!DRAFT_SAVED && !sheet.hidden && sheetMode === "tap" && TAP?.ty && (TAP.title || TAP.date || TAP.fk !== undefined)) { const keep = TAP; setTimeout(() => toast("Eingabe verworfen", () => { TAP = keep; renderTap(); }, "Wiederherstellen"), 0); }
+  if (!DRAFT_SAVED && !sheet.hidden && sheetMode === "tap" && TAP?.ty && (TAP.title || TAP.date || TAP.fk !== undefined) && tapDirty()) { const keep = TAP; setTimeout(() => toast("Eingabe verworfen", () => { TAP = keep; renderTap(); }, "Wiederherstellen"), 0); }
   if (!DRAFT_SAVED && !sheet.hidden && (formDirty() || asstDirty())) { const isF = sheetMode === "form", dv = isF ? { ...formVals(), place: ($("f-place")?.value || "").trim() } : null, at = { txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "", day: ASST_DAY, to: ASST_TO };
     setTimeout(() => toast(isF ? "Eingabe verworfen" : "Text verworfen", () => { if (isF) { showForm({ ...dv, id: undefined }); fTimeOpen = !!dv.time; syncFormFields(); qMark(); } else { ASST_DAY = at.day; ASST_TO = at.to; showAssistant(true); $("a-in").value = at.txt; $("a-out").innerHTML = at.html; } }, "Wiederherstellen"), 0); }
   DRAFT_SAVED = false;
@@ -3627,7 +3629,7 @@ const TAP_FLOW = { termin: ["was", "wann", "zeit"], info: ["was", "wann"], urlau
   birthday: ["was", "monat", "tag", "jahr"], anniversary: ["was", "monat", "tag", "jahr"], abholen: ["pdir", "pmode", "was", "wann", "zeit", "pwo", "pno"],
   deadline: ["fk", "fdat", "flead", "frenew"], dienst: ["was", "tage", "zeit", "ende"], contact: ["was", "oft"] };
 const TAP_Q = { termin: "Was steht an?", info: "Woran soll der Kalender erinnern?", urlaub: "Was ist es?", trip: "Wohin geht's?", birthday: "Wer hat Geburtstag?", anniversary: "Welcher Jahrestag?", abholen: "Wen?", dienst: "Welcher Dienst?", contact: "Mit wem möchtest du in Kontakt bleiben?" };
-const TAP_X = { ort: ["📍", "Wo?"], rep: ["🔁", "Wiederholen"], dauer: ["⏱", "Bis wann?"], notiz: ["📝", "Notiz"], teilen: ["👥", "Teilen"] };
+const TAP_X = { ort: ["📍", "Wo?"], rep: ["🔁", "Wiederholen"], dauer: ["⏱", "Bis wann?"], notiz: ["📝", "Notiz"], teilen: ["👥", "Teilen"], datei: ["📎", "Datei"] };
 const TAP_XT = { termin: null, abholen: ["rep", "notiz", "teilen"], urlaub: ["ort", "notiz", "teilen"], trip: ["ort", "notiz", "teilen"], birthday: ["notiz", "teilen"], anniversary: ["notiz", "teilen"], deadline: ["notiz"], dienst: ["notiz"], info: ["rep", "notiz"], contact: ["notiz"] };
 const tapTime = () => TAP?.allday || TAP?.hour == null ? "" : `${p2(TAP.hour)}:${p2(TAP.min || 0)}`;
 const tapEnd = () => { const t = TAP; if (!t || t.hour == null || t.allday || !t.dur) return ""; if (/^\d{2}:\d{2}$/.test(t.dur)) return t.dur; const m = t.hour * 60 + (t.min || 0) + +t.dur; return m >= 24 * 60 ? "23:59" : `${p2(Math.floor(m / 60))}:${p2(m % 60)}`; };
@@ -3642,14 +3644,14 @@ function tapDone_(k) { const t = TAP;
   return true; }
 document.addEventListener("input", ev => { if (ev.target?.id === "tp-place" && sheetMode === "tap") { const v = ev.target.value; if (v.trim().length >= 3) osmQueue(osmExpand(v), false, 350, { inp: "tp-place", box: "tp-place-sug" }); else { const b = $("tp-place-sug"); if (b) b.hidden = true; } } });
 const tapNext = () => !TAP.ty ? "art" : (TAP_FLOW[TAP.ty] || []).find(k => !tapDone_(k)) || "fertig";
-function tapEvent() { const t = TAP, ty = t.ty || "termin", d0 = t.date || TODAY, Y = TODAY.getFullYear();
+function tapEvent() { const t = TAP, ty = t.ty || "termin", d0 = t.date || TODAY, Y = (t.edit && parseIso(t.edit.from) || TODAY).getFullYear();
   const v = { type: ty, title: t.title || "", from: iso(d0), to: iso(t.date2 || d0), time: tapTime(), endTime: tapEnd(), repeat: t.rep || "none", until: t.rep && t.rep !== "none" && t.until ? t.until : "", birthYear: "", note: t.note || "", place: t.place || "", gcal: gWritable() ? "primary" : "", ...(t.sh ? shSplit(t.sh) : {}) };
   if (ty === "info" || ty === "urlaub") { v.time = ""; v.endTime = ""; }
   if (ty === "trip") { v.mode = t.tmode || ""; v.endTime = ""; }
   if (ty === "birthday" || ty === "anniversary") { const md = `${Y}-${p2(t.mo || 1)}-${p2(t.day || 1)}`; Object.assign(v, { from: md, to: md, time: "", endTime: "", repeat: "yearly" }); if (ty === "birthday") v.birthYear = t.yr || ""; else v.startYear = t.yr || 0; }
   if (ty === "abholen") { v.pick = { dir: t.dir || "arr", mode: t.mode || "zug", who: t.title || "", no: t.no || "" }; v.endTime = ""; v.title = `${t.title || ""} ${t.dir === "dep" ? "bringen" : "abholen"}${t.no ? " · " + t.no : ""}`.trim(); }
   if (ty === "deadline") Object.assign(v, { title: t.fk ? FK[t.fk].t : t.title || "Frist", fk: t.fk || "", to: v.from, time: "", endTime: "", remindDays: t.lead ?? (FK[t.fk]?.lead || 7), renew: +t.renew || 0 });
-  if (ty === "contact") Object.assign(v, { from: iso(TODAY), to: iso(TODAY), time: "", endTime: "", everyWeeks: t.every || 8 });
+  if (ty === "contact") Object.assign(v, { from: t.edit?.from || iso(TODAY), to: t.edit?.from || iso(TODAY), time: "", endTime: "", everyWeeks: t.every || 8 });
   if (ty === "dienst") { v.from = v.to = t.days?.[0] || iso(d0); }
   return v; }
 function tapXOrder() { const t = TAP, ti = (t.title || "").toLowerCase();
@@ -3657,6 +3659,7 @@ function tapXOrder() { const t = TAP, ti = (t.title || "").toLowerCase();
   if (!TAP_XT[t.ty]) { const n = EV.filter(e => e.type === "termin" && (e.title || "").toLowerCase() === ti).length;
     if (/eltern|training|kurs|chor|probe|sport|verein|stammtisch|unterricht/.test(ti) || n >= 2) o = ["rep", "ort", "dauer", "notiz", "teilen"];
     if (/familie|oma|opa|geburtstag|feier|essen|besuch/.test(ti)) o = ["teilen", "ort", "dauer", "rep", "notiz"]; }
+  if (t.edit && canWrite && !["birthday", "anniversary", "contact"].includes(t.ty)) o = [...o.slice(0, 1), "datei", ...o.slice(1)];
   return o.filter(k => !(k === "teilen" && !(SHR_ON() && SHR.contacts.length)) && !(k === "dauer" && (t.hour == null || t.allday))); }
 const tapRepHint = () => { const ti = (TAP.title || "").toLowerCase(), g = habFor(TAP.ty, TAP.title)?.gap || 0;
   if (g) { const w = Math.round(g / 7), m = Math.round(g / 30.4); if (g <= 10) return "weekly"; if (g < 56) return `w${w}`; if (m <= 12) return m === 1 ? "monthly" : m === 12 ? "yearly" : `m${m}`; }
@@ -3672,6 +3675,20 @@ function tapTitles() { const ty = TAP.ty || "termin", own = {};
   src.forEach(x => own[x] = (own[x] || 0) + 1);
   const top = Object.entries(own).filter(([, n]) => n >= (ty === "abholen" || ty === "dienst" || ty === "trip" ? 1 : 2)).sort((a, b) => b[1] - a[1]).map(([x]) => x).slice(0, 4);
   return [...new Set([...top, ...(ty === "abholen" ? [] : titleSug(ty))])].slice(0, 9); }
+// Bestehenden Eintrag im Antippen-Stil bearbeiten: Zusammenfassung mit „ändern“ und „Noch etwas dazu?“
+function showTapEdit(e) {
+  const ty = e.type, a = parseIso(e.from), b = parseIso(e.to || e.from) || a;
+  const t = { ty, edit: e, title: ty === "abholen" ? (e.pick?.who || "") : e.title || "", date: a, date2: ["urlaub", "trip"].includes(ty) || (ty === "termin" && b > a) ? b : null, preset: true, hour: null, min: 0, allday: false, hist: [],
+    cal: new Date(a.getFullYear(), a.getMonth(), 1), place: e.place || "", note: e.note || "", rep: e.repeat || "none", until: e.until || "", dur: e.endTime || null };
+  if (/^\d{1,2}:\d{2}/.test(e.time || "")) { t.hour = +e.time.slice(0, 2); t.min = +e.time.slice(3, 5); } else t.allday = true;
+  if (ty === "birthday" || ty === "anniversary") { t.mo = a.getMonth() + 1; t.day = a.getDate(); t.yr = ty === "birthday" ? (e.birthYear || "") : (e.startYear || ""); t.rep = "none"; }
+  if (ty === "abholen") { t.dir = e.pick?.dir || "arr"; t.mode = e.pick?.mode || "zug"; t.no = e.pick?.no || ""; t.noAsked = true; t.placeAsked = true; }
+  if (ty === "deadline") { t.fk = e.fk || ""; t.lead = e.remindDays ?? 7; t.renew = +e.renew || 0; }
+  if (ty === "dienst") t.days = [e.from];
+  if (ty === "contact") t.every = +e.everyWeeks || 8;
+  if (ty === "trip") t.tmode = e.mode || "";
+  TAP = t; TAP.step = "fertig"; TAP.v0 = JSON.stringify(tapEvent()); renderTap(); }
+const tapDirty = () => !TAP?.edit || JSON.stringify(tapEvent()) !== TAP.v0;
 function showTap(day, title, ty) {
   if (ty && !TAP_FLOW[ty]) ty = "";
   TAP = { ty: ty || "", title: title || "", date: day || null, preset: !!day, hour: null, min: 0, allday: false, hist: [], cal: day ? new Date(day.getFullYear(), day.getMonth(), 1) : new Date(TODAY.getFullYear(), TODAY.getMonth(), 1) };
@@ -3762,20 +3779,34 @@ function renderTap() {
   else if (s === "x-dauer") body = `<h3 class="tp-q">Wie lange?</h3><div class="tp-g">${[["30", "½ Std."], ["60", "1 Std."], ["90", "1½ Std."], ["120", "2 Std."], ["180", "3 Std."], ["", "Offen"]].map(([k, l]) => chip("data-tpdur", k, l, (t.dur || "") === k)).join("")}</div>
     <label class="tp-other">✎ Bis <input type="time" id="tp-end" value="${/^\d{2}:\d{2}$/.test(t.dur || "") ? t.dur : ""}"> Uhr</label>`;
   else if (s === "x-notiz") body = `<h3 class="tp-q">${ty === "birthday" ? "Geschenkidee oder Notiz" : "Notiz"}</h3><textarea id="tp-note" class="in" rows="4" placeholder="${ty === "birthday" ? "z. B. wünscht sich ein Buch" : ty === "deadline" ? "z. B. Kundennummer, Kündigungsfrist 3 Monate" : "z. B. Versichertenkarte mitnehmen"}">${esc(t.note || "")}</textarea><div class="btnrow"><button type="button" class="btn accent" id="tp-note-go">Fertig</button></div>`;
+  else if (s === "x-datei") { const id = esc(t.edit?.id || "");
+    body = `<h3 class="tp-q">Was hast du?</h3><div class="tp-g tp-wide">
+      <label class="tp-c">📷 Foto<input type="file" hidden accept="image/*" capture="environment" data-tpdoc="${id}"></label>
+      <label class="tp-c">📎 PDF oder Bild<input type="file" hidden multiple accept="application/pdf,image/*" data-tpdoc="${id}"></label>
+      ${sample ? chip("data-tpdocm", "link", "🔗 Link", false) + chip("data-tpdocm", "mail", "📧 Mail-Text", false) : ""}</div>
+      ${t.docm === "link" ? `<div class="tp-own"><input id="tp-doclink" class="in" type="url" placeholder="https://… (Buchung, Ticket)"><button type="button" class="btn accent" id="tp-doc-go">Auslesen</button></div>` : ""}
+      ${t.docm === "mail" ? `<textarea id="tp-docmail" class="in" rows="5" placeholder="Text der Mail oder Nachricht einfügen"></textarea><div class="btnrow"><button type="button" class="btn accent" id="tp-doc-go">Auslesen</button></div>` : ""}
+      <p class="note">${tapDirty() ? "Deine Änderungen werden vorher gespeichert. " : ""}Danach schlage ich vor, was sich daraus übernehmen lässt – du entscheidest per Häkchen.</p>`; }
   else if (s === "x-teilen") body = `<h3 class="tp-q">Wer soll das sehen?</h3>${shrChips("data-tpsh", t.sh || effTo({ ...tapEvent(), shareTo: [], shareNo: [] }))}<div class="btnrow"><button type="button" class="btn accent" id="tp-sh-go">Fertig</button></div>`;
   else { const XL = { ort: ty === "trip" || ty === "urlaub" ? "Unterkunft" : "Wo", notiz: ty === "birthday" ? "Geschenk/Notiz" : "Notiz" };
     const free = tapXOrder().filter(k => !(k === "ort" && t.place) && !(k === "rep" && t.rep && t.rep !== "none") && !(k === "dauer" && t.dur) && !(k === "notiz" && t.note) && !(k === "teilen" && t.sh));
-    const xlbl = k => k === "ort" && (ty === "trip" || ty === "urlaub") ? "📍 Unterkunft" : k === "notiz" && ty === "birthday" ? "🎁 Geschenkidee" : `${TAP_X[k][0]} ${TAP_X[k][1]}`;
+    const xlbl = k => k === "datei" ? ({ abholen: "🎫 Ticket", trip: "🎫 Ticket/Buchung", urlaub: "🎫 Buchung", deadline: "📎 Vertrag" }[ty] || "📎 Datei") + ((t.edit?.files || []).length ? ` (${t.edit.files.length})` : "") : k === "ort" && (ty === "trip" || ty === "urlaub") ? "📍 Unterkunft" : k === "notiz" && ty === "birthday" ? "🎁 Geschenkidee" : `${TAP_X[k][0]} ${TAP_X[k][1]}`;
     const au = t.auto && Object.keys(t.auto).length ? `<p class="tp-auto">✨ Vorgeschlagen wie bei deinen bisherigen Einträgen „${esc(t.title)}“ – bitte kurz prüfen.</p>` : "";
     body = `<h3 class="tp-q">Passt das so?</h3>${au}<div class="tp-sum">${tapSummary()}
       ${t.place && ty !== "abholen" ? xLine("ort", XL.ort, t.place) : ""}${t.rep && t.rep !== "none" ? xLine("rep", "Wie oft", (REPEAT[t.rep] || repLabel(t.rep)) + (t.until ? " · bis " + fmtY(parseIso(t.until)) : " · ohne Ende")) : ""}${t.note ? xLine("notiz", XL.notiz, t.note) : ""}${t.sh ? xLine("teilen", "Teilen", t.sh.length ? t.sh.length + " Person(en)" : "nur ich") : ""}</div>
     ${free.length ? `<p class="tp-xh">Noch etwas dazu? <small>(freiwillig)</small></p><div class="tp-x">${free.map(k => `<button type="button" class="tp-xc" data-tpedit="x-${k}">${xlbl(k)}</button>`).join("")}</div>` : ""}
     ${ty === "dienst" && (t.days || []).length > 1 ? "" : `<button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>`}
     <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`; }
-  openSheet(TAP_HEAD[ty] || "Neu eintragen", sum || "Schritt für Schritt", `<div class="tap">${entrySw("tap")}${back}${body}</div>`, "tap");
+  openSheet(t.edit ? `${TYPES[ty]?.label || "Eintrag"} bearbeiten` : TAP_HEAD[ty] || "Neu eintragen", sum || "Schritt für Schritt", `<div class="tap">${t.edit ? "" : entrySw("tap")}${back}${body}</div>`, "tap");
   if (s === "hn") setTimeout(() => $("tp-hn")?.focus(), 60);
 }
-async function tapSave() { const t = TAP, v = tapEvent(); if (t.ty) store.set("ft-tap-ty", t.ty);
+// erst Änderungen speichern, dann z. B. Datei anhängen
+async function tapEditThen(fn) { const e0 = TAP?.edit; if (!e0) return; if (tapDirty()) await tapSave(); const e = EV.find(x => x.id === e0.id) || e0; await fn(e); }
+async function tapSave() { const t = TAP; if (t?.edit) { const e = t.edit;
+    if (!tapDirty()) { DRAFT_SAVED = true; const o = findOcc(e.id, e.from); o ? showEvent(o) : closeSheet(); return; }
+    const v = { ...e, ...tapEvent(), id: e.id, gcal: e.gcal, files: e.files, ...(t.sh ? shSplit(t.sh) : {}) };
+    showForm(v); const b = $("sheet"); if (b) b.style.visibility = "hidden"; try { await saveForm(); } finally { if (b) b.style.visibility = ""; } return; }
+  const v = tapEvent(); if (t.ty) store.set("ft-tap-ty", t.ty);
   if (t.ty === "dienst" && (t.days || []).length > 1) {
     showForm(v); const sh = $("sheet"); if (sh) sh.style.visibility = "hidden";
     try { const v0 = formVals(), msg = validate(v0); if (msg) { $("f-err").textContent = msg; return; }
@@ -3807,8 +3838,11 @@ document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") retu
   if ((el = q("#tp-note-go"))) { TAP.note = ($("tp-note")?.value || "").trim(); tapDone(); return; }
   if ((el = q("#tp-sh-go"))) { TAP.sh = [...chipSel("data-tpsh")]; tapDone(); return; }
   if ((el = q("#tp-back"))) { tapBack(); return; }
-  if ((el = q("#tp-more"))) { showForm(tapEvent()); FROM_TAP = true; return; }
+  if ((el = q("#tp-more"))) { const e = TAP.edit; showForm(e ? { ...e, ...tapEvent(), id: e.id, gcal: e.gcal, files: e.files } : tapEvent()); FROM_TAP = true; return; }
   if ((el = q("#tp-save"))) { tapSave(); return; }
+  if ((el = q("[data-tpdocm]"))) { TAP.docm = el.dataset.tpdocm; renderTap(); return; }
+  if ((el = q("#tp-doc-go"))) { const link = ($("tp-doclink")?.value || "").trim(), mail = ($("tp-docmail")?.value || "").trim(); if (!link && mail.length < 10) return tapErr(TAP.docm === "link" ? "Bitte einen Link einfügen." : "Bitte den Text einfügen.", TAP.docm === "link" ? "tp-doclink" : "tp-docmail");
+    tapEditThen(e => docAnalyze(e, { link, mail })); return; }
   if ((el = q("[data-tpcalnav]"))) { const m = TAP.cal; TAP.cal = new Date(m.getFullYear(), m.getMonth() + +el.dataset.tpcalnav, 1); renderTap(); return; }
   if ((el = q("[data-tpcal]"))) { const d = parseIso(el.dataset.tpcal);
     if (TAP.step === "tage") { const s = new Set(TAP.days || []); s.has(iso(d)) ? s.delete(iso(d)) : s.add(iso(d)); TAP.days = [...s].sort(); renderTap(); return; }
@@ -5001,7 +5035,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-n3]"))) { showNext3(); return; }
   if ((el = q("[data-day]"))) { const dt = parseIso(el.dataset.day); if (moving) finishMove(dt); else showDay(dt); return; }
   if ((el = q("[data-occ]"))) { const [id, a] = el.dataset.occ.split("|"); const o = findOcc(id, a); if (o) showEvent(o); return; }
-  if ((el = q("[data-edit]"))) { const e = EV.find(x => x.id === el.dataset.edit) || RECV.find(x => x.id === el.dataset.edit); if (e) showForm(e); return; }
+  if ((el = q("[data-edit]"))) { const e = EV.find(x => x.id === el.dataset.edit) || RECV.find(x => x.id === el.dataset.edit); if (!e) return;
+    if (entryMode() === "tap" && TAP_FLOW[e.type] && !e.shared && EV.includes(e) && parseIso(e.from)) return showTapEdit(e); showForm(e); return; }
   if ((el = q("[data-shev]"))) { const [id, d] = el.dataset.shev.split("|"), e = EV.find(x => x.id === id); if (e) showShareEv(e, d); return; }
   if ((el = q("[data-shunhide]"))) { SHR.hidden = SHR.hidden.filter(s => s !== el.dataset.shunhide); saveShr(); shrMerge(); showShareMgr(); toast("Wieder eingeblendet"); return; }
   if ((el = q("[data-shdel]"))) { const e = RECV.find(x => x.id === el.dataset.shdel); if (e) showSharedDelete(e); return; }
@@ -5295,6 +5330,7 @@ document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { st
 document.addEventListener("change", ev => {
   if (ev.target.dataset?.wzpage && WZ) { WZ.pages = { ...(WZ.pages || PAGES), [ev.target.dataset.wzpage]: ev.target.checked }; ev.target.closest(".pv-card")?.classList.toggle("on", ev.target.checked); return; }
   if (ev.target.dataset?.docsel) { const id = ev.target.dataset.docsel; ev.target.checked ? DOCSEL.add(id) : DOCSEL.delete(id); docDelArm = false; showDocs(); return; }
+  if (ev.target.dataset?.tpdoc) { const fs = [...(ev.target.files || [])]; ev.target.value = ""; if (fs.length) tapEditThen(e => docUpload(e, fs)); return; }
   if (ev.target.dataset?.docadd) { const e = EV.find(x => x.id === ev.target.dataset.docadd), fs = [...(ev.target.files || [])]; ev.target.value = ""; if (e && fs.length) docUpload(e, fs); return; }
   if (ev.target.dataset?.page) { setPage(ev.target.dataset.page, ev.target.checked); return; }
   if (ev.target.dataset?.fsh !== undefined) { formShManual = true; return; }
