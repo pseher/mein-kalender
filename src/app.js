@@ -1850,7 +1850,8 @@ async function openMerk(o) {
 const STATE_LL = { BW: [48.78, 9.18], BY: [48.14, 11.58], BE: [52.52, 13.40], BB: [52.40, 13.06], HB: [53.08, 8.80], HH: [53.55, 9.99], HE: [50.11, 8.68], MV: [53.63, 11.41], NI: [52.37, 9.74], NW: [51.23, 6.78], RP: [50.00, 8.27], SL: [49.24, 6.99], SN: [51.05, 13.74], ST: [52.13, 11.63], SH: [54.32, 10.14], TH: [50.98, 11.03] };
 let osmT = null, osmAbort = null, osmLast = "";
 const osmLine = f => { const p = f.properties || {}, street = [p.street, p.housenumber].filter(Boolean).join(" "), city = [p.postcode, p.city || p.town || p.village || p.district].filter(Boolean).join(" ");
-  const name = p.name && p.name !== p.street ? p.name : ""; return { name, addr: [street, city].filter(Boolean).join(", "), full: [name, street, city].filter(Boolean).join(", ") }; };
+  const name = p.name && p.name !== p.street ? p.name : "", isSt = p.type === "street" || p.osm_key === "highway";
+  return { name, addr: [street, city].filter(Boolean).join(", "), full: [name, street, city].filter(Boolean).join(", "), nohn: isSt && !p.housenumber ? (p.street || p.name || "") : "", city }; };
 const osmWords = t => String(t).toLowerCase().normalize("NFC").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFKD").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(w => w.length > 2);   // Umlaute ausschreiben: „Spät“ ≠ „Späti“
 // Dienste, Schichten & Co. brauchen keinen Ort
 const NOPLACE_W = /^(früh|spät|nacht|mittel|tag|wochenend)(dienst|schicht)?$|(dienst|schicht|bereitschaft)$|^(frei|ausgleich|homeoffice|home|office|ho|mobil|büro|arbeit|arbeiten|krank|urlaub|ferien|gleitzeit|überstunden|fortbildung|bd|rb|nd|fd|sd|hd)$/i;
@@ -1880,7 +1881,7 @@ async function osmSearch(q, fromTitle, tgt) {
     const seen = new Set(); hits = hits.filter(h => !seen.has(h.full) && seen.add(h.full)).slice(0, fromTitle ? 3 : 5);
     if (tgt && $(inp)?.value.trim().length < 3) { box.hidden = true; return; }
     if (!hits.length || ($("f-place")?.value.trim() && fromTitle)) { box.hidden = true; return; }
-    box.innerHTML = `<div class="osm-h">${fromTitle ? "Meinst du diesen Ort?" : "Vorschläge"}</div>${hits.map(h => `<button type="button" data-osm="${esc(h.full)}" data-osmin="${inp}"><b>${esc(h.name || h.addr)}</b>${h.name ? `<span>${esc(h.addr)}</span>` : ""}</button>`).join("")}<div class="osm-c">Kartendaten © OpenStreetMap-Mitwirkende</div>`;
+    box.innerHTML = `<div class="osm-h">${fromTitle ? "Meinst du diesen Ort?" : "Vorschläge"}</div>${hits.map(h => `<button type="button" data-osm="${esc(h.full)}" data-osmin="${inp}"${h.nohn ? ` data-osmst="${esc(h.nohn)}" data-osmcity="${esc(h.city || "")}"` : ""}><b>${esc(h.name || h.addr)}</b>${h.name ? `<span>${esc(h.addr)}</span>` : ""}</button>`).join("")}<div class="osm-c">Kartendaten © OpenStreetMap-Mitwirkende</div>`;
     box.hidden = false;
   } catch (e) { if (e?.name !== "AbortError") box.hidden = true; }
 }
@@ -3711,6 +3712,9 @@ function renderTap() {
   else if (s === "ende") body = `<h3 class="tp-q">Dienstende?</h3><div class="tp-g tp-h">${Array.from({ length: 24 }, (_, i) => i).map(h => chip("data-tpdur", `${p2(h)}:00`, `${h}`, t.dur === `${p2(h)}:00`)).join("")}</div>
     <label class="tp-other">✎ Genaue Zeit <input type="time" id="tp-end" value="${/^\d{2}:\d{2}$/.test(t.dur || "") ? t.dur : ""}"></label>`;
   else if (s === "endmin") { const h = (t.dur || "00:00").slice(0, 2); body = `<h3 class="tp-q">${+h} Uhr und …?</h3><div class="tp-g tp-m">${[0, 15, 30, 45].map(m => chip("data-tpendm", m, `${+h}:${p2(m)}`, t.dur === `${h}:${p2(m)}`)).join("")}</div>`; }
+  else if (s === "hn") body = `<h3 class="tp-q">Hausnummer?</h3><p class="note" style="margin:-6px 0 10px">${esc(t.hnSt)}${t.hnCity ? ", " + esc(t.hnCity) : ""}</p>
+    <div class="tp-own"><input id="tp-hn" class="in" type="text" inputmode="numeric" placeholder="z. B. 12 oder 12a" autocomplete="off"><button type="button" class="btn accent" id="tp-hn-go">Fertig</button></div>
+    <div class="tp-g">${chip("data-tphn", "x", "Ohne Hausnummer", false)}</div>`;
   else if (s === "zeitraum") body = `<h3 class="tp-q">${!t.date ? "Erster Tag?" : !t.date2 ? "Und der letzte Tag?" : "Passt der Zeitraum?"}</h3>${tapCal(false)}
     <p class="note">${t.date && !t.date2 ? `Ab ${fmt(t.date)} – jetzt den letzten Tag antippen (nur ein Tag: denselben noch einmal).` : t.date2 ? `${fmt(t.date)} – ${fmt(t.date2)}` : "Erst den ersten, dann den letzten Tag antippen."}</p>
     ${t.date && t.date2 ? `<div class="btnrow"><button type="button" class="btn accent" id="tp-cal-go">Weiter</button></div>` : ""}`;
@@ -3754,6 +3758,7 @@ function renderTap() {
     ${ty === "dienst" && (t.days || []).length > 1 ? "" : `<button type="button" class="link tp-more" id="tp-more">Alles auf einmal bearbeiten (Formular)</button>`}
     <div class="btnrow tp-save"><button type="button" class="btn accent wide" id="tp-save">Speichern</button></div>`; }
   openSheet(TAP_HEAD[ty] || "Neu eintragen", sum || "Schritt für Schritt", `<div class="tap">${entrySw("tap")}${back}${body}</div>`, "tap");
+  if (s === "hn") setTimeout(() => $("tp-hn")?.focus(), 60);
 }
 async function tapSave() { const t = TAP, v = tapEvent(); if (t.ty) store.set("ft-tap-ty", t.ty);
   if (t.ty === "dienst" && (t.days || []).length > 1) {
@@ -3776,7 +3781,8 @@ document.addEventListener("click", ev => { if (!TAP || sheetMode !== "tap") retu
   if ((el = q("[data-tpm]"))) { TAP.min = +el.dataset.tpm; tapGo(TAP.ty === "dienst" ? "ende" : tapNext()); return; }
   if ((el = q("[data-tpedit]"))) { tapGo(el.dataset.tpedit); return; }
   if ((el = q("[data-tpclr]"))) { const k = el.dataset.tpclr; if (k === "ort") TAP.place = ""; if (k === "rep") { TAP.rep = "none"; TAP.until = ""; } if (k === "notiz") TAP.note = ""; if (k === "teilen") TAP.sh = null; renderTap(); return; }
-  if ((el = q("[data-osm]")) && el.dataset.osmin === "tp-place") { TAP.place = el.dataset.osm; TAP.placeAsked = true; after(); return; }
+  if ((el = q("[data-osm]")) && el.dataset.osmin === "tp-place") { if (el.dataset.osmst) { TAP.hnSt = el.dataset.osmst; TAP.hnCity = el.dataset.osmcity || ""; TAP.hnFrom = TAP.step; tapGo("hn"); return; } TAP.place = el.dataset.osm; TAP.placeAsked = true; after(); return; }
+  if ((el = q("#tp-hn-go")) || (el = q("[data-tphn]"))) { const hn = el.id === "tp-hn-go" ? ($("tp-hn")?.value || "").trim() : ""; TAP.place = `${TAP.hnSt}${hn ? " " + hn : ""}${TAP.hnCity ? ", " + TAP.hnCity : ""}`; TAP.placeAsked = true; TAP.hist.pop(); TAP.step = TAP.hnFrom; TAP.hnFrom.startsWith("x-") ? tapDone() : tapGo(tapNext()); return; }
   if ((el = q("[data-tpplace]"))) { TAP.place = el.dataset.tpplace; TAP.placeAsked = true; after(); return; }
   if ((el = q("#tp-place-go"))) { TAP.place = ($("tp-place")?.value || "").trim(); TAP.placeAsked = true; after(); return; }
   if ((el = q("[data-tprep]"))) { TAP.rep = el.dataset.tprep; if (TAP.rep === "none") { TAP.until = ""; tapDone(); } else TAP.step = "x-until", renderTap(); return; }
@@ -3816,7 +3822,7 @@ document.addEventListener("change", ev => { const t = ev.target; if (!TAP || she
   if (t.id === "tp-date" && parseIso(t.value)) { TAP.date = parseIso(t.value); tapGo(tapNext()); }
   if (t.id === "tp-end" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.dur = t.value; TAP.step.startsWith("x-") ? tapDone() : tapGo(tapNext()); return; }
   if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(TAP.ty === "dienst" ? "ende" : tapNext()); } });
-document.addEventListener("keydown", ev => { if (ev.key !== "Enter" || sheetMode !== "tap") return; const go = { "tp-title": "tp-title-go", "tp-place": "tp-place-go", "tp-yr": "tp-yr-go", "tp-no": "tp-no-go", "tp-fk": "tp-fk-go" }[ev.target?.id]; if (go) { ev.preventDefault(); $(go)?.click(); } });
+document.addEventListener("keydown", ev => { if (ev.key !== "Enter" || sheetMode !== "tap") return; const go = { "tp-hn": "tp-hn-go", "tp-title": "tp-title-go", "tp-place": "tp-place-go", "tp-yr": "tp-yr-go", "tp-no": "tp-no-go", "tp-fk": "tp-fk-go" }[ev.target?.id]; if (go) { ev.preventDefault(); $(go)?.click(); } });
 function formDirty() { return sheetMode === "form" && !editing && ["f-title", "f-place", "f-note", "f-pk-who", "f-pk-no"].some(id => ($(id)?.value || "").trim() && !$(id)?.dataset.pre); }
 function asstDirty() { return sheetMode === "asst" && (!!($("a-in")?.value || "").trim() || !!$("a-out")?.querySelector(".acts-list")); }
 function switchEntry(m, keepPref) {
@@ -5082,6 +5088,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-focus]"))) { const k = el.dataset.focus; FOCUS_OPEN[k] = !FOCUS_OPEN[k]; renderFocus(); if (FOCUS_OPEN[k]) $(k === "week" ? "sec-next" : k === "tasks" ? "sec-tasks" : "sec-soon")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); if (k === "tasks" && FOCUS_OPEN.tasks && !TASKS.some(t => !t.done)) $("tk-in")?.focus(); return; }
   if ((el = q("[data-placeno]"))) { const S = noPlace(); S.add(el.dataset.placeno); store.set("ft-noplace", JSON.stringify([...S].slice(-300))); const b = $("place-sug"); if (b) b.hidden = true; toast("Gemerkt – bei diesem Titel frage ich nicht mehr nach einem Ort"); renderAll(); return; }
   if ((el = q("[data-placeset]"))) { const o = sheetCtx && findOcc(sheetCtx.id, sheetCtx.a); if (o) setPlace(o, el.dataset.placeset); return; }
+  if ((el = q("[data-osm]")) && el.dataset.osmst && el.dataset.osmin !== "tp-place") { const f = $(el.dataset.osmin || "f-place"), st = el.dataset.osmst, c = el.dataset.osmcity;
+    if (f) { f.value = `${st} ${c ? ", " + c : ""}`; if (f.id === "f-place") osmLast = f.value; f.focus(); try { f.setSelectionRange(st.length + 1, st.length + 1); } catch {} } const b = el.closest(".osm-sug"); if (b) b.hidden = true; toast("Bitte noch die Hausnummer eintippen"); return; }
   if ((el = q("[data-osm]"))) { const f = $(el.dataset.osmin || "f-place"); if (f) { f.value = el.dataset.osm; if (f.id === "f-place") osmLast = f.value; f.dispatchEvent(new Event("input", { bubbles: true })); } const b = el.closest(".osm-sug"); if (b) b.hidden = true; return; }
   if ((el = q("[data-doc]"))) { if (sheetMode === "docs") DOCS_Y = $("sheet").scrollTop; const [id, fid] = el.dataset.doc.split("|"); const e = id ? EV.find(x => x.id === id) : null; showDoc(e, fid, !id); return; }
   if ((el = q("[data-docsback]"))) { showDocs(); return; }
