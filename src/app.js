@@ -219,7 +219,7 @@ function normalize(id, v) {
     remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks, fk: FK[v.fk] ? v.fk : "", renew: [1, 2, 3, 5].includes(+v.renew) ? +v.renew : 0,
-    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
+    place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, gAdopt: !!v.gAdopt, gSnap: String(v.gSnap || ""), gNote0: String(v.gNote0 || ""), mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
     a, b: b && a && b < a ? a : b };
@@ -255,6 +255,7 @@ function expand() {
   if (gOn()) { const seen = new Set(), linked = EV.map(e => e.gEventId).filter(Boolean);
     const isLinked = gid => linked.some(id => gid === id || gid.startsWith(id + "_")); GEV.forEach(list => list.forEach(o => { const k = (o.ev.gid || o.ev.id) + iso(o.a); if (!seen.has(k) && !isLinked(o.ev.gid) && o.b >= START && o.a <= END) { seen.add(k); OCC.push(o); } })); }
   OCC.sort((x, y) => x.a - y.a || (x.ev.time || "99").localeCompare(y.ev.time || "99"));
+  if (gOn() && EV.some(e => e.gAdopt)) gPullAdopted();
   OCC_ALL = OCC; const HID = new Set(Array.isArray(SHOW.hide) ? SHOW.hide : []); if (HID.size) OCC = OCC_ALL.filter(o => !HID.has(o.ev.type));
   OCC.forEach(o => { for (let t = o.a; t <= o.b; t = addDays(t, 1)) { const k = iso(t); if (!OIDX.has(k)) OIDX.set(k, []); OIDX.get(k).push(o); } });
   groupTrips();
@@ -1835,6 +1836,30 @@ async function adoptTrip(o, openPack) {
     const ev = { ...doc, id: ref.id, a: o.a, b: o.b }; if (openPack) showPack(ev); else showForm(ev);
   } catch (err) { toast(writeErr(err)); }
 }
+// Google-Termin beim ersten Bearbeiten zum eigenen, verknüpften Eintrag machen – sieht dann aus wie eigene Einträge,
+// Änderungen gehen zurück zu Google, Änderungen in Google werden nachgezogen (gSnap = Stand in Google beim letzten Abgleich)
+const gSnapOf = o => JSON.stringify({ title: o.ev.title, from: iso(o.a), to: iso(o.b), time: o.ev.time || "", endTime: o.ev.endTime || o.ev.etime || "", place: o.ev.note || "" });
+const gCalW = e => { const c = gCals.find(c => c.id === e.calId || (e.calId === "primary" && c.primary)); return !c?.accessRole || ["owner", "writer"].includes(c.accessRole); };
+const gAdoptable = o => canWrite && !!db && gWritable() && o.ev.type === "google" && gCalW(o.ev) && !/\b(geburtstag|birthday)\b/i.test(o.ev.title);
+async function adoptG(o) {
+  const g = o.ev, ex = EV.find(e => e.gEventId === g.gid); if (ex) return ex; if (!gAdoptable(o)) return null;
+  const multi = dayDiff(o.a, o.b) >= 1, ty = !g.time && multi && isTrip(o) ? "trip" : !g.time && multi && /urlaub|ferien/i.test(g.title) ? "urlaub" : "termin", m = merkOf(o);
+  const doc = { ...plain({ type: ty, title: g.title, from: iso(o.a), to: iso(o.b), time: g.time || "", endTime: g.endTime || (multi && g.time ? g.etime || "" : ""), repeat: "none", note: g.desc || "", gcal: g.calId, gEventId: g.gid,
+    place: g.note || "", flight: ty === "trip" && FLIGHT_RE.test(g.title), packlist: m?.packlist || [], color: g.ecol ? g.colorId : "" }), gAdopt: true, gSnap: gSnapOf(o), gNote0: g.desc || "" };
+  try { const ref = await COLL("events").add(doc); use("google_uebernommen");
+    if (m) { try { await COLL("events").doc(m.id).delete(); } catch {} MERK = MERK.filter(x => x.id !== m.id); }
+    const e = normalize(ref.id, doc); if (!EV.find(x => x.id === e.id)) EV.push(e); expand(); renderAll(); return EV.find(x => x.id === e.id) || e;
+  } catch (err) { toast(writeErr(err)); return null; } }
+const editEv = e => entryMode() === "tap" && TAP_FLOW[e.type] ? showTapEdit(e) : showForm(e);
+let gPullT = null;
+function gPullAdopted() { clearTimeout(gPullT); gPullT = setTimeout(async () => { if (!canWrite || !db || !gOn()) return;
+  const by = new Map(); GEV.forEach(L => L.forEach(o => { if (!by.has(o.ev.gid)) by.set(o.ev.gid, []); by.get(o.ev.gid).push(o); }));
+  for (const e of EV.filter(x => x.gAdopt && x.gEventId)) {   // mehrere Kopien (Quartalsgrenze, Zwischenspeicher): die geänderte, neueste zählt
+    const cs = (by.get(e.gEventId) || []).sort((x, y) => (y.ev.updated || "").localeCompare(x.ev.updated || "")), o = cs[0]; if (!o) continue; const s = gSnapOf(o);
+    if (s === e.gSnap || cs.some(c => (c.ev.updated || "") === (o.ev.updated || "") && gSnapOf(c) !== s)) continue;   // unklar, welche Kopie neuer ist: abwarten
+    let old = {}; try { old = JSON.parse(e.gSnap || "{}"); } catch {} const n = JSON.parse(s), up = { gSnap: s };
+    for (const k of Object.keys(n)) if (n[k] !== old[k] && n[k] !== (e[k] || "")) up[k] = n[k];
+    try { await COLL("events").doc(e.id).update(up); Object.assign(e, up); } catch {} } }, 1500); }
 // Merkliste zu einem Google-Termin: eigene, verknüpfte Notiz (mOnly) – der Google-Termin bleibt unverändert und sichtbar
 const merkOf = o => MERK.find(m => m.gEventId === o.ev.gid && m.from === iso(o.a));
 const merkable = o => canWrite && !!db && o.ev.type === "google" && !isTrip(o) && !isUmg(o) && !/geburtstag|birthday/i.test(o.ev.title) && !NOPLACE_RE.test(o.ev.title);
@@ -3225,7 +3250,7 @@ function showForm(e, preset) {
       <div id="f-place-sug" class="osm-sug" hidden></div></div>
       <button type="button" class="link f-more" id="f-more" hidden></button>
       <div id="f-note-grp"><label for="f-note">Notiz</label>
-      <input id="f-note" type="text" value="${esc(v.note)}" placeholder="optional"></div>
+      <textarea id="f-note" class="in f-notea" rows="${Math.min(4, String(v.note || "").split("\n").length)}" placeholder="optional">${esc(v.note)}</textarea></div>
       <div id="f-gcal-wrap">${v.gReadOnly ? `<p class="note">Aus Google übernommen – der Google-Termin bleibt unverändert.</p>` : gWritable() ? `<label for="f-gcal">Auch in Google eintragen</label><select id="f-gcal">${gCalOptions(v.gcal)}</select>` : ""}</div>
       <div class="err" id="f-err"></div>
       <div class="btnrow">
@@ -3387,13 +3412,13 @@ const writeErr = e => ["permission_denied", "not_granted", "forbidden"].includes
 const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time: e.time || "", endTime: e.endTime || "", repeat: e.repeat || "none", until: e.until || "", birthYear: e.birthYear || 0, note: e.note || "", gcal: e.gcal || "", gEventId: e.gEventId || "",
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
-  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
+  place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, gAdopt: !!e.gAdopt, gSnap: e.gSnap || "", gNote0: e.gNote0 || "", mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
   shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0 });
-let gWarn = 0;
+let gWarn = 0, gGone = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
   const col = COLL("events"), undo = []; LAST_ADDED = [];
-  gWarn = 0;
+  gWarn = 0; gGone = 0;
   for (const c of changes) {
     if (c.op === "add") {
       const v = plain(c.event); v.gEventId = ""; if (v.type === "contact") v.gcal = "";
@@ -3403,10 +3428,10 @@ async function applyChanges(changes) {
     } else if (c.op === "update") {
       const prev = EV.find(x => x.id === c.id), pv = prev ? plain(prev) : null, v = plain(c.event);
       if (c.event.gcal === undefined && pv) v.gcal = pv.gcal;
-      v.gEventId = pv ? pv.gEventId : "";
+      v.gEventId = pv ? pv.gEventId : ""; if (pv?.gAdopt) { v.gAdopt = true; v.gSnap = pv.gSnap; v.gNote0 = pv.gNote0; }
       if (pv && pv.gReadOnly) { v.gcal = pv.gcal; v.gReadOnly = true; }   // aus Google übernommen: Google-Termin bleibt unverändert
       else if (pv && pv.gEventId && (v.gcal !== pv.gcal || v.repeat !== pv.repeat)) { await gDelete(pv); v.gEventId = ""; }
-      if (v.gcal && v.gEventId) { if (!(await gUpdate(v))) { /* Google-Kopie fehlt evtl.: neu anlegen */ v.gEventId = (await gCreate(v)) || v.gEventId; } }
+      if (v.gcal && v.gEventId) { if (!(await gUpdate(v))) { if (v.gAdopt) { v.gEventId = ""; v.gcal = ""; v.gAdopt = false; gGone++; } /* Google-Kopie fehlt evtl.: neu anlegen */ else v.gEventId = (await gCreate(v)) || v.gEventId; } }
       else if (v.gcal && !v.gEventId) v.gEventId = await gCreate(v);
       await col.doc(c.id).set(v);
       undo.push({ op: "update", id: c.id, event: pv });
@@ -3417,6 +3442,7 @@ async function applyChanges(changes) {
       if (pv) { pv.gEventId = ""; undo.push({ op: "add", event: pv }); }
     }
   }
+  if (gGone) setTimeout(() => toast("Diesen Termin gibt es in Google nicht mehr – er bleibt nur hier im Kalender."), 1800);
   if (mcp) mcp.invalidate(GSERVER, "list_events").catch(() => {});
   const warn = gWarn;
   setTimeout(() => { if (warn) toast(warn === 1 ? "Hier gespeichert, Google hat nicht geantwortet" : `Hier gespeichert, ${warn} Google-Änderungen fehlgeschlagen`); }, 2600);
@@ -3431,14 +3457,14 @@ function gInput(v) {
   const to = v.to || v.from, inp = { summary: gTitle(v), notificationLevel: "NONE" }; { const c = v.color || (v.who ? whoId(v.who) : ""); if (c) inp.colorId = c; else if (v.colorClear) inp.colorId = ""; }
   if (v.time && to > v.from && !v.endTime) {   // mehrtägig mit Abfahrtszeit (Reise, Urlaub): in Google über alle Tage, Uhrzeit in die Beschreibung
     inp.allDay = true; inp.startTime = `${v.from}T00:00:00`; inp.endTime = `${iso(addDays(parseIso(to), 1))}T00:00:00`;
-    inp.description = [`Beginn ${tpad(v.time)} Uhr`, v.note].filter(Boolean).join("\n"); if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal; return inp;
+    if (!(v.gAdopt && v.note === v.gNote0)) inp.description = [`Beginn ${tpad(v.time)} Uhr`, v.note].filter(Boolean).join("\n"); if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal; return inp;
   }
   if (v.time) {
     inp.startTime = `${v.from}T${tpad(v.time)}:00`;
     if (v.endTime) inp.endTime = `${to}T${tpad(v.endTime)}:00`;
     else { const [h, m] = tpad(v.time).split(":"); const d = parseIso(v.from); d.setHours(+h + 1, +m); inp.endTime = localStamp(d); }
   } else { inp.allDay = true; inp.startTime = `${v.from}T00:00:00`; inp.endTime = `${iso(addDays(parseIso(to), 1))}T00:00:00`; }
-  if (v.note) inp.description = v.note;
+  if (v.note && !(v.gAdopt && v.note === v.gNote0)) inp.description = v.note;   // übernommener Google-Text: unverändert lassen
   if (v.place) inp.location = v.place;
   if (v.gcal && v.gcal !== "primary") inp.calendarId = v.gcal;
   return inp;
@@ -3707,7 +3733,7 @@ function tapCal(multi) { const t = TAP, m0 = t.cal, first = (m0.getDay() + 6) % 
     cells += `<button type="button" class="tp-cd${sel(d) ? " on" : ""}${sameDay(d, TODAY) ? " today" : ""}" data-tpcal="${iso(d)}"${past && !multi ? " disabled" : ""}>${i}</button>`; }
   return `<div class="tp-cal"><div class="tp-calh"><button type="button" class="tp-cn" data-tpcalnav="-1" aria-label="Monat zurück">‹</button><b>${MON[m0.getMonth()]} ${m0.getFullYear()}</b><button type="button" class="tp-cn" data-tpcalnav="1" aria-label="Monat vor">›</button></div>
     <div class="tp-cw">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(x => `<span>${x}</span>`).join("")}</div><div class="tp-cg">${cells}</div></div>`; }
-function tapSummary() { const t = TAP, ty = t.ty, tm = tapTime() ? tapTime() + (tapEnd() ? "–" + tapEnd() : "") : "ohne", range = t.date ? fmtY(t.date) + (t.date2 && +t.date2 !== +t.date ? " – " + fmtY(t.date2) : "") : "";
+function tapSummary() { const t = TAP, ty = t.ty, tm = tapTime() ? (t.date2 && +t.date2 !== +t.date && tapEnd() ? `ab ${tapTime()} · Ende ${tapEnd()}` : tapTime() + (tapEnd() ? "–" + tapEnd() : "")) : "ohne", range = t.date ? fmtY(t.date) + (t.date2 && +t.date2 !== +t.date ? " – " + fmtY(t.date2) : "") : "";
   if (ty === "info") return sLine("Was", t.title, "was") + sLine("Wann", t.date && fmtY(t.date), "wann");
   if (ty === "urlaub") return sLine("Was", t.title, "was") + sLine("Zeitraum", range, "zeitraum");
   if (ty === "trip") return sLine("Wohin", t.title, "was") + sLine("Zeitraum", range, "zeitraum") + sLine("Anreise", { auto: "🚗 Auto", zug: "🚆 Zug", flug: "✈️ Flug", bus: "🚌 Bus" }[t.tmode] || "offen", "tmode") + (t.tmode ? sLine(t.tmode === "flug" ? "Abflug" : "Abfahrt", tm, "zeit") : "");
@@ -4263,18 +4289,18 @@ function mapG(e, calId) {
   if (!e || e.status === "cancelled") return null;
   if (APP && /^mks[a-v0-9]+/.test(String(e.id || "")) && /Mein Kalender/.test(String(e.description || ""))) return null;   // Spiegel eines geteilten Termins – erscheint schon als „geteilt“
   const s = e.start || {}, en = e.end || {};
-  let a, b, time = "", endTime = "";
+  let a, b, time = "", endTime = "", etime = "";
   if (s.date) { a = parseIso(s.date); b = addDays(parseIso(en.date) || addDays(a, 1), -1); }
   else if (s.dateTime) {
     const ds = new Date(s.dateTime), de = new Date(en.dateTime || s.dateTime);
     a = new Date(ds.getFullYear(), ds.getMonth(), ds.getDate()); time = hhmm(ds);
     b = new Date(de.getFullYear(), de.getMonth(), de.getDate());
     if (de.getHours() === 0 && de.getMinutes() === 0 && b > a) b = addDays(b, -1);
-    if (sameDay(a, b) && de > ds) endTime = hhmm(de);
+    if (sameDay(a, b) && de > ds) endTime = hhmm(de); else if (b > a) etime = hhmm(de);
   } else return null;
   if (!a) return null; if (!b || b < a) b = a;
   let [color, ink] = gColor(calId); const ecol = !!(e.colorId && ECOLM[e.colorId]); if (ecol) { color = ECOLM[e.colorId]; ink = lumInk(color); }
-  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, rid: String(e.recurringEventId || ""), type: "google", color, ink, ecol, colorId: ecol ? String(e.colorId) : "", title: String(e.summary || "(ohne Titel)"), time, endTime, note: String(e.location || gPlace()[String(e.id)] || ""),
+  const ev = { id: `g:${calId}:${e.id}`, gid: String(e.id), calId, recurring: !!e.recurringEventId, rid: String(e.recurringEventId || ""), type: "google", color, ink, ecol, colorId: ecol ? String(e.colorId) : "", title: String(e.summary || "(ohne Titel)"), time, endTime, etime, desc: String(e.description || "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").trim().slice(0, 8000), note: String(e.location || gPlace()[String(e.id)] || ""),
     repeat: "none", a, b, cal: calLabel(calId), creator: isMe(e.creator) ? "" : String(e.creator?.displayName || (e.creator?.email || "").split("@")[0] || ""),
     created: String(e.created || ""), updated: String(e.updated || ""), link: /^https:\/\/(www\.)?google\.com\/calendar\//.test(e.htmlLink || "") ? e.htmlLink : "" };
   return { ev, a, b };
@@ -4344,7 +4370,7 @@ const FATAL = ["api_disabled", "needs_reauth", "server_not_connected", "not_in_m
 let gTry = 0, gRetryT = null, gLiveAt = 0;
 function gCacheGet(k) { try { const v = JSON.parse(store.get("ft-gc-" + k) || "null"); return v && Array.isArray(v.e) ? v : null; } catch { return null; } }
 function gCachePut(k, events) { try {
-  const slim = events.map(e => ({ id: e.id, status: e.status, summary: e.summary, location: e.location, start: e.start, end: e.end, recurringEventId: e.recurringEventId, htmlLink: e.htmlLink, created: e.created, updated: e.updated, creator: e.creator, colorId: e.colorId }));
+  const slim = events.map(e => ({ id: e.id, status: e.status, summary: e.summary, description: e.description ? String(e.description).slice(0, 8000) : undefined, location: e.location, start: e.start, end: e.end, recurringEventId: e.recurringEventId, htmlLink: e.htmlLink, created: e.created, updated: e.updated, creator: e.creator, colorId: e.colorId }));
   store.set("ft-gc-" + k, JSON.stringify({ t: Date.now(), e: slim })); } catch {} }
 async function initGoogle() {
   clearTimeout(gRetryT);
@@ -4425,11 +4451,12 @@ function showGoogleEvent(o) {
   if (e.note) items.push(`<li><i style="background:${e.color}"></i><div><b>Ort</b><div class="note">${esc(e.note)}</div></div></li>`);
   if (tripParts(o).length) items.push(`<li><i style="background:var(--trip)"></i><div><b>Dazu gehört</b><div class="note" style="white-space:pre-line">${esc(partsList(o))}</div></div></li>`);
   if (o.part) items.push(`<li><i style="background:var(--trip)"></i><div><b>Teil der Reise</b><div class="note">${esc(evName(o.part.ev))} · ${fmt(o.part.a)}–${fmt(o.part.b)}</div></div></li>`);
-  const id = esc(e.id), w = canWrite && gWritable();
+  const id = esc(e.id), w = canWrite && gWritable() && gCalW(e);
   const gcal = gCals.find(c => c.id === e.calId || (e.calId === "primary" && c.primary)), gw = w && !!mcp && gState === "ok" && (!gcal?.accessRole || ["owner", "writer"].includes(gcal.accessRole));
   const qcol = gw ? qcolBox(e.id, e.ecol ? e.colorId : "", gColor(e.calId)[0], "Farbe dieses Google-Termins", "") : "";
   const acts = (w ? `<button type="button" class="btn small" data-gedit="${id}|${iso(o.a)}">Bearbeiten</button><button type="button" class="btn ghost small" data-gmove="${id}|${iso(o.a)}">Verschieben</button>` : "") +
     `<button type="button" class="btn ghost small" data-share="${id}|${iso(o.a)}">Teilen</button>` +
+    (gAdoptable(o) ? `<label class="btn ghost small">📎 Datei<input type="file" hidden multiple accept="application/pdf,image/*" data-gdoc="${id}|${iso(o.a)}"></label>` : "") +
     (e.link ? `<a class="btn ghost small" href="${esc(e.link)}" target="_blank" rel="noopener">In Google öffnen</a>` : "") +
     routeLinks(placeOf(e)) +
     (canWrite && isTrip(o) ? `<button type="button" class="btn ghost small" data-adopt="${id}|${iso(o.a)}">Als Reise übernehmen</button>` : "") +
@@ -5163,7 +5190,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-ideas]"))) { const [id, a] = el.dataset.ideas.split("|"); const o = findOcc(id, a); if (o) showIdeas(o); return; }
   if ((el = q("[data-copy]"))) { copyField(el.dataset.copy, el); return; }
   if ((el = q("[data-gseen]"))) { const o = gSeen.get(el.dataset.gseen) || OCC_ALL.find(x => x.ev.id === el.dataset.gseen); if (o) showGoogleEvent(o); return; }
-  if ((el = q("[data-gedit]"))) { const [id, a] = el.dataset.gedit.split("|"); const o = findOcc(id, a); if (o) showGForm(o); return; }
+  if ((el = q("[data-gedit]"))) { const [id, a] = el.dataset.gedit.split("|"); const o = findOcc(id, a); if (!o) return; if (!gAdoptable(o)) return showGForm(o);
+    el.disabled = true; adoptG(o).then(e => e ? editEv(e) : showGForm(o)); return; }
   if ((el = q("[data-gmove]"))) { const [id, a] = el.dataset.gmove.split("|"); const o = findOcc(id, a); if (o) startMove({ gocc: o }); return; }
   if ((el = q("[data-gdel]"))) { const [id, a] = el.dataset.gdel.split("|"); const o = findOcc(id, a); if (o) gDeleteOcc(el, o); return; }
   if ((el = q("[data-gshift]"))) { gShiftForm(+el.dataset.gshift); return; }
@@ -5330,6 +5358,7 @@ document.addEventListener("toggle", ev => { if (ev.target.id === "s-stats") { st
 document.addEventListener("change", ev => {
   if (ev.target.dataset?.wzpage && WZ) { WZ.pages = { ...(WZ.pages || PAGES), [ev.target.dataset.wzpage]: ev.target.checked }; ev.target.closest(".pv-card")?.classList.toggle("on", ev.target.checked); return; }
   if (ev.target.dataset?.docsel) { const id = ev.target.dataset.docsel; ev.target.checked ? DOCSEL.add(id) : DOCSEL.delete(id); docDelArm = false; showDocs(); return; }
+  if (ev.target.dataset?.gdoc) { const fs = [...(ev.target.files || [])]; ev.target.value = ""; const [id, a] = ev.target.dataset.gdoc.split("|"), o = findOcc(id, a); if (fs.length && o) adoptG(o).then(e => e && docUpload(e, fs)); return; }
   if (ev.target.dataset?.tpdoc) { const fs = [...(ev.target.files || [])]; ev.target.value = ""; if (fs.length) tapEditThen(e => docUpload(e, fs)); return; }
   if (ev.target.dataset?.docadd) { const e = EV.find(x => x.id === ev.target.dataset.docadd), fs = [...(ev.target.files || [])]; ev.target.value = ""; if (e && fs.length) docUpload(e, fs); return; }
   if (ev.target.dataset?.page) { setPage(ev.target.dataset.page, ev.target.checked); return; }
