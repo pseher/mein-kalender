@@ -457,6 +457,10 @@ td.mid { text-align: center; }
 .tp-auto { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 10px; padding: 8px 12px; margin: -4px 0 10px; font-size: 14px; }
 .tchips.f-tclosed { display: none; } .f-artchg { display: block; margin: 0 0 8px; padding: 6px 0; font-size: 14px; }
 label.tp-c { display: flex; align-items: center; justify-content: center; text-align: center; }
+.mt .tkc { position: absolute; top: 3px; right: 4px; z-index: 2; font-size: 12px; line-height: 1; font-weight: 700; color: var(--fg); opacity: .75; pointer-events: none; }
+.tk-day { margin: 6px 0 10px; } .fr.tk-dn .fr-btn { text-decoration: line-through; color: var(--muted); }
+.day-add { margin-top: 10px; } .day-add .btn { flex: 1; } .day-add2 { display: flex; gap: 14px; }
+.lr .lr-ck { margin-right: 6px; color: var(--muted); } .tk-addev { margin-top: 4px; }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
 .seg.emode button { white-space: nowrap; }
@@ -1042,7 +1046,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
     <div class="upsec" id="sec-others" hidden><h3>Neu von anderen <b id="n-others" class="hot"></b><button type="button" class="link" id="others-ok">Gesehen</button></h3><div id="others" class="soon"><div id="others-list"></div></div></div>
     <div class="upsec" id="sec-tasks" hidden><h3>Aufgaben <b id="n-tasks"></b></h3><div id="tasks-list"></div>
       <form class="tk-add" id="tk-form" onsubmit="return false"><div class="tk-row"><input id="tk-in" type="text" placeholder="Neue Aufgabe – z. B. Reifen wechseln" aria-label="Neue Aufgabe" enterkeyhint="done" autocomplete="off"><button type="submit" class="tk-go" id="tk-go" aria-label="Aufgabe hinzufügen" disabled>+</button></div>
-        <div class="tk-due" id="tk-due-row" hidden><span>Bis wann?</span><button type="button" class="tkq" data-tkn="0">Heute</button><button type="button" class="tkq" data-tkn="1">Morgen</button><button type="button" class="tkq" data-tkn="w">Diese Woche</button><input type="date" id="tk-due" aria-label="Bis wann erledigt?"></div></form></div>
+        <div class="tk-due" id="tk-due-row" hidden><span>Erledigen bis</span><button type="button" class="tkq" data-tkn="0">Heute</button><button type="button" class="tkq" data-tkn="1">Morgen</button><button type="button" class="tkq" data-tkn="w">Diese Woche</button><input type="date" id="tk-due" aria-label="Bis wann erledigt?"></div></form></div>
     <div class="upsec" id="sec-soon" hidden><h3>Erinnerungen <b id="n-soon"></b></h3><div id="soon" class="soon"><div id="soon-list"></div></div></div>
     <p class="tip" id="up-empty" hidden>In den nächsten 14 Tagen steht nichts Besonderes an.</p>
   </section>
