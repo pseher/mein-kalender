@@ -718,8 +718,7 @@ function showFamily() {
     hits = q ? avail.filter(c => c.key.includes(q)) : avail, open = famAllOpen || !!q || FPICK.size > 0;
   const sc = $("sheet") && sheetMode === "family" ? $("sheet").scrollTop : 0;
   openSheet("Familie & Liebste", "Für sie gibt es frühere Erinnerungen und Geschenkelisten zu Weihnachten, Ostern und Geburtstagen.", `<div class="setv">
-    <div class="sg-t">Ich</div><div class="sg"><label class="sr2"><span>Vorname</span><input class="fin" id="fam-me" type="text" value="${esc(PROFILE.name || "")}" placeholder="Vorname" autocomplete="given-name"></label>
-      <button type="button" class="sr2 nav" id="set-ferien"><span>Bundesland</span><em>${esc([PA, PB].filter(Boolean).map(stName).join(", "))}</em><b aria-hidden="true">›</b></button></div>
+    <div class="sg-t">Ich</div><div class="sg"><label class="sr2"><span>Vorname</span><input class="fin" id="fam-me" type="text" value="${esc(PROFILE.name || "")}" placeholder="Vorname" autocomplete="given-name"></label></div>
     ${sug.length ? `<div class="sg-t">Vorschläge aus deinen Geburtstagen <i class="rdot inl"></i></div><div class="sg">${sug.map(c => `<div class="sr2 fsug"><span><b>${esc(c.name)}</b><small>${dt(c)}${c.hint ? " · " + esc(c.hint) : ""}</small></span>
         ${roleSel(`data-sugrole="${esc(c.key)}" aria-label="Rolle"`, c.role)}<button type="button" class="ic ok" data-sugok="${esc(c.key)}" aria-label="${esc(c.name)} übernehmen">✓</button><button type="button" class="ic no" data-sugno="${esc(c.key)}" aria-label="Nicht vorschlagen">✕</button></div>`).join("")}</div>` : ""}
     <div class="sg-t">Deine Liebsten${FAMED.length ? ` · ${FAMED.length}` : ""}</div>
@@ -1329,12 +1328,7 @@ function showSettings(sub) {
       ${mcp && gState === "ok" ? `<label class="sr2"><i class="dotc" style="--c:var(--gcal)"></i><span>Google-Termine</span><input type="checkbox" class="swi" id="g-show"${gShow ? " checked" : ""}></label>` : ""}</div>
       <div class="sg-t">Farben</div><div class="sg">${nav("set-farben", "Farben nach Art", "Termine, Reisen, Urlaub …", "var(--trip)")}</div>
       <div class="sg-t">Ferien</div><div class="sg">${nav("set-ferien", "Bundesländer", ALL.map(stName).join(", "), "var(--be-strong)")}</div>
-      <div class="sg-t">Erinnerungen</div><div class="sg"><div class="sr2"><i class="dotc" style="--c:var(--trip)"></i><span>Reisen ankündigen</span>
-        <div class="step"><button type="button" id="trip-dec" aria-label="Weniger">−</button><input id="set-trip" type="number" inputmode="numeric" min="0" max="60" value="${tripDays()}" aria-label="Tage vor der Reise"><small>Tage</small><button type="button" id="trip-inc" aria-label="Mehr">+</button></div></div></div>
-      ${mcp || prof !== null ? `<div class="sg-t">Konten & Profil</div><div class="sg">
-        ${mcp ? nav("open-google", "Google Kalender", gState === "ok" ? `${nG} von ${gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary).length + 1}` : "nicht verbunden", "var(--gcal)") : ""}
-        ${prof !== null ? nav("open-family", "Familie & Liebste", prof, "var(--event)").replace("<em>", famUnseen() ? '<i class="rdot inl"></i><em>' : "<em>") : ""}${canWrite ? nav("open-contacts", "Geburtstage übernehmen", "Datei oder Bild", "var(--event)") : ""}</div>` : ""}
-      <div class="set-foot"><button type="button" class="link" id="open-a2hs">Als App installieren</button>${canWrite ? `<span aria-hidden="true">·</span><button type="button" class="link" id="set-test">Einrichtung ausprobieren</button>` : ""}</div>`;
+`;
   }
   const SUBT = { ferien: ["Ferien & Feiertage", "Welche Bundesländer angezeigt werden"], arten: ["Arten", "Welche Arten im Kalender zu sehen sind"], farben: ["Farben", "Farbe je Art"], test: ["Einrichtung", "Einrichtung noch einmal ausprobieren"] }[setSub];
   openSheet(SUBT ? SUBT[0] : "Anzeigen", SUBT ? SUBT[1] : "Was im Kalender zu sehen sein soll", `<div class="setv">${html}</div>`, "settings");
@@ -2109,7 +2103,7 @@ function showFristen() {
     return `<button type="button" class="fr-row${n < 0 ? " late" : n <= (+e.remindDays || 14) ? " soon" : ""}" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="fr-i">${fkIcon(e)}</span><span class="fr-t"><b>${esc(e.title)}</b><small>${fmtY(o.a)}${e.renew ? " · läuft danach weiter" : ""}</small></span><span class="fr-n">${n < 0 ? `seit ${-n} ${-n === 1 ? "Tag" : "Tagen"}` : n === 0 ? "heute" : n === 1 ? "morgen" : n < 60 ? `in ${n} Tagen` : n < 730 ? `in ${Math.round(n / 30)} Monaten` : `in ${Math.round(n / 365)} Jahren`}</span></button>`; };
   openSheet("Meine Fristen", "Was als Nächstes abläuft – du wirst rechtzeitig erinnert", `
     ${L.length ? `<div class="fr-l">${L.map(row).join("")}</div>` : `<p class="note" style="margin-top:10px">Noch keine Fristen. Fotografier einfach einen Vertrag, deinen Ausweis oder einen Kassenbon – oder trag eine Frist von Hand ein.</p>`}
-    <div class="btnrow" style="margin-top:14px"><button type="button" class="btn accent small" id="fr-new">+ Frist eintragen</button><button type="button" class="btn ghost small" id="mi-account">‹ Konto</button></div>
+    <div class="btnrow" style="margin-top:14px"><button type="button" class="btn accent small" id="fr-new">+ Frist eintragen</button></div>
     <p class="note" style="margin-top:10px">Tipp: Beim Ausweis oder Reisepass übernimmt die App nur das Ablaufdatum – das Foto wird nicht gespeichert.</p>`, "frist");
 }
 // Speicherbelegung (Cloudflare R2) – wird beim Öffnen der Dokumente kurz abgefragt
@@ -2157,7 +2151,7 @@ function showDocs() {
     ${DOCS.length && !list.length ? `<p class="note" style="margin-top:10px">Nichts gefunden.</p>` : ""}
     ${list.length && canWrite ? `<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost small" id="docs-all">${list.every(x => DOCSEL.has(x.d.id)) ? "Auswahl aufheben" : "Alle auswählen"}</button>
       ${DOCSEL.size ? `<button type="button" class="btn danger small push" id="docs-del">${docDelArm ? `Wirklich ${DOCSEL.size} löschen?` : `${DOCSEL.size} löschen`}</button>` : ""}</div>` : ""}
-    ${APP ? `<div class="btnrow" style="margin-top:14px"><button type="button" class="btn ghost small" id="mi-account">‹ Konto</button></div>` : ""}`, "docs");
+`, "docs");
   if (keep) $("sheet").scrollTop = keep;
 }
 // ---- Auswerten: Packpunkte, Orga-Aufgaben, Zeiten, Adresse aus den Dokumenten ----
@@ -2733,6 +2727,7 @@ async function showNotify(msg) {
       ${tg("eve", "Überblick für morgen", "Termine, Aufgaben, Feiertage – nur wenn etwas ansteht", `<select class="fin nt-sel" data-ntv="eveTime">${times}</select>`)}
       ${tg("ev", "Erinnerung vor Terminen mit Uhrzeit", "mit „Route“-Knopf, wenn ein Ort eingetragen ist", `<select class="fin nt-sel" data-ntv="evLead">${leads}</select>`)}
       ${tg("bd", "Geburtstage, Fristen & Reisen", "am Tag selbst, mit Vorlauf („schon ein Geschenk?“) und vor Reisen („Packliste checken“)")}
+      <div class="sr2"><span>Reisen ankündigen <small>so viele Tage vorher</small></span><div class="step"><button type="button" id="trip-dec" aria-label="Weniger">−</button><input id="set-trip" type="number" inputmode="numeric" min="0" max="60" value="${tripDays()}" aria-label="Tage vor der Reise"><small>Tage</small><button type="button" id="trip-inc" aria-label="Mehr">+</button></div></div>
       ${tg("fest", "Weihnachten, Mutter- & Vatertag", "rechtzeitig an Geschenke für deine Liebsten denken")}
       ${tg("shared", "Geteilte Termine", "wenn jemand etwas mit dir teilt, ändert oder löscht")}
       ${tg("train", "🚆✈️ Züge &amp; Flüge live", "Verspätung, Gleis/Gate, Gepäckband oder Ausfall – wenn im Termin eine Zug- oder Flugnummer steht (z. B. „RE 4“, „LH 123“)")}
@@ -2925,8 +2920,7 @@ async function showAccount() {
   let me = {}; try { me = await (await claude.use("user"))?.me?.() || {}; } catch {}
   openSheet("Konto", "", `<div class="acc">
     <div class="acc-me"><b>${esc(me.name || meName || "Angemeldet")}</b>${me.email ? `<span>${esc(me.email)}</span>` : ""}<span class="note">${(() => { const a = window.mkAuthInfo?.() || {}; return a.google && a.pw ? "angemeldet mit Google oder E-Mail und Passwort" : a.google ? "angemeldet mit Google" : "angemeldet mit E-Mail"; })()}</span></div>
-    ${canWrite ? `<button type="button" class="btn ghost big acc-docs" id="acc-docs">📁 Meine Dokumente${DOCS.length ? ` <em>${DOCS.length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Tickets, Buchungen und PDFs – alles, was du an Termine gehängt hast. Nur du siehst sie.</p>
-    <button type="button" class="btn ghost big acc-docs" id="acc-fr">⏰ Meine Fristen${frList().length ? ` <em>${frList().length}</em>` : ""}</button><p class="note" style="margin-top:-4px">Verträge, Ausweis, Garantie, TÜV – alles mit Ablaufdatum.</p>` : ""}
+
     <button type="button" class="btn ghost big" id="acc-pw">${(window.mkAuthInfo?.() || {}).pw ? "Passwort ändern" : "Passwort festlegen"}</button>
     <button type="button" class="btn ghost big" id="app-logout">Abmelden</button>
     <p class="note">Deine Daten bleiben gespeichert – nach der nächsten Anmeldung ist alles wieder da.</p>
@@ -3365,7 +3359,7 @@ async function saveForm() {
   try {
     const was = editing; const undo = await applyChanges([was ? { op: "update", id: was.id, event: v } : { op: "add", event: v }]);
     const files = FORM_FILES; FORM_FILES = []; const added = !was && LAST_ADDED[0];
-    DRAFT_SAVED = true; closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? (v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter Konto → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`) : was ? "Gespeichert" : "Eingetragen", undo);
+    DRAFT_SAVED = true; closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? (v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter ☰ → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`) : was ? "Gespeichert" : "Eingetragen", undo);
     if (files.length && added) setTimeout(() => docUpload({ ...added.v, id: added.id, files: [], a: parseIso(added.v.from), b: parseIso(added.v.to || added.v.from) }, files), 400);
     if (v.type === "birthday" && canWrite) { const k = famKey(v.title), inFam = FAM().some(p => famKey(p.name) === k || p.key === k); const b = parseIso(v.from);
       if (v.fam && !inFam) { FAMED = FAM().map(p => ({ ...p })); FAMED.push({ name: v.title, role: (FAMKW.find(([re]) => re.test(v.title)) || [])[1] || "andere", birthday: v.birthYear ? `${v.birthYear}-${v.from.slice(5)}` : `--${v.from.slice(5)}`, key: k }); famSave(); }
@@ -5545,7 +5539,7 @@ const HELP_GUIDE = `Du bist die Hilfe der App „Mein Kalender“ (deutschsprach
 Bedienung: Unten rechts „+ Eintragen“ öffnet die Eingabe mit zwei Reitern: „✍️ Freitext“ (einfach schreiben oder Mail/WhatsApp/Buchung einfügen, auch PDF/Foto anhängen; die KI trägt ein) und „📋 Formular“ (Art wählen: Termin, Reise, Urlaub, Dienst, Abholen, Hinweis, Geburtstag, Umgang, Jahrestag, Frist, Kontakt; Felder ausfüllen; „Mehr Optionen“ für Wiederholung, Farbe, Notiz, Google-Kalender, Teilen).
 Dokumente an einen VORHANDENEN Eintrag hängen (Ticket, Flugticket, Hotelbuchung): den Eintrag im Kalender antippen → unten im Feld „Dokumente“ „📎 Datei hinzufügen“ → Datei wählen → „✨ Auswerten“ → „Übernehmen“. Dann landen Zeiten, Zug-/Flugnummer, Aufgaben (z. B. Stornofrist) und Packliste in genau diesem Eintrag. NICHT über „+ Eintragen“ – das legt einen neuen Eintrag an.
 Einen Eintrag antippen zeigt Details mit Knöpfen: Bearbeiten, Verschieben, Mit … teilen, Als Bild/Text, Packliste (Reisen), Route, Löschen; darüber „🎨 Farbe“ für diesen Eintrag.
-Menü ☰ oben rechts: Anzeigen (Ansichten, Farben nach Art), Google Kalender (Kalender auswählen, abgleichen), Familie & Liebste (Geburtstage, Geschenkideen), Konto (darin „Meine Dokumente“ mit allen angehängten Dateien, Passwort, Abmelden), Tarif, Teilen mit …, Benachrichtigungen (pro Gerät einschalten), Hilfe.
+Menü ☰ oben rechts, in drei Gruppen: MEINS – Familie & Liebste (Geburtstage, Geschenkideen, Geburtstage übernehmen), Mit anderen teilen, Google Kalender (Kalender auswählen, abgleichen), Meine Dokumente (alle angehängten Dateien), Meine Fristen. EINSTELLUNGEN – Anzeigen (Seiten, Arten, Farben, Ferien & Bundesländer), Benachrichtigungen (pro Gerät einschalten, auch „Reisen ankündigen“), Hell / Dunkel, Schriftgröße. HILFE & KONTO – Hilfe, Tarif, Als App installieren, Konto (Passwort, Abmelden, Konto löschen).
 Ansichten oben: Monat, 2 Wochen, Woche, Liste, Jahr. Tage antippen oder mehrere Tage wischen, um für diesen Zeitraum einzutragen.
 Google: Abgleich automatisch beim Öffnen und alle paar Minuten; Einträge erscheinen auch im Google Kalender und darüber in anderen Kalender-Apps (z. B. Business Kalender). Google muss pro Gerät einmal verbunden werden (Punkt am „G“ oben: grün = verbunden).
 Züge und Flüge: steht eine Zugnummer (z. B. IC 2238) mit Bahnhof und Uhrzeit oder eine Flugnummer im Eintrag, beobachtet die App sie live und meldet Verspätung, Gleis- oder Gate-Wechsel. Die Flug-Beobachtung gibt es im Tarif Plus oder Familie; Züge in allen Tarifen. Meldungen kommen nur, wenn Benachrichtigungen auf dem Gerät eingeschaltet sind.
