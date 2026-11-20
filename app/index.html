@@ -2,6 +2,7 @@
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/app/manifest.webmanifest"><meta name="theme-color" content="#0f6e73"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Kalender"><meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>if(/onrender\.com$|pages\.dev$|^www\./.test(location.hostname))location.replace("https://planflink.de"+location.pathname+(location.search?location.search+"&":"?")+"umzug=1"+location.hash)</script>
 <script>if ("serviceWorker" in navigator) addEventListener("load", function () { navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" }).catch(function () {}); });</script>
 <style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0}
 @font-face{font-family:"IBM Plex Sans";font-weight:400;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-sans-latin-400-normal.woff2) format("woff2")}
@@ -11,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261120161108";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"15500783020-sv5uce29l3mv4kf82ouen5pt7c8p9qlu.apps.googleusercontent.com"}; window.MK_BUILD = "20261120194438";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -7074,6 +7075,9 @@ renderAll();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
   if (APP) { let np = false; try { np = sessionStorage.getItem("mk-newpw") === "1"; } catch {} if (np) setTimeout(showNewPw, 900); }
   if (APP) { const m = $("open-a2hs"); if (m) m.hidden = IS_STANDALONE; }
+  if (APP && /[?&]umzug=1/.test(location.search)) {   // vom alten pages.dev hierher umgeleitet
+    try { history.replaceState(null, "", location.pathname + location.search.replace(/[?&]umzug=1/, "").replace(/^&/, "?") + location.hash); } catch {}
+    document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note" id="moved-new"><div><b>Neue Adresse: planflink.de</b><span>Deine Termine sind alle da. Bitte melde dich hier einmal neu an. Hattest du die App auf dem Startbildschirm? Dann das alte Symbol löschen und von hier neu hinzufügen. Benachrichtigungen bitte im Menü neu einschalten.</span></div><a href="#" onclick="this.parentNode.remove();return false">Verstanden</a></div>`); }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforebegin", `<button type="button" class="mi" data-mi id="mi-account"><i class="dotc" style="--c:var(--muted)"></i>Konto<em class="mi-v">${esc((meName || "").split(/\s+/)[0])}</em></button>`); } }

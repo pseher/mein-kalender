@@ -33,7 +33,7 @@
   "related_applications": [
     {
       "platform": "webapp",
-      "url": "https://mein-kalender-czb.pages.dev/app/manifest.webmanifest"
+      "url": "https://planflink.de/app/manifest.webmanifest"
     }
   ],
   "share_target": {

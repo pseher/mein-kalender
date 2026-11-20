@@ -5597,6 +5597,9 @@ renderAll();
   try { const me = await u.me?.(); meName = String(me?.name || "").trim(); } catch {}
   if (APP) { let np = false; try { np = sessionStorage.getItem("mk-newpw") === "1"; } catch {} if (np) setTimeout(showNewPw, 900); }
   if (APP) { const m = $("open-a2hs"); if (m) m.hidden = IS_STANDALONE; }
+  if (APP && /[?&]umzug=1/.test(location.search)) {   // vom alten pages.dev hierher umgeleitet
+    try { history.replaceState(null, "", location.pathname + location.search.replace(/[?&]umzug=1/, "").replace(/^&/, "?") + location.hash); } catch {}
+    document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note" id="moved-new"><div><b>Neue Adresse: planflink.de</b><span>Deine Termine sind alle da. Bitte melde dich hier einmal neu an. Hattest du die App auf dem Startbildschirm? Dann das alte Symbol löschen und von hier neu hinzufügen. Benachrichtigungen bitte im Menü neu einschalten.</span></div><a href="#" onclick="this.parentNode.remove();return false">Verstanden</a></div>`); }
   if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>Mein Kalender ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforebegin", `<button type="button" class="mi" data-mi id="mi-account"><i class="dotc" style="--c:var(--muted)"></i>Konto<em class="mi-v">${esc((meName || "").split(/\s+/)[0])}</em></button>`); } }
