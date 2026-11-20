@@ -8,30 +8,34 @@ window.MK_APP = true;
   // Google-Anmeldung direkt (ohne Umweg über die Supabase-Adresse): Rückkehr mit ?code=&state= hier abholen
   let G_PEND = null;
   try { const P = new URLSearchParams(location.search), st = P.get("state") || "", want = sessionStorage.getItem("mk-g-state") || "";
-    if (st && want && st === want && (P.get("code") || P.get("error"))) {
+    const ours = /^(login|cal)\.[\w-]{8,}$/.test(st);
+    const used = (P.get("code") || "") && sessionStorage.getItem("mk-g-used") === P.get("code");
+    if (ours && !used && (!want || st === want) && (P.get("code") || P.get("error"))) {
+      if (P.get("code")) sessionStorage.setItem("mk-g-used", P.get("code"));
       G_PEND = { code: P.get("code") || "", error: P.get("error") || "", purpose: st.split(".")[0] };
       sessionStorage.removeItem("mk-g-state");
       ["code", "state", "scope", "authuser", "prompt", "hd", "error", "iss"].forEach(k => P.delete(k));
       history.replaceState(null, "", location.pathname + (P.toString() ? "?" + P : "") + location.hash);
-    } } catch {}
+    } else if (ours) { ["code", "state", "scope", "authuser", "prompt", "hd", "error", "iss"].forEach(k => P.delete(k)); history.replaceState(null, "", location.pathname + (P.toString() ? "?" + P : "") + location.hash); }
+  } catch {}
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   window.mkSupabase = sb;
   // Fehler aus der Rückleitung (Google/Supabase) festhalten, bevor supabase-js die Adresse aufräumt
   try { const P = new URLSearchParams(location.search + "&" + location.hash.slice(1)); const e = P.get("error_description") || P.get("error");
     if (P.get("type") === "recovery") sessionStorage.setItem("mk-newpw", "1");
-    if (e) { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
+    if (e && e !== "access_denied") { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
   let session = null;
   const gDone = G_PEND ? (async () => {
-    const fail = m => { window.mkAuthErr = m; try { sessionStorage.setItem("mk-auth-err", m); } catch {} };
-    if (G_PEND.error) { if (G_PEND.error !== "access_denied") fail("Google: " + G_PEND.error); return; }
+    const fail = m => { window.mkAuthErr = m; };
+    if (G_PEND.error) { if (G_PEND.error !== "access_denied") fail("Die Google-Anmeldung wurde abgebrochen. Bitte noch einmal versuchen."); return; }
     let b = {}; try { const r = await fetch(CFG.workerUrl + "/google/exchange", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: G_PEND.code, redirect_uri: location.origin + "/app/" }) });
-      b = await r.json().catch(() => ({})); if (!r.ok) return fail("Die Google-Anmeldung hat nicht geklappt (" + (b.code || r.status) + "). Bitte noch einmal versuchen."); }
+      b = await r.json().catch(() => ({})); if (!r.ok) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte tippe noch einmal auf „Mit Google anmelden“."); }
     catch { return fail("Keine Verbindung – bitte noch einmal versuchen."); }
     if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
     const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
     if (G_PEND.purpose === "login" || !cur) { if (!b.id_token) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.");
       const x = await sb.auth.signInWithIdToken({ provider: "google", token: b.id_token }).catch(e => ({ error: e }));
-      if (x?.error) fail("Die Google-Anmeldung hat nicht geklappt: " + (x.error.message || x.error.code || "")); }
+      if (x?.error) fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen oder mit E-Mail anmelden."); }
   })().catch(() => {}) : Promise.resolve();
   const ready = gDone.then(() => sb.auth.getSession()).then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
   // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),
@@ -252,7 +256,7 @@ window.MK_APP = true;
   }
   async function gToken(force) {
     if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
-    const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Kein Google-Schlüssel in diesem Browser – bitte ab- und wieder anmelden"; throw gErr("needs_reauth"); }
+    const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Google Kalender ist auf diesem Gerät nicht verbunden – bitte „Mit Google verbinden“ tippen"; throw gErr("needs_reauth"); }
     refreshing ??= (async () => {
       const call = async s => { try { return await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); }
         catch { await new Promise(r => setTimeout(r, 1200)); return fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); } };
@@ -260,7 +264,7 @@ window.MK_APP = true;
       if (r && r.status === 401) { const nb = await r.clone().json().catch(() => ({})); if (nb.code === "not_signed_in") r = await call(await freshSession(true)).catch(() => null); }   // Anmeldung über Nacht abgelaufen → einmal erneuern
       if (!r) { window.mkGLast = "Worker nicht erreichbar (kein Netz?)"; throw gErr("upstream_error"); }
       const b = await r.json().catch(() => ({}));
-      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
+      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") { lsSet(GK.rt, ""); lsSet(GK.at, ""); } throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
       lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
     })().finally(() => { refreshing = null; });
     return refreshing;

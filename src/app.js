@@ -4780,7 +4780,7 @@ function showGate() {
     <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
-    <div class="au-wrap">${auBox()}</div>${window.mkAuthErr ? `<p class="err" role="alert">Die Anmeldung hat nicht geklappt: ${esc(window.mkAuthErr)}</p>` : ""}
+    ${window.mkAuthErr ? `<p class="err" role="alert">${/^Die |^Google /.test(window.mkAuthErr) ? "" : "Die Anmeldung hat nicht geklappt: "}${esc(window.mkAuthErr)}</p>` : ""}<div class="au-wrap">${auBox()}</div>
     <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">

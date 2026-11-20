@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261120222603";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261120223936";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -24,30 +24,34 @@ window.MK_APP = true;
   // Google-Anmeldung direkt (ohne Umweg über die Supabase-Adresse): Rückkehr mit ?code=&state= hier abholen
   let G_PEND = null;
   try { const P = new URLSearchParams(location.search), st = P.get("state") || "", want = sessionStorage.getItem("mk-g-state") || "";
-    if (st && want && st === want && (P.get("code") || P.get("error"))) {
+    const ours = /^(login|cal)\.[\w-]{8,}$/.test(st);
+    const used = (P.get("code") || "") && sessionStorage.getItem("mk-g-used") === P.get("code");
+    if (ours && !used && (!want || st === want) && (P.get("code") || P.get("error"))) {
+      if (P.get("code")) sessionStorage.setItem("mk-g-used", P.get("code"));
       G_PEND = { code: P.get("code") || "", error: P.get("error") || "", purpose: st.split(".")[0] };
       sessionStorage.removeItem("mk-g-state");
       ["code", "state", "scope", "authuser", "prompt", "hd", "error", "iss"].forEach(k => P.delete(k));
       history.replaceState(null, "", location.pathname + (P.toString() ? "?" + P : "") + location.hash);
-    } } catch {}
+    } else if (ours) { ["code", "state", "scope", "authuser", "prompt", "hd", "error", "iss"].forEach(k => P.delete(k)); history.replaceState(null, "", location.pathname + (P.toString() ? "?" + P : "") + location.hash); }
+  } catch {}
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   window.mkSupabase = sb;
   // Fehler aus der Rückleitung (Google/Supabase) festhalten, bevor supabase-js die Adresse aufräumt
   try { const P = new URLSearchParams(location.search + "&" + location.hash.slice(1)); const e = P.get("error_description") || P.get("error");
     if (P.get("type") === "recovery") sessionStorage.setItem("mk-newpw", "1");
-    if (e) { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
+    if (e && e !== "access_denied") { window.mkAuthErr = (P.get("error_code") ? P.get("error_code") + ": " : "") + e.replace(/\+/g, " "); sessionStorage.setItem("mk-auth-err", window.mkAuthErr); } else window.mkAuthErr = sessionStorage.getItem("mk-auth-err") || ""; sessionStorage.removeItem("mk-auth-err"); } catch {}
   let session = null;
   const gDone = G_PEND ? (async () => {
-    const fail = m => { window.mkAuthErr = m; try { sessionStorage.setItem("mk-auth-err", m); } catch {} };
-    if (G_PEND.error) { if (G_PEND.error !== "access_denied") fail("Google: " + G_PEND.error); return; }
+    const fail = m => { window.mkAuthErr = m; };
+    if (G_PEND.error) { if (G_PEND.error !== "access_denied") fail("Die Google-Anmeldung wurde abgebrochen. Bitte noch einmal versuchen."); return; }
     let b = {}; try { const r = await fetch(CFG.workerUrl + "/google/exchange", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: G_PEND.code, redirect_uri: location.origin + "/app/" }) });
-      b = await r.json().catch(() => ({})); if (!r.ok) return fail("Die Google-Anmeldung hat nicht geklappt (" + (b.code || r.status) + "). Bitte noch einmal versuchen."); }
+      b = await r.json().catch(() => ({})); if (!r.ok) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte tippe noch einmal auf „Mit Google anmelden“."); }
     catch { return fail("Keine Verbindung – bitte noch einmal versuchen."); }
     if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
     const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
     if (G_PEND.purpose === "login" || !cur) { if (!b.id_token) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.");
       const x = await sb.auth.signInWithIdToken({ provider: "google", token: b.id_token }).catch(e => ({ error: e }));
-      if (x?.error) fail("Die Google-Anmeldung hat nicht geklappt: " + (x.error.message || x.error.code || "")); }
+      if (x?.error) fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen oder mit E-Mail anmelden."); }
   })().catch(() => {}) : Promise.resolve();
   const ready = gDone.then(() => sb.auth.getSession()).then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
   // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),
@@ -268,7 +272,7 @@ window.MK_APP = true;
   }
   async function gToken(force) {
     if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
-    const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Kein Google-Schlüssel in diesem Browser – bitte ab- und wieder anmelden"; throw gErr("needs_reauth"); }
+    const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Google Kalender ist auf diesem Gerät nicht verbunden – bitte „Mit Google verbinden“ tippen"; throw gErr("needs_reauth"); }
     refreshing ??= (async () => {
       const call = async s => { try { return await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); }
         catch { await new Promise(r => setTimeout(r, 1200)); return fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); } };
@@ -276,7 +280,7 @@ window.MK_APP = true;
       if (r && r.status === 401) { const nb = await r.clone().json().catch(() => ({})); if (nb.code === "not_signed_in") r = await call(await freshSession(true)).catch(() => null); }   // Anmeldung über Nacht abgelaufen → einmal erneuern
       if (!r) { window.mkGLast = "Worker nicht erreichbar (kein Netz?)"; throw gErr("upstream_error"); }
       const b = await r.json().catch(() => ({}));
-      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") lsSet(GK.rt, ""); throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
+      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") { lsSet(GK.rt, ""); lsSet(GK.at, ""); } throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
       lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
     })().finally(() => { refreshing = null; });
     return refreshing;
@@ -1389,7 +1393,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
   <div class="hint-card" id="signin-card" hidden><b>Dein eigener Kalender – kostenlos</b><span>Melde dich bei Claude an, um Termine einzutragen und erinnert zu werden. Deine Einträge sieht nur du.</span><button type="button" class="btn accent small" id="signin-open">Anmelden – so geht’s</button></div>
   <div class="hint-card" id="quota-card" hidden><b>KI-Kontingent fast aufgebraucht</b><span></span><div class="btnrow"><button type="button" class="btn accent small" id="card-quota-go">Tarife ansehen</button><button type="button" class="btn ghost small" id="card-quota-x">OK</button></div></div>
   <div class="hint-card" id="app-card" hidden><b>Du bist gerade im Browser</b><span>Öffne PlanFlink lieber über das PlanFlink-Symbol auf deinem Startbildschirm – dort kommen Erinnerungen und Neuerungen zuverlässig an.</span><div class="btnrow"><button type="button" class="btn ghost small" id="card-app-x">Verstanden</button></div></div>
-  <div class="hint-card" id="gdev-card" hidden><b>Google auf diesem Gerät verbinden</b><span>Auf einem anderen Gerät nutzt du schon Google Kalender. Damit Einträge auch von hier aus in Google landen, verbinde Google einmal auf diesem Gerät.</span><div class="btnrow"><button type="button" class="btn accent small" id="card-gdev-go">Mit Google verbinden</button><button type="button" class="btn ghost small" id="card-gdev-x">Später</button></div></div>
+  <div class="hint-card" id="gdev-card" hidden><b>Google Kalender neu verbinden</b><span>Die Verbindung zu Google Kalender ist auf diesem Gerät nicht (mehr) aktiv. Damit deine Google-Termine wieder erscheinen und Einträge dort landen, verbinde Google einmal neu.</span><div class="btnrow"><button type="button" class="btn accent small" id="card-gdev-go">Mit Google verbinden</button><button type="button" class="btn ghost small" id="card-gdev-x">Später</button></div></div>
   <div class="hint-card" id="ntdev-card" hidden><b>🔔 Erinnerungen auf diesem Gerät einschalten?</b><span>Hier kommen noch keine Benachrichtigungen an – z. B. vor Terminen, bei Zugverspätungen oder Geburtstagen.</span><div class="btnrow"><button type="button" class="btn accent small" id="card-nt-go">Einschalten</button><button type="button" class="btn ghost small" id="card-nt-x">Später</button></div></div>
   <div class="hint-card first" id="first-card" hidden><b>Los geht’s: dein erster Termin</b><span>Tippe auf <b>+ Eintragen</b> und schreib einfach drauflos, z. B. „Freitag 19 Uhr Essen mit Anna“ – oder füge eine WhatsApp-Nachricht ein.</span><div class="btnrow"><button type="button" class="btn accent small" id="first-add">+ Ersten Termin eintragen</button><button type="button" class="btn ghost small" id="first-no">Später</button></div></div>
   <div class="hint-card" id="a2hs-card" hidden><b>Als App auf den Startbildschirm?</b><span>Dann öffnest du deinen Kalender mit einem Tipp – ohne Link suchen.</span><div class="btnrow"><button type="button" class="btn accent small" id="a2hs-yes">Ja, zeig mir wie</button><button type="button" class="btn ghost small" id="a2hs-no">Nein danke</button></div></div>
@@ -6288,7 +6292,7 @@ function showGate() {
     <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
-    <div class="au-wrap">${auBox()}</div>${window.mkAuthErr ? `<p class="err" role="alert">Die Anmeldung hat nicht geklappt: ${esc(window.mkAuthErr)}</p>` : ""}
+    ${window.mkAuthErr ? `<p class="err" role="alert">${/^Die |^Google /.test(window.mkAuthErr) ? "" : "Die Anmeldung hat nicht geklappt: "}${esc(window.mkAuthErr)}</p>` : ""}<div class="au-wrap">${auBox()}</div>
     <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
