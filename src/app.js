@@ -2739,13 +2739,20 @@ async function notifyOn(quiet) {
   use("benachrichtigung_an");
   const show = m => { if (quiet) { if (m) toast(m); } else showNotify(m); };
   try {
-    if ((await Notification.requestPermission()) !== "granted") return show("Ohne Erlaubnis kann ich keine Benachrichtigungen schicken.");
-    const key = await window.mkPushKey(), reg = await swReady(); if (!reg) throw new Error("no sw");
-    const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return show(perm === "denied" ? "Benachrichtigungen sind für die App blockiert. Bitte in den Handy-Einstellungen unter Apps → Mein Kalender (bzw. Chrome) → Benachrichtigungen erlauben und hier erneut tippen." : "Die Abfrage wurde geschlossen, ohne zu erlauben – bitte noch einmal tippen und „Zulassen“ wählen.");
+    let reg = await swReady(); if (!reg) { reg = await navigator.serviceWorker.getRegistration("/app/").catch(() => null) || await navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" }).catch(() => null); if (reg) reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 10000))]); }
+    if (!reg) throw Object.assign(new Error("Hintergrunddienst startet nicht"), { code: "no_sw" });
+    let key; try { key = await window.mkPushKey(); } catch (e) { throw e?.code === "no_vapid" ? e : Object.assign(new Error("Server nicht erreichbar"), { code: "no_net" }); }
+    let s; try { s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) }); }
+    catch (e) { // altes Abo mit anderem Schlüssel: abmelden und neu anmelden
+      const old = await reg.pushManager.getSubscription().catch(() => null); if (!old) throw e; await old.unsubscribe().catch(() => {});
+      s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) }); }
     await subSave(s);
     await COLL("prefs").doc("pushcfg").set({ ...NTP });
     pushPlanQueue(0); ntSub = s; show(quiet ? "🔔 Benachrichtigungen sind an" : "Eingeschaltet. Tippe auf „Test senden“, um es auszuprobieren.");
-  } catch (e) { show(e?.code === "no_vapid" ? "Benachrichtigungen sind auf dem Server noch nicht eingerichtet (Schlüssel fehlt)." : "Einschalten hat nicht geklappt – bitte unter ☰ → Benachrichtigungen noch einmal versuchen."); }
+  } catch (e) { const why = e?.code === "no_sw" ? "der Hintergrunddienst der App startet nicht – App einmal ganz schließen und neu öffnen" : e?.code === "no_net" ? "keine Verbindung zum Server" : `${e?.name || ""} ${e?.message || ""}`.trim().slice(0, 120);
+    show(e?.code === "no_vapid" ? "Benachrichtigungen sind auf dem Server noch nicht eingerichtet (Schlüssel fehlt)." : `Einschalten hat nicht geklappt${why ? ` (${why})` : ""}. Bitte noch einmal versuchen.`); }
 }
 async function notifyOff() { try { const s = ntSub || await ntRefresh(); if (s) { await COLL("pushsub").doc(subId(s.endpoint)).delete().catch(() => {}); await s.unsubscribe(); } } catch {} ntSub = null; showNotify("Auf diesem Gerät ausgeschaltet."); }
 async function notifyTest() { const b = $("nt-test"); if (b) { b.disabled = true; b.textContent = "Sende …"; } const r = await window.mkPushTest().catch(() => null);
