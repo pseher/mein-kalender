@@ -2855,8 +2855,12 @@ const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})
 const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
 const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|der|die|das|den)$/i;
 function stationOf(e) {
-  const nm = String(e.note || "").match(/\b(?:ab|an|ankunft|abfahrt)\s+([\p{L}.\- ]+?\s(?:hbf|hauptbahnhof|bahnhof|bf)\b(?:\s\(tief\))?)/iu);
-  const pl0 = String(e.place || "").split(",")[0].trim(), pl = /bahnhof|hbf|bhf|\bbf\b/i.test(pl0) ? pl0 : nm ? nm[1].trim() : pl0 || String(e.note || "").split(",")[0].trim();
+  const pl0 = String(e.place || "").split(",")[0].trim();
+  if (e.type === "abholen") { const k = String(e.note || "").match(e.pick?.dir === "dep" ? /\babfahrt\s+([^\d,(·]+?)\s+(?:um\s+)?\d{1,2}[:.]\d\d/i : /\bankunft\s+([^\d,(·]+?)\s+(?:um\s+)?\d{1,2}[:.]\d\d/i);
+    if (k || pl0) return (k ? k[1] : pl0).trim(); }   // Abholen/Bringen: der Ort IST der Bahnhof (Ankunft bzw. Abfahrt) – nicht das Ziel aus der Notiz
+  const dir = e.pick?.dir === "dep" ? "ab|abfahrt" : e.pick?.dir === "arr" ? "an|ankunft" : "ab|an|ankunft|abfahrt";
+  const nm = String(e.note || "").match(new RegExp(`\\b(?:${dir})\\s+([\\p{L}.\\- ]+?\\s(?:hbf|hauptbahnhof|bahnhof|bf)\\b(?:\\s\\(tief\\))?)`, "iu"));
+  const pl = /bahnhof|hbf|bhf|\bbf\b/i.test(pl0) ? pl0 : nm ? nm[1].trim() : pl0 || String(e.note || "").split(",")[0].trim();
   const src = /bahnhof|hbf|bhf|\bbf\b/i.test(pl) ? pl : String(e.title || "");
   const t = osmExpand(src.replace(TRAIN_RE, " ")), m = t.match(/((?:[\p{L}.\-]+\s+)?)(Hauptbahnhof|Bahnhof)((?:\s+[\p{L}.\-]+)?)/u);
   if (!m) return /bahnhof|hbf/i.test(pl) ? pl : "";

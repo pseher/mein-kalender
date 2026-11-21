@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261121094038";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261121094530";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -4383,8 +4383,12 @@ const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})
 const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
 const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|der|die|das|den)$/i;
 function stationOf(e) {
-  const nm = String(e.note || "").match(/\b(?:ab|an|ankunft|abfahrt)\s+([\p{L}.\- ]+?\s(?:hbf|hauptbahnhof|bahnhof|bf)\b(?:\s\(tief\))?)/iu);
-  const pl0 = String(e.place || "").split(",")[0].trim(), pl = /bahnhof|hbf|bhf|\bbf\b/i.test(pl0) ? pl0 : nm ? nm[1].trim() : pl0 || String(e.note || "").split(",")[0].trim();
+  const pl0 = String(e.place || "").split(",")[0].trim();
+  if (e.type === "abholen") { const k = String(e.note || "").match(e.pick?.dir === "dep" ? /\babfahrt\s+([^\d,(·]+?)\s+(?:um\s+)?\d{1,2}[:.]\d\d/i : /\bankunft\s+([^\d,(·]+?)\s+(?:um\s+)?\d{1,2}[:.]\d\d/i);
+    if (k || pl0) return (k ? k[1] : pl0).trim(); }   // Abholen/Bringen: der Ort IST der Bahnhof (Ankunft bzw. Abfahrt) – nicht das Ziel aus der Notiz
+  const dir = e.pick?.dir === "dep" ? "ab|abfahrt" : e.pick?.dir === "arr" ? "an|ankunft" : "ab|an|ankunft|abfahrt";
+  const nm = String(e.note || "").match(new RegExp(`\\b(?:${dir})\\s+([\\p{L}.\\- ]+?\\s(?:hbf|hauptbahnhof|bahnhof|bf)\\b(?:\\s\\(tief\\))?)`, "iu"));
+  const pl = /bahnhof|hbf|bhf|\bbf\b/i.test(pl0) ? pl0 : nm ? nm[1].trim() : pl0 || String(e.note || "").split(",")[0].trim();
   const src = /bahnhof|hbf|bhf|\bbf\b/i.test(pl) ? pl : String(e.title || "");
   const t = osmExpand(src.replace(TRAIN_RE, " ")), m = t.match(/((?:[\p{L}.\-]+\s+)?)(Hauptbahnhof|Bahnhof)((?:\s+[\p{L}.\-]+)?)/u);
   if (!m) return /bahnhof|hbf/i.test(pl) ? pl : "";
