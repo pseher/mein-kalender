@@ -837,8 +837,8 @@ const TK_RULES = [
   [/(kita|schule|hort).*(geschlossen|schließ|zu\b)|schließtag|studientag|pädagogischer tag|brückentag.*(kita|schule)/i, "Betreuung organisieren", 7],
   [/grill|party|feier\b|einweihung|gäste|besuch bei uns|kommen zu uns|brunch bei uns/i, "Einkaufen für", 2],
   [/elternabend|elterngespräch|elternsprechtag/i, "Fragen notieren für", 1],
-  [/\btüv\b|\bhu\b|hauptuntersuchung|inspektion/i, "Werkstatttermin vereinbaren für", 21],
-  [/reifenwechsel|winterreifen|sommerreifen/i, "Reifen-Termin machen", 14],
+  [/\btüv\b|\bhu\b|hauptuntersuchung|inspektion/i, "Werkstatttermin vereinbaren für", 21, /werkstatt|termin|autohaus|dekra|gtü|kfz/i],
+  [/reifenwechsel|winterreifen|sommerreifen/i, "Reifen-Termin machen", 14, /werkstatt|termin|autohaus|reifenhandel/i],
   [/einschulung/i, "Schultüte und Ranzen besorgen", 21],
   [/hochzeit/i, "Geschenk und Outfit für", 14],
   [/umzug/i, "Kartons und Helfer organisieren für", 14],
@@ -848,7 +848,8 @@ function taskSuggest() {
   if (!canWrite) return [];
   const have = new Set(TASKS.map(t => t.key).filter(Boolean)), out = [];
   OCC.forEach(o => { const n = dayDiff(TODAY, o.a); if (n < 0 || n > 21 || ["birthday", "info", "anniversary", "contact"].includes(o.ev.type)) return;
-    const t = o.ev.title || ""; TK_RULES.forEach(([re, txt, lead], i) => { if (!re.test(t) || n > Math.max(lead, 2) + 7) return;
+    const t = o.ev.title || ""; TK_RULES.forEach(([re, txt, lead, skip], i) => { if (!re.test(t) || n > Math.max(lead, 2) + 7) return;
+      if (skip && (skip.test(t) || n < 3)) return;   // der Eintrag IST schon der Werkstatt-/Reifentermin bzw. es ist zu spät zum Vereinbaren
       const key = `r${i}|${o.ev.gid || o.ev.id}|${iso(o.a)}`; if (have.has(key) || out.some(x => x.key === key)) return;
       const due = addDays(o.a, -lead) < TODAY ? TODAY : addDays(o.a, -lead);
       out.push({ key, title: /für$/.test(txt) ? `${txt} „${shortName(o.ev).replace(/^👪 /, "")}“` : txt, due: iso(due), for: `${shortName(o.ev)} · ${relDay(o)}` }); }); });
@@ -3033,6 +3034,11 @@ function closeSheet() { try { if (MIC) micStop(); } catch {}
   if (selDay) { selDay = null; document.querySelectorAll(".d.sel, .mc.sel").forEach(x => x.classList.remove("sel")); }
   $("add-btn").hidden = (!canWrite && dbState !== "off") || !!moving;
 }
+// Tipp auf einen Tag im Monat: leerer Tag → gleich eintragen, genau ein Termin (sonst nichts Besonderes) → gleich öffnen, sonst Tagesblatt
+function dayTap(dt) { const d = dayOf(dt), oc = occOn(dt), plain = !d.h && !BRIDGES.get(d.k) && !d.fBE && !d.fST && !XST.some(s => !XHIDE.includes(s) && FXM[s].get(d.k)) && !(JOINT.length >= 2 && winOf(dt)) && !tkForDay(dt).length;
+  if (plain && !oc.length && canWrite) { selDay = dt; return newEntry(d.k); }
+  if (plain && oc.length === 1) return showEvent(oc[0]);
+  showDay(dt); }
 function showDay(dt) {
   selDay = dt;
   const d = dayOf(dt), items = [];
@@ -3420,7 +3426,7 @@ async function saveForm() {
   try {
     const was = editing; const undo = await applyChanges([was ? { op: "update", id: was.id, event: v } : { op: "add", event: v }]);
     const files = FORM_FILES; FORM_FILES = []; const added = !was && LAST_ADDED[0];
-    DRAFT_SAVED = true; closeSheet(); toast((SHOW.hide || []).includes($("f-type")?.value || v?.type) ? (v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter ☰ → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`) : was ? "Gespeichert" : "Eingetragen", undo);
+    DRAFT_SAVED = true; closeSheet(); (SHOW.hide || []).includes($("f-type")?.value || v?.type) ? toast(v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter ☰ → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`, undo) : savedToast(v, was ? "gespeichert" : "eingetragen", undo);
     if (files.length && added) setTimeout(() => docUpload({ ...added.v, id: added.id, files: [], a: parseIso(added.v.from), b: parseIso(added.v.to || added.v.from) }, files), 400);
     if (v.type === "birthday" && canWrite) { const k = famKey(v.title), inFam = FAM().some(p => famKey(p.name) === k || p.key === k); const b = parseIso(v.from);
       if (v.fam && !inFam) { FAMED = FAM().map(p => ({ ...p })); FAMED.push({ name: v.title, role: (FAMKW.find(([re]) => re.test(v.title)) || [])[1] || "andere", birthday: v.birthYear ? `${v.birthYear}-${v.from.slice(5)}` : `--${v.from.slice(5)}`, key: k }); famSave(); }
@@ -4194,7 +4200,9 @@ async function applyAssistant() {
     DRAFT_SAVED = true; closeSheet();
     const newId = LAST_ADDED.find(x => ["trip", "termin"].includes(x.v.type)) || LAST_ADDED[0];
     if (files.length && newId && own.some(a => a.op === "add")) setTimeout(() => docUpload({ ...newId.v, id: newId.id, files: [], a: parseIso(newId.v.from), b: parseIso(newId.v.to || newId.v.from) }, files), 400);
-    toast(picked.length === 1 ? "Übernommen" : `${picked.length} Änderungen übernommen`, async () => { for (const u of gUndo.reverse()) await u(); if (undoOwn) await undoOwn(); else toast("Rückgängig gemacht"); mcp?.invalidate(GSERVER, "list_events").catch(() => {}); });
+    const undoAll = async () => { for (const u of gUndo.reverse()) await u(); if (undoOwn) await undoOwn(); else toast("Rückgängig gemacht"); mcp?.invalidate(GSERVER, "list_events").catch(() => {}); };
+    const one = picked.length === 1 && own.length === 1 && own[0].op === "add" && own[0].event ? own[0].event : null;
+    if (one) savedToast(one, "eingetragen", undoAll); else toast(picked.length === 1 ? "Übernommen" : `${picked.length} Änderungen übernommen`, undoAll);
   }
   catch (e) { btn.disabled = false; btn.textContent = "Übernehmen"; $("a-out").insertAdjacentHTML("beforeend", `<p class="err">${e?.code === "tool_error" ? gErr(e) : writeErr(e)}</p>`); }
 }
@@ -4503,7 +4511,7 @@ function showGoogleEvent(o) {
     routeLinks(placeOf(e)) +
     (canWrite && isTrip(o) ? `<button type="button" class="btn ghost small" data-adopt="${id}|${iso(o.a)}">Als Reise übernehmen</button>` : "") +
     (merkable(o) ? `<button type="button" class="btn ghost small" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "") +
-    (!isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) ? `<button type="button" class="btn ghost small" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : "") +
+    (!isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) && (isUmg(o) || umgSet().size || EV.some(e => e.type === "mina")) ? `<button type="button" class="btn ghost small" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : "") +
     (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
   openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
@@ -4664,6 +4672,11 @@ async function saveNewPw() {
   closeSheet(); toast("Neues Passwort gespeichert.");
 }
 // Leerzeichen in E-Mail und Passwort sofort entfernen (Handy-Tastaturen setzen gern eins nach „.“)
+// Beginn ändern → Ende rückt mit (Dauer bleibt), wie man es von Google kennt
+const T_END = { "f-time": "f-end", "gf-time": "gf-end" }, hm = v => /^\d\d:\d\d$/.test(v || "") ? +v.slice(0, 2) * 60 + +v.slice(3) : null;
+document.addEventListener("focusin", ev => { const t = ev.target; if (T_END[t?.id]) t.dataset.prev = t.value; });
+document.addEventListener("change", ev => { const t = ev.target; if (!T_END[t?.id]) return; const e = $(T_END[t.id]), a0 = hm(t.dataset.prev), a1 = hm(t.value), b0 = hm(e?.value);
+  t.dataset.prev = t.value; if (a0 == null || a1 == null || b0 == null || b0 <= a0) return; const b1 = Math.min(23 * 60 + 59, b0 + a1 - a0); e.value = `${p2(Math.floor(b1 / 60))}:${p2(b1 % 60)}`; });
 document.addEventListener("input", ev => { const t = ev.target; if (t?.id === "f-pk-who" || t?.id === "f-pk-st") delete t.dataset.pre; if (t?.id === "f-from" || t?.id === "f-time") qMark(); });
 document.addEventListener("focusin", ev => { if (ev.target?.id === "f-from") ev.target.dataset.prev = ev.target.value; });
 document.addEventListener("change", ev => { const t = ev.target;
@@ -4676,7 +4689,7 @@ document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-
   const o = ev.target.closest?.("[data-auop]"); if (o) { ev.preventDefault(); auOp(o.dataset.auop); } });
 // Google-Kalender verbinden – bei E-Mail-Konten wird Google an dasselbe Konto gehängt
 const G_UNVERIFIED = true;   // bis Google PlanFlink geprüft hat: Hinweis auf die Warnseite
-const G_WARN = "Solange Google PlanFlink noch prüft, zeigt Google den Hinweis „Google hat diese App nicht überprüft“. Tippe dann auf „Erweitert“ und „Weiter zu planflink.de“ – und erlaube beide Kalender-Häkchen.";
+const G_WARN = "Google zeigt gleich noch den Hinweis „Google hat diese App nicht überprüft“ – das liegt an der laufenden Prüfung durch Google, nicht an einem Problem. Tippe auf „Erweitert“ und „Weiter zu planflink.de“ – und erlaube beide Kalender-Häkchen.";
 async function gConnect(go) {
   if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Kalenderliste sehen sowie Termine lesen und eintragen darf. Damit zeigt PlanFlink deine Google-Termine an und trägt neue Termine dort ein – nur in den Kalendern, die du auswählst. <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a></p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
   const r = await window.mkConnectGoogle?.();
@@ -4836,7 +4849,7 @@ function renderWz() {
       ${W.gMsg ? `<div class="wz-box warn"><span>${esc(W.gMsg)}</span></div>` : ""}
       ${mcp ? `<button type="button" class="wz-big accent" id="wz-g-yes"${busy ? " disabled" : ""}>${busy ? "Verbinde mit Google …" : "Ja, Google verbinden"}</button>` : ""}
       <button type="button" class="wz-big ${mcp ? "ghost" : "accent"}" id="wz-g-no">${mcp ? "Ohne Google weiter" : "Ohne Google starten"}</button>
-      ${mcp ? `<p class="note">${APP ? "Google fragt dich einmal, ob PlanFlink deine Termine sehen und eintragen darf. Bitte beide Häkchen setzen." + (G_UNVERIFIED ? " " + G_WARN.split(" – ")[0] + "." : "") : "Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen."}</p>` : ""}</div>`;
+      ${mcp ? `<p class="note">${APP ? "Google fragt dich einmal, ob PlanFlink deine Termine sehen und eintragen darf. Bitte beide Häkchen setzen." + (G_UNVERIFIED ? " " + G_WARN.split(" – ").slice(0, 2).join(" – ") + "." : "") : "Beim Verbinden fragt Claude einmal um Erlaubnis. Klappt es nicht: in Claude unter Einstellungen → Konnektoren „Google Calendar“ hinzufügen."}</p>` : ""}</div>`;
   }
   if (W.step === "cals") {
     const cals = [{ id: "primary" }, ...gCals.filter(c => !c.primary && c.summary !== gPrimarySummary && c.id !== gPrimarySummary)]; store.set("ft-gcal-asked", "1");
@@ -4953,7 +4966,7 @@ function bdName(title) {
   let t = String(title || "").replace(/🎂|🎉|🎁/g, " ").replace(/\s+/g, " ").trim(), year = 0, m;
   if ((m = t.match(/\((\d{4})\)|\*\s?(\d{4})|geb\.?\s?(\d{4})|\b(19\d\d|20[0-2]\d)\b/))) year = +(m[1] || m[2] || m[3] || m[4]);
   t = t.replace(/\((\d{4}|\d{1,3}\.?)\)|\*\s?\d{4}|\b(19\d\d|20[0-2]\d)\b/g, " ");
-  t = t.replace(/^(geburtstag|geb\.?|birthday|bday|happy birthday)\s*(von|:|-)?\s*/i, "").replace(/\s*(-|:)?\s*(geburtstag|geb\.?|birthday|bday)\s*$/i, "").replace(/['’]s$/i, "").replace(/\s+/g, " ").trim();
+  t = t.replace(/\s+(hat|feiert|wird)\s+(heute\s+)?(\d{1,3}\.?\s*)?(geburtstag|geb\.?|birthday)\s*$/i, "").replace(/^(geburtstag|geb\.?|birthday|bday|happy birthday)\s*(von|:|-)?\s*/i, "").replace(/\s*(-|:)?\s*(geburtstag|geb\.?|birthday|bday)\s*$/i, "").replace(/['’]s$/i, "").replace(/\s+/g, " ").trim();
   return { name: t, year };
 }
 async function wzScan() {
@@ -5075,8 +5088,9 @@ function wzClick(id, el) {
 // =================== Darstellung ===================
 const THEMES = [["auto", "◐", "Auto"], ["light", "☀", "Hell"], ["dark", "☾", "Dunkel"]];
 let themeIdx = Math.max(0, THEMES.findIndex(x => x[0] === store.get("ft27-theme")));
+function applyDirect() { const l = $("direct-lbl"); let on = false; try { on = localStorage.getItem("mk-consent") === "yes"; } catch (e) {} if (l) l.textContent = on ? "Ja" : "Nein"; }
 function applyFs() { const z = store.get("ft-fs") || "1"; document.documentElement.style.setProperty("--z", z); const l = $("fs-lbl"); if (l) l.textContent = z === "1.25" ? "Sehr groß" : z === "1.12" ? "Groß" : "Normal"; }
-applyFs();
+applyFs(); applyDirect();
 function toggleMenu() { const m = $("menu"); if (!m) return; const open = m.hidden; m.hidden = !open; $("menu-btn").setAttribute("aria-expanded", String(open));
   if (open) { $("mi-google").hidden = !mcp; $("mi-fam").hidden = !canWrite; $("mi-docs").hidden = !canWrite; $("mi-fristen").hidden = !canWrite; $("mi-share").hidden = !SHR_ON();
     $("mi-docs-n").textContent = DOCS.length || ""; try { $("mi-fr-n").textContent = frList().length || ""; } catch {}
@@ -5093,8 +5107,13 @@ function applyTheme() {
 
 // =================== Ereignisse ===================
 let toastT;
-function toast(t, undo, lbl) {
-  const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${undo ? `<button type="button" id="toast-undo">${esc(lbl || "Rückgängig")}</button>` : ""}`; el.hidden = false;
+// Rückmeldung nach dem Eintragen: was, wann, wohin – mit Sprung zum Tag
+function savedToast(v, verb, undo) { const d = parseIso(v.from); if (!d) return toast(verb[0].toUpperCase() + verb.slice(1), undo);
+  const t = `${v.title || "Termin"} ${verb}: ${fmt(d)}${v.time ? `, ${v.time}` : ""}${v.gcal && gWritable() ? " · auch in Google" : ""}`;
+  toast(t, undo, null, { lbl: "Anzeigen", fn: () => showDay(d) }); }
+function toast(t, undo, lbl, more) {
+  const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${more ? `<button type="button" id="toast-more">${esc(more.lbl)}</button>` : ""}${undo ? `<button type="button" id="toast-undo">${esc(lbl || "Rückgängig")}</button>` : ""}`; el.hidden = false;
+  if (more) $("toast-more").onclick = () => { el.hidden = true; more.fn(); };
   if (undo) $("toast-undo").onclick = async () => { el.hidden = true; try { await undo(); } catch { toast("Rückgängig hat nicht geklappt"); } };
   clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 15000 : 4000);   // genug Zeit auch für Langsamleser
 }
@@ -5106,7 +5125,7 @@ document.addEventListener("click", ev => {
   let el;
   if ((el = q("[data-stat]")) && ev.target.id !== "st-vac") { showStat(el.dataset.stat); return; }
   if ((el = q("[data-n3]"))) { showNext3(); return; }
-  if ((el = q("[data-day]"))) { const dt = parseIso(el.dataset.day); if (moving) finishMove(dt); else showDay(dt); return; }
+  if ((el = q("[data-day]"))) { const dt = parseIso(el.dataset.day); if (moving) finishMove(dt); else if (el.classList.contains("mt")) dayTap(dt); else showDay(dt); return; }
   if ((el = q("[data-occ]"))) { const [id, a] = el.dataset.occ.split("|"); const o = findOcc(id, a); if (o) showEvent(o); return; }
   if ((el = q("[data-edit]"))) { const e = EV.find(x => x.id === el.dataset.edit) || RECV.find(x => x.id === el.dataset.edit); if (!e) return;
     if (entryMode() === "tap" && TAP_FLOW[e.type] && !e.shared && EV.includes(e) && parseIso(e.from)) return showTapEdit(e); showForm(e); return; }
@@ -5338,6 +5357,7 @@ document.addEventListener("click", ev => {
     case "fr-new": closeSheet(); showForm({ type: "deadline", title: "", from: iso(TODAY), to: iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: "", remindDays: "" }); break;
     case "mi-docs": case "acc-docs": DOCSEL = new Set(); docQ = ""; docDelArm = false; showDocs(); break;
     case "mi-fristen": showFristen(); break;
+    case "direct-btn": { let on = false; try { on = localStorage.getItem("mk-consent") === "yes"; on = !on; localStorage.setItem("mk-consent", on ? "yes" : "no"); if (on) localStorage.setItem("mk-open", "1"); else localStorage.removeItem("mk-open"); } catch (e) {} applyDirect(); toast(on ? "planflink.de öffnet ab jetzt direkt den Kalender" : "planflink.de zeigt wieder die Startseite"); break; }
     case "fs-btn": { const L = [["1", "Normal"], ["1.12", "Groß"], ["1.25", "Sehr groß"]], i = (L.findIndex(x => x[0] === (store.get("ft-fs") || "1")) + 1) % L.length; store.set("ft-fs", L[i][0]); applyFs(); toast(`Schriftgröße: ${L[i][1]}`); break; }
     case "mi-fam": FAMED = null; famQ = ""; FPICK = new Map(); famAllOpen = false; showFamily(); break;
     case "mi-share2": showFamShare(); break;
@@ -5391,6 +5411,7 @@ document.addEventListener("click", ev => {
     case "open-google": showGoogleSheet(); break;
     case "g-sync": closeSheet(); gSync(); break;
     case "next-more": goPage?.("p1"); setView("list"); break;
+    case "search-btn": { if ($("p1")?.hidden) { toast("Die Suche steckt in der Kalender-Seite – einschalten unter ☰ → Anzeigen"); break; } goPage?.("p1"); setView("list"); setTimeout(() => { const q = $("q"); if (q) { q.scrollIntoView({ block: "center" }); try { q.focus(); } catch {} } }, 350); break; }
     case "g-forget": openSheet("Google trennen?", "Deine PlanFlink-Termine bleiben", `<p>PlanFlink zeigt dann keine Google-Termine mehr und trägt nichts mehr in Google ein. Die Freigabe wird bei Google zurückgenommen. Du kannst Google jederzeit wieder verbinden.</p><div class="btnrow"><button type="button" class="btn ghost" id="g-forget-no">Abbrechen</button><button type="button" class="btn accent" id="g-forget-yes">Trennen</button></div>`); break;
     case "g-forget-no": showGoogleSheet(); break;
     case "g-forget-yes": { el.disabled = true; window.mkGoogleForget?.().then(() => { closeSheet(); gTry = 0; initGoogle().then(() => renderAll?.()); toast("Google ist getrennt."); }); break; }

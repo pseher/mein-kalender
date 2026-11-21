@@ -517,6 +517,7 @@ textarea.f-notea { resize: vertical; min-height: 0; display: block; }
   padding: 8px 8px 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 500; max-width: calc(100% - 32px); box-sizing: border-box; display: flex; align-items: center; gap: 12px; }
 .toast button { border: 0; background: var(--bg); color: var(--fg); border-radius: 8px; padding: 8px 14px; min-height: 40px; font-weight: 600; font-size: 14px; cursor: pointer; }
 .toast:not(:has(button)) { padding-right: 14px; }
+.toast:has(#toast-more) { flex-wrap: wrap; } .toast:has(#toast-more) > span { flex: 1 1 100%; } .toast:has(#toast-more) button { flex: 1 1 0; }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translate(-50%, 12px); opacity: .6; } } }
 @media (max-width: 640px) {
   .toolbar { gap: 6px; flex-wrap: nowrap; }
@@ -1009,6 +1010,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
   <header class="top">
     <h1><img class="hd-logo" src="/favicon.svg" alt="">Plan<span class="hd-f">Flink</span><small id="hdr-states"></small></h1>
     <div class="tb">
+    <button type="button" class="tb-b" id="search-btn" aria-label="Termine suchen"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
     <button type="button" class="tb-b tb-g" id="g-btn" hidden aria-label="Google Kalender: Status und abgleichen"><span id="g-lbl">G</span><i id="g-dot"></i><span class="badge" id="g-badge" hidden></span></button>
     <button type="button" class="tb-b" id="menu-btn" aria-label="Menü" aria-expanded="false" aria-controls="menu"><span class="hb" aria-hidden="true"></span><i class="rdot" id="menu-dot" hidden></i></button></div>
     <nav class="menu" id="menu" hidden aria-label="Menü">
@@ -1023,6 +1025,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
       <button type="button" class="mi" data-mi id="show-btn"><i class="dotc" style="--c:var(--both)"></i>Anzeigen<em class="mi-v">Seiten, Arten, Farben, Ferien</em><i class="rdot inl" id="mi-set-dot" hidden></i></button>
       <button type="button" class="mi" data-mi id="mi-notify" hidden><i class="dotc" style="--c:var(--deadline, var(--both))"></i>Benachrichtigungen<em class="mi-v" id="mi-notify-v"></em></button>
       <button type="button" class="mi" id="theme-btn" aria-label="Hell oder dunkel wechseln"><i class="dotc" style="--c:var(--muted)"></i>Hell / Dunkel<em><span id="theme-ico" aria-hidden="true">◐</span> <span id="theme-lbl">Auto</span></em></button>
+      <button type="button" class="mi" id="direct-btn" aria-label="Startseite überspringen"><i class="dotc" style="--c:var(--muted)"></i>planflink.de öffnet direkt den Kalender<em id="direct-lbl">Nein</em></button>
       <button type="button" class="mi" id="fs-btn" aria-label="Schriftgröße wechseln"><i class="dotc" style="--c:var(--muted)"></i>Schriftgröße<em id="fs-lbl">Normal</em></button>
       <div class="mi-g">Hilfe &amp; Konto</div>
       <button type="button" class="mi" data-mi id="mi-help"><i class="dotc" style="--c:var(--c-info, var(--both))"></i>Hilfe – Wie geht …?</button>

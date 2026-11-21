@@ -19,9 +19,7 @@
   function consent(v) { try { localStorage.setItem("mk-consent", v); if (v !== "yes") localStorage.removeItem("mk-open"); } catch (e) {} document.getElementById("consent").hidden = true; if (GO_AFTER) go(); }
   var BACK = new URLSearchParams(location.search).has("back"); // aus dem Kalender heraus geöffnet
   function openCal() { if (BACK) { backToApp(); return false; }
-    var asked = true; try { asked = !!localStorage.getItem("mk-consent"); } catch (e) {}
-    if (!asked) { GO_AFTER = true; document.getElementById("consent").hidden = false; return false; } // erst beim Öffnen fragen – nichts verdeckt den Button
-    go(); return false; }
+    go(); return false; } // kein Zwischenschritt: die Frage „direkt öffnen?“ gibt es in der App unter ☰ und unten bei „Speicher-Einstellungen“
   function backToApp() { try { window.close(); } catch (e) {}
     setTimeout(function () { var h = document.getElementById("backhint"); if (h) h.hidden = false; }, 300); }
 </script>
@@ -251,9 +249,9 @@
       <span class="kick"><b class="kb">PlanFlink</b> · für Familien &amp; Paare · kostenlos</span>
       <h1>„Du sagst, was ansteht.<br><em>Den Rest erledigt PlanFlink.“</em></h1>
       <p class="claimline">Der Kalender, der an das denkt, was du vergisst.</p>
-      <p class="lead">Nicht noch ein Kalender, sondern dein Alltagsassistent: Termine landen von selbst im Kalender, Erinnerungen kommen rechtzeitig, und PlanFlink behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage für euch im Blick.</p>
+      <p class="lead">Nicht noch ein Kalender, sondern dein Alltagsassistent: Schreib einen Satz, schick ein Foto vom Ticket oder füge eine Nachricht ein – PlanFlink macht daraus den Termin. Erinnerungen kommen rechtzeitig, und PlanFlink behält Züge, Flüge, Visum, Maut, Schichten, Ferien und Geburtstage für euch im Blick.</p>
       <div class="ctas"><a class="btn" href="/app/" onclick="return openCal()">Kostenlos starten <span aria-hidden="true">→</span></a><a class="btn ghost" href="#so">So funktioniert’s</a></div>
-      <p class="free">Läuft im Browser und als App auf dem Handy – mit oder ohne Google Kalender.</p>
+      <p class="free">Läuft im Browser und als App auf dem Handy. Du nutzt schon Google Kalender? Deine Termine bleiben, wo sie sind – PlanFlink zeigt sie mit an.</p>
     </div>
     <div class="phone" aria-label="Beispiel: Aus einer Nachricht wird eine Reise mit allem Drumherum">
       <div class="demo" id="demo" aria-hidden="true">
@@ -393,7 +391,6 @@
     at(t0 + 9500, function () { push.classList.add("on"); });
     at(t0 + 15500, run);
   }
-  try { if (!localStorage.getItem("mk-consent") && !BACK) setTimeout(function () { document.getElementById("consent").hidden = false; }, 1800); } catch (e) {}
   // gestapelte Karten: die untere Karte tritt leicht zurück, wenn die nächste darüber gleitet
   var cards = [].slice.call(document.querySelectorAll(".sk"));
   if (!reduce && cards.length) { var tick = false; function upd() { tick = false; cards.forEach(function (c, i) { var n = cards[i + 1]; if (!n) return; var r = n.getBoundingClientRect(), top = parseFloat(getComputedStyle(n).top) || 80, h = c.offsetHeight || 1; var p = Math.min(1, Math.max(0, 1 - (r.top - top) / h)); c.style.transform = p ? "scale(" + (1 - p * .06) + ")" : ""; c.style.filter = p ? "brightness(" + (1 - p * .08) + ")" : ""; }); }
