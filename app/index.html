@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261120223936";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261121043248";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -52,6 +52,7 @@ window.MK_APP = true;
     if (G_PEND.purpose === "login" || !cur) { if (!b.id_token) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.");
       const x = await sb.auth.signInWithIdToken({ provider: "google", token: b.id_token }).catch(e => ({ error: e }));
       if (x?.error) fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen oder mit E-Mail anmelden."); }
+    if (b.refresh_token && /calendar/.test(b.scope || "")) { try { sessionStorage.removeItem("mk-g-none"); } catch {} setTimeout(() => gStore(b.refresh_token), 0); }
   })().catch(() => {}) : Promise.resolve();
   const ready = gDone.then(() => sb.auth.getSession()).then(r => { session = r.data.session; keepGoogle(session); return session; }).catch(() => null);
   // Neu laden nur bei einem echten Wechsel NACH dem Start (z. B. Anmeldung in einem anderen Tab),
@@ -115,8 +116,8 @@ window.MK_APP = true;
     startedWith = undefined;   // kein zweites Neuladen durch das Abmelde-Ereignis
     try { const r = await Promise.race([sb.auth.signOut(), new Promise(res => setTimeout(() => res({ error: "timeout" }), 4000))]); if (r?.error) await sb.auth.signOut({ scope: "local" }); } catch { try { await sb.auth.signOut({ scope: "local" }); } catch {} }
     try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); } catch {}
-    Object.values(GK).forEach(k => lsSet(k, "")); session = null;
-    try { ["mk-wz-g", "mk-newpw", "mk-auth-err"].forEach(k => sessionStorage.removeItem(k)); } catch {}
+    Object.values(GK).forEach(k => lsSet(k, "")); lsSet("mk-g-srv", ""); session = null;   // die Google-Verbindung bleibt fürs Konto beim Worker gemerkt
+    try { ["mk-wz-g", "mk-newpw", "mk-auth-err", "mk-g-none"].forEach(k => sessionStorage.removeItem(k)); } catch {}
     location.replace(location.origin + "/app/");
   };
   // Benachrichtigungen: öffentlicher Schlüssel & Test über den Worker
@@ -270,9 +271,11 @@ window.MK_APP = true;
       if (s) session = s; return session || await ready;
     } catch { return session || await ready; }
   }
+  const gStore = async rt => { try { const s = await freshSession(); if (!s) return; const r = await fetch(CFG.workerUrl + "/google/store", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ refresh_token: rt }) }); if (r.ok) lsSet("mk-g-srv", "1"); } catch {} };
   async function gToken(force) {
     if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
-    const rt = lsGet(GK.rt); if (!rt) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Google Kalender ist auf diesem Gerät nicht verbunden – bitte „Mit Google verbinden“ tippen"; throw gErr("needs_reauth"); }
+    const rt = lsGet(GK.rt); let none = false; try { none = !rt && sessionStorage.getItem("mk-g-none") === (session?.user?.id || "-"); } catch {}
+    if (!rt && (!session || none)) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Google Kalender ist auf diesem Gerät nicht verbunden – bitte „Mit Google verbinden“ tippen"; throw gErr("needs_reauth"); }
     refreshing ??= (async () => {
       const call = async s => { try { return await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); }
         catch { await new Promise(r => setTimeout(r, 1200)); return fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); } };
@@ -280,7 +283,9 @@ window.MK_APP = true;
       if (r && r.status === 401) { const nb = await r.clone().json().catch(() => ({})); if (nb.code === "not_signed_in") r = await call(await freshSession(true)).catch(() => null); }   // Anmeldung über Nacht abgelaufen → einmal erneuern
       if (!r) { window.mkGLast = "Worker nicht erreichbar (kein Netz?)"; throw gErr("upstream_error"); }
       const b = await r.json().catch(() => ({}));
-      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") { lsSet(GK.rt, ""); lsSet(GK.at, ""); } throw gErr(b.code === "invalid_grant" ? "needs_reauth" : "upstream_error"); }
+      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") { lsSet(GK.rt, ""); lsSet(GK.at, ""); } if (b.code === "no_token") { window.mkGLast = "Google Kalender ist noch nicht verbunden – bitte „Mit Google verbinden“ tippen"; try { sessionStorage.setItem("mk-g-none", session?.user?.id || "-"); } catch {} }
+        throw gErr(b.code === "invalid_grant" || b.code === "no_token" ? "needs_reauth" : "upstream_error"); }
+      if (rt && !lsGet("mk-g-srv")) gStore(rt);   // ältere Verbindung einmalig fürs Konto merken
       lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
     })().finally(() => { refreshing = null; });
     return refreshing;
