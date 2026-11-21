@@ -517,7 +517,10 @@ textarea.f-notea { resize: vertical; min-height: 0; display: block; }
   padding: 8px 8px 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 500; max-width: calc(100% - 32px); box-sizing: border-box; display: flex; align-items: center; gap: 12px; }
 .toast button { border: 0; background: var(--bg); color: var(--fg); border-radius: 8px; padding: 8px 14px; min-height: 40px; font-weight: 600; font-size: 14px; cursor: pointer; }
 .toast:not(:has(button)) { padding-right: 14px; }
-.toast:has(#toast-more) { flex-wrap: wrap; } .toast:has(#toast-more) > span { flex: 1 1 100%; } .toast:has(#toast-more) button { flex: 1 1 0; }
+.toast { touch-action: pan-y; }
+.toast.two { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; gap: 8px; width: min(340px, calc(100% - 32px)); padding: 10px 10px 10px 14px; }
+.toast .tt { display: grid; gap: 1px; min-width: 0; } .toast .tt b { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast .tt small { font-size: 13px; opacity: .8; } .toast .tbtns { display: flex; gap: 8px; } .toast .tbtns button { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
 @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .18s ease-out; } @keyframes up { from { transform: translate(-50%, 12px); opacity: .6; } } }
 @media (max-width: 640px) {
   .toolbar { gap: 6px; flex-wrap: nowrap; }

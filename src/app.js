@@ -5109,14 +5109,26 @@ function applyTheme() {
 let toastT;
 // Rückmeldung nach dem Eintragen: was, wann, wohin – mit Sprung zum Tag
 function savedToast(v, verb, undo) { const d = parseIso(v.from); if (!d) return toast(verb[0].toUpperCase() + verb.slice(1), undo);
-  const t = `${v.title || "Termin"} ${verb}: ${fmt(d)}${v.time ? `, ${v.time}` : ""}${v.gcal && gWritable() ? " · auch in Google" : ""}`;
-  toast(t, undo, null, { lbl: "Anzeigen", fn: () => showDay(d) }); }
+  const sub = `${verb[0].toUpperCase() + verb.slice(1)} · ${fmt(d)}${v.time ? `, ${v.time}` : ""}${v.gcal && gWritable() ? " · auch in Google" : ""}`;
+  toast({ head: v.title || "Termin", sub }, undo, null, { lbl: "Anzeigen", fn: () => showDay(d) }); }
+// Meldung oben: t = Text oder { head, sub } (zweizeilig, schmal); zur Seite wegwischbar
 function toast(t, undo, lbl, more) {
-  const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${more ? `<button type="button" id="toast-more">${esc(more.lbl)}</button>` : ""}${undo ? `<button type="button" id="toast-undo">${esc(lbl || "Rückgängig")}</button>` : ""}`; el.hidden = false;
+  const el = $("toast"); el.style.transform = ""; el.style.opacity = "";
+  const txt = typeof t === "object" ? `<span class="tt"><b>${esc(t.head)}</b><small>${esc(t.sub)}</small></span>` : `<span>${esc(t)}</span>`;
+  const btns = `${more ? `<button type="button" id="toast-more">${esc(more.lbl)}</button>` : ""}${undo ? `<button type="button" id="toast-undo">${esc(lbl || "Rückgängig")}</button>` : ""}`;
+  el.innerHTML = more ? `${txt}<span class="tbtns">${btns}</span>` : txt + btns; el.classList.toggle("two", !!more); el.hidden = false;
   if (more) $("toast-more").onclick = () => { el.hidden = true; more.fn(); };
   if (undo) $("toast-undo").onclick = async () => { el.hidden = true; try { await undo(); } catch { toast("Rückgängig hat nicht geklappt"); } };
   clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 15000 : 4000);   // genug Zeit auch für Langsamleser
 }
+(() => { const el = $("toast"); let x0 = null, y0 = 0, dx = 0;
+  el.addEventListener("touchstart", e => { if (e.target.closest("button")) return; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; el.style.transition = "none"; }, { passive: true });
+  el.addEventListener("touchmove", e => { if (x0 == null) return; dx = e.touches[0].clientX - x0; const dy = e.touches[0].clientY - y0;
+    if (Math.abs(dy) > Math.abs(dx) && dy < -10) dx = 0, el.style.transform = `translateX(-50%) translateY(${dy}px)`; else el.style.transform = `translateX(calc(-50% + ${dx}px))`;
+    el.style.opacity = String(Math.max(.2, 1 - Math.abs(dx) / 250)); }, { passive: true });
+  el.addEventListener("touchend", e => { if (x0 == null) return; const dy = (e.changedTouches[0]?.clientY ?? y0) - y0; x0 = null; el.style.transition = "transform .18s, opacity .18s";
+    if (Math.abs(dx) > 70 || dy < -40) { el.style.transform = dy < -40 && Math.abs(dx) <= 70 ? "translateX(-50%) translateY(-150%)" : `translateX(calc(-50% + ${dx > 0 ? 120 : -120}vw))`; el.style.opacity = "0"; clearTimeout(toastT); setTimeout(() => { el.hidden = true; el.style.transition = ""; }, 180); }
+    else { el.style.transform = ""; el.style.opacity = ""; } }); })();
 document.addEventListener("click", ev => {
   if (Date.now() - swipedAt < 400 && ev.target.closest("#bigmonth, #week, #year")) { ev.preventDefault(); ev.stopPropagation(); return; }
   if (Date.now() - rgSuppress < 350 || ((RG?.waitEnd || rgActive) && ev.target.closest("#bigmonth, #year"))) { ev.preventDefault(); ev.stopPropagation(); return; }
