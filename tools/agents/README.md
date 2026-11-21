@@ -10,6 +10,7 @@ Die Agenten ändern keinen Code, sondern berichten Funde; behoben wird zentral, 
 | max.md | Max – Technik-Tester |
 | dr-daten.md | Dr. Daten – Datenschutz & Sicherheit |
 | google-pruefer.md | Google-Prüfer – Blick der Google-OAuth-Prüfung |
+| bernd.md | Bernd, 56 – der Nörgler: Benutzbarkeit aus Sicht eines Skeptikers |
 
 Gemeinsame Regeln für alle Rollen:
 - Nur fiktive Namen und Testdaten verwenden, keine echten Personen.
