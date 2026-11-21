@@ -189,6 +189,7 @@ const FK = { vertrag: { i: "📄", t: "Vertrag kündigen", lead: 28, renew: 1 },
   pass: { i: "🛂", t: "Reisepass läuft ab", lead: 180, renew: 0 }, garantie: { i: "🧾", t: "Garantie endet", lead: 14, renew: 0 },
   rueckgabe: { i: "↩️", t: "Rückgabe bis", lead: 3, renew: 0 }, tuev: { i: "🚗", t: "TÜV / HU", lead: 28, renew: 2 },
   versicherung: { i: "🛡️", t: "Versicherung kündigen / wechseln", lead: 28, renew: 1 }, steuer: { i: "🧮", t: "Steuererklärung", lead: 28, renew: 1 } };
+const fkGuess = ti => { ti = String(ti || "").toLowerCase(); return /reisepass/.test(ti) ? "pass" : /ausweis/.test(ti) ? "ausweis" : /garantie|gewährleist/.test(ti) ? "garantie" : /rückgabe|retoure|umtausch/.test(ti) ? "rueckgabe" : /tüv|hauptuntersuchung|\bhu\b/.test(ti) ? "tuev" : /versicherung/.test(ti) ? "versicherung" : /steuer/.test(ti) ? "steuer" : /vertrag|kündig|abo\b|handy|strom|gas|internet/.test(ti) ? "vertrag" : ""; };
 const FK_CHIP = [["ausweis", "Ausweis"], ["pass", "Reisepass"], ["vertrag", "Vertrag"], ["garantie", "Garantie"], ["tuev", "TÜV"], ["versicherung", "Versicherung"], ["steuer", "Steuer"]];
 const fkIcon = e => FK[e?.fk]?.i || "⏰";
 const ART_SHOW = ["termin", "trip", "urlaub", "dienst", "abholen", "info", "mina", "anniversary", "deadline"];   // einzeln ein-/ausblendbar
@@ -216,7 +217,7 @@ function normalize(id, v) {
     time: /^\d{1,2}:\d{2}$/.test(v.time || "") ? v.time : "", endTime: /^\d{1,2}:\d{2}$/.test(v.endTime || "") ? v.endTime : "",
     repeat: repSpec(v.repeat) ? v.repeat : "none", until: parseIso(v.until) ? v.until : "", birthYear: +v.birthYear || 0,
     note: String(v.note || ""), gcal: String(v.gcal || ""), gEventId: String(v.gEventId || ""),
-    remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (REMIND_DEF[v.type] ?? 0) : Math.max(0, +v.remindDays || 0),
+    remindDays: v.remindDays === undefined || v.remindDays === "" || v.remindDays === null ? (v.type === "deadline" ? (FK[v.fk || fkGuess(v.title)]?.lead ?? REMIND_DEF.deadline) : (REMIND_DEF[v.type] ?? 0)) : Math.max(0, +v.remindDays || 0),
     giftDone: Array.isArray(v.giftDone) ? v.giftDone.map(String) : [], done: Array.isArray(v.done) ? v.done.map(String) : [], fam: !!v.fam,
     startYear: +v.startYear || 0, everyWeeks: Math.max(1, +v.everyWeeks || 8), thanks: !!v.thanks, fk: FK[v.fk] ? v.fk : "", renew: [1, 2, 3, 5].includes(+v.renew) ? +v.renew : 0,
     place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, gAdopt: !!v.gAdopt, gSnap: String(v.gSnap || ""), gNote0: String(v.gNote0 || ""), mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
@@ -245,7 +246,7 @@ function expand() {
     if (e.type === "contact") return;
     if (e.type === "birthday" ? !SHOW.bday : !SHOW.own) return;
     const dur = dayDiff(e.a, e.b), skip = e.skip?.length ? new Set(e.skip) : null, untilAll = e.repeat !== "none" ? parseIso(e.until) : null, push = a => { if (skip?.has(iso(a)) || (untilAll && a > untilAll)) return; const b = addDays(a, dur); if (b >= START && a <= END) OCC.push({ ev: e, a, b }); };
-    if (e.repeat === "yearly") for (let y = START.getFullYear(); y <= END.getFullYear(); y++) { if (y >= e.a.getFullYear() || e.type === "birthday") push(new Date(y, e.a.getMonth(), e.a.getDate())); }
+    if (e.repeat === "yearly") for (let y = START.getFullYear(); y <= END.getFullYear(); y++) { if (y >= e.a.getFullYear() || e.type === "birthday") push(new Date(y, e.a.getMonth(), Math.min(e.a.getDate(), new Date(y, e.a.getMonth() + 1, 0).getDate()))); }
     else if (e.repeat === "weekly") { const until = parseIso(e.until) || END; for (let a = e.a; a <= until && a <= END; a = addDays(a, 7)) push(a); }
     else if (e.repeat === "monthly") { const until = parseIso(e.until) || END; for (let i = 0; ; i++) { const a = new Date(e.a.getFullYear(), e.a.getMonth() + i, Math.min(e.a.getDate(), new Date(e.a.getFullYear(), e.a.getMonth() + i + 1, 0).getDate())); if (a > until || a > END) break; push(a); } }
     else if (repSpec(e.repeat)) { const sp = repSpec(e.repeat), until = sp.u === "y" ? END : (parseIso(e.until) || END), step = sp.u === "d" ? sp.n : sp.u === "w" ? 7 * sp.n : 0;
@@ -968,8 +969,11 @@ function shrStart() {
 }
 async function shrFindPartners() { // wer hat meine Einladung angenommen?
   let ch = false;
-  for (const c of SHR.contacts) if (!c.uid) { const p = OUTALL.find(o => o.id !== uid && o.ls.includes(c.L)); if (p) { c.uid = p.id; ch = true;
-    try { const { key } = await codeKeys(c.code); const x = await once(OUT(p.id, "x").doc(c.L)); const info = x?.exists ? await unseal(key, x.data()?.c) : null; if (info?.name && !c.nameSet) c.name = c.name || info.name; } catch {} } }
+  for (const c of SHR.contacts) if (!c.uid) { const cands = OUTALL.filter(o => o.id !== uid && o.ls.includes(c.L)); if (!cands.length) continue;
+    let p = null, info = null; try { const { key } = await codeKeys(c.code);
+      for (const o of cands) { const x = await once(OUT(o.id, "x").doc(c.L)); const i = x?.exists ? await unseal(key, x.data()?.c).catch(() => null) : null; if (i) { p = o; info = i; break; } } } catch {}
+    if (!p && cands.length === 1) p = cands[0];   // ältere Annahmen ohne Namensnotiz
+    if (p) { c.uid = p.id; ch = true; if (info?.name && !c.nameSet) c.name = c.name || info.name; } }
   if (ch) { await saveShr(); shrWatchContacts(); toast("Teilen verbunden ✓"); }
 }
 const once = ref => new Promise(res => { let u = null, done = false; const tm = setTimeout(() => { if (!done) { done = true; res(null); } }, 8000);
@@ -1224,9 +1228,12 @@ async function shrCheck(code, quiet) {
   if (SHR.contacts.some(x => normCode(x.code) === c)) { shrAcc = { code, err: "Diese Einladung ist schon angenommen." }; showShareMgr(); return; }
   const btn = $("shr-acc-go"); if (btn) { btn.disabled = true; btn.textContent = "Prüfe …"; }
   const { key, L } = await codeKeys(c); const all = await once(OUT());
-  const p = all?.docs.find(d => d.id !== uid && (d.data()?.ls || []).includes(L));
-  if (!p) { shrAcc = { code, err: "Diese Einladung habe ich nicht gefunden. Code richtig abgetippt?" }; if (!quiet) showShareMgr(); return; }
-  const x = await once(OUT(p.id, "x").doc(L)), info = x?.exists ? await unseal(key, x.data()?.c) : null;
+  // mehrere Treffer möglich (jemand könnte eine fremde Link-ID kopieren): nur wer den Code wirklich kennt, zählt
+  const cands = (all?.docs || []).filter(d => d.id !== uid && (d.data()?.ls || []).includes(L));
+  let p = null, info = null;
+  for (const d of cands) { const x = await once(OUT(d.id, "x").doc(L)); const i = x?.exists ? await unseal(key, x.data()?.c).catch(() => null) : null; if (i) { p = d; info = i; break; } }
+  if (!p && cands.length === 1) p = cands[0];
+  if (!p) { shrAcc = { code, err: cands.length ? "Diese Einladung lässt sich nicht eindeutig zuordnen. Bitte lass dir einen neuen Code schicken." : "Diese Einladung habe ich nicht gefunden. Code richtig abgetippt?" }; if (!quiet) showShareMgr(); return; }
   shrAcc = { code: c, L, uid: p.id, from: info?.name || "Jemand" }; if (!quiet) showShareMgr(); }
 async function shrAccept() { const a = shrAcc; if (!a?.uid) return; const auto = $("shr-acc-auto") ? $("shr-acc-auto").checked : true;
   SHR.contacts.push({ L: a.L, code: a.code, name: a.from, uid: a.uid, auto, show: true }); await saveShr(); invDone();
@@ -1431,9 +1438,9 @@ function relDay(o) {
   return n === 0 ? "Heute" : n === 1 ? "Morgen" : n < 7 ? WDL[o.a.getDay()].slice(0, 2) + " " + p2(o.a.getDate()) + "." : fmt(o.a);
 }
 function renderNext() {
-  const items = OCC.filter(o => o.b >= TODAY && dayDiff(TODAY, o.a) <= 14).slice(0, 5);
-  UPN.next = items.length;
-  $("next-list").innerHTML = items.map(o => `<button type="button" class="nx" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="when">${relDay(o)}</span><span class="what"><span class="ev-dot ${o.ev.type}"${dotSt(o.ev)}></span>${esc(evName(o.ev))}${placeHint(o)}${ageTxt(o) ? ` · ${esc(ageTxt(o))}` : ""}</span><span class="tm">${esc(timeTxt(o.ev))}</span></button>`).join("");
+  const all = OCC.filter(o => o.b >= TODAY && dayDiff(TODAY, o.a) <= 14), items = all.slice(0, 12);
+  UPN.next = all.length;
+  $("next-list").innerHTML = items.map(o => `<button type="button" class="nx" data-occ="${esc(o.ev.id)}|${iso(o.a)}"><span class="when">${relDay(o)}</span><span class="what"><span class="ev-dot ${o.ev.type}"${dotSt(o.ev)}></span>${esc(evName(o.ev))}${placeHint(o)}${ageTxt(o) ? ` · ${esc(ageTxt(o))}` : ""}</span><span class="tm">${esc(timeTxt(o.ev))}</span></button>`).join("") + (all.length > items.length ? `<button type="button" class="link more-btn" id="next-more">+ ${all.length - items.length} weitere in den nächsten 14 Tagen</button>` : "");
 }
 
 // =================== Demnächst-Karte ===================
@@ -1445,7 +1452,7 @@ function renderUp() {
   let any = false;
   ["others", "soon", "next"].forEach(k => { const n = UPN[k] || 0; $("sec-" + k).hidden = !n; $("n-" + k).textContent = n || ""; if (n) any = true; });
   $("up-empty").hidden = !(dbState === "off" || (!any && dbState === "ready"));
-  $("up-empty").textContent = dbState === "off" ? (APP ? "Melde dich mit Google an (kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du." : "Melde dich bei Claude an (das Konto ist kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine sieht nur du.") : "In den nächsten 14 Tagen steht nichts Besonderes an.";
+  $("up-empty").textContent = dbState === "off" ? (APP ? "Melde dich mit Google an (kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine siehst nur du." : "Melde dich bei Claude an (das Konto ist kostenlos), dann kannst du hier deinen eigenen Kalender anlegen. Deine Termine siehst nur du.") : "In den nächsten 14 Tagen steht nichts Besonderes an.";
   $("today-lbl").textContent = `${WDL[TODAY.getDay()]}, ${TODAY.getDate()}. ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
   renderToday(); renderHints(); renderTasks(); renderFocus(); pushPlanQueue();
   if (canWrite) osmPrefetch();
@@ -1611,7 +1618,9 @@ const isTrip = o => o.ev.type === "trip" || (o.ev.type === "google" && TRIP_RE.t
 const tripText = e => `${e.title} ${e.note || ""} ${e.place || ""} ${e.cal || ""}`;
 const isFlight = e => e.mode ? e.mode === "flug" : (!!e.flight || FLIGHT_RE.test(tripText(e)));
 const modeOf = e => e.mode || (isFlight(e) ? "flug" : /\b(zug|bahn|ice|db)\b|deutsche bahn|bahnticket/i.test(tripText(e)) ? "zug" : /flixbus|fernbus|\bbus(reise)?\b/i.test(tripText(e)) ? "bus" : /\b(radtour|radreise|fahrradtour|bikepacking)\b/i.test(tripText(e)) ? "rad" : "");
-const byCar = e => !["flug", "zug", "bus", "rad"].includes(modeOf(e));
+const byCar = e => { const m = modeOf(e); if (m) return !["flug", "zug", "bus", "rad"].includes(m);   // Anreise unbekannt: Flug im Text oder Flug im Reisezeitraum → kein Maut-Hinweis
+  const tt = tripText(e); if (FLIGHT_RE.test(tt) || /mallorca|ibiza|menorca|teneriffa|gran canaria|fuerteventura|lanzarote|kanaren|madeira|kreta|rhodos|zypern|malta|sizilien|sardinien|island|kanada|usa|amerika|thailand|ägypten|dubai/i.test(tt)) return false;
+  return !EV.some(x => x.id !== e.id && (x.flight || FLIGHT_RE.test(x.title || "")) && x.from >= e.from && x.from <= (e.to || e.from)); };
 const modeHint = e => ({ flug: `✈ Tickets & Ausweise${withKids(e) ? " (auch Kinder)" : ""} prüfen`, zug: "🚆 Tickets & Reservierung prüfen", bus: "🚌 Ticket & Abfahrt prüfen", rad: "🚲 Rad checken", auto: "🚗 Tanken & Reifendruck" })[modeOf(e)] || "";
 const withKids = e => !!e.kids || KIDS_RE.test(tripText(e)) || kidsNames().some(n => n && new RegExp("\\b" + n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(tripText(e)));
 const placeOf = e => (e.place || (e.type === "google" ? e.note : "") || "").trim();
@@ -3016,8 +3025,8 @@ document.addEventListener("focusin", ev => {
 let POP_CLOSING = false, DRAFT_SAVED = false;
 function closeSheet() { try { if (MIC) micStop(); } catch {}
   if (!DRAFT_SAVED && !sheet.hidden && sheetMode === "tap" && TAP?.ty && (TAP.title || TAP.date || TAP.fk !== undefined) && tapDirty()) { const keep = TAP; setTimeout(() => toast("Eingabe verworfen", () => { TAP = keep; renderTap(); }, "Wiederherstellen"), 0); }
-  if (!DRAFT_SAVED && !sheet.hidden && (formDirty() || asstDirty())) { const isF = sheetMode === "form", dv = isF ? { ...formVals(), place: ($("f-place")?.value || "").trim() } : null, at = { txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "", day: ASST_DAY, to: ASST_TO };
-    setTimeout(() => toast(isF ? "Eingabe verworfen" : "Text verworfen", () => { if (isF) { showForm({ ...dv, id: undefined }); fTimeOpen = !!dv.time; syncFormFields(); qMark(); } else { ASST_DAY = at.day; ASST_TO = at.to; showAssistant(true); $("a-in").value = at.txt; $("a-out").innerHTML = at.html; } }, "Wiederherstellen"), 0); }
+  if (!DRAFT_SAVED && !sheet.hidden && (formDirty() || asstDirty())) { const isF = sheetMode === "form", ed = isF ? editing : null, dv = isF ? { ...formVals(), place: ($("f-place")?.value || "").trim() } : null, at = { txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "", day: ASST_DAY, to: ASST_TO };
+    setTimeout(() => toast(isF ? (ed ? "Änderungen nicht gespeichert" : "Eingabe verworfen") : "Text verworfen", () => { if (isF) { showForm(ed ? { ...ed, ...dv, id: ed.id, gcal: ed.gcal, gEventId: ed.gEventId, files: ed.files } : { ...dv, id: undefined }); fTimeOpen = !!dv.time; syncFormFields(); qMark(); } else { ASST_DAY = at.day; ASST_TO = at.to; showAssistant(true); $("a-in").value = at.txt; $("a-out").innerHTML = at.html; } }, "Wiederherstellen"), 0); }
   DRAFT_SAVED = false;
   if (!POP_CLOSING && APP && !sheet.hidden && history.state?.mkSheet) { POP_SKIP = true; try { history.back(); } catch { POP_SKIP = false; } }
   sheet.hidden = true; sheetMode = null; sheetCtx = null; document.documentElement.classList.remove("sheet-open"); setTimeout(renderHints, 0);
@@ -3394,7 +3403,9 @@ function validate(v) {
   const a = parseIso(v.from), b = parseIso(v.to);
   if (!a) return v.type === "birthday" ? "Bitte den Geburtstag als Tag.Monat eingeben, z. B. 18.05." : "Bitte ein gültiges Von-Datum eingeben.";
   if (!b || b < a) return "Das Bis-Datum liegt vor dem Von-Datum.";
-  if (v.type !== "dienst" && v.time && v.endTime && +a === +b && v.endTime < v.time) return "Die Endzeit liegt vor der Startzeit.";
+  if (v.time && v.endTime && +a === +b && v.endTime < v.time) {   // endet nach Mitternacht? Nur bei plausiblen Zeiten (Nachtdienst, Feier) automatisch Folgetag, sonst Tippfehler melden
+    if (v.type === "dienst" || (v.time >= "17:00" && v.endTime <= "09:00")) v.to = iso(addDays(a, 1));
+    else return "Die Endzeit liegt vor der Startzeit. Endet der Termin erst nach Mitternacht? Dann bei „Bis“ den nächsten Tag wählen."; }
   if (v.until && parseIso(v.until) && parseIso(v.until) < a) return "Die Wiederholung endet vor dem ersten Termin – bitte das Ende prüfen.";
   if ((!v.repeat || v.repeat === "none") && (a < START || b > END)) return `Der Kalender reicht von ${START.getFullYear()} bis ${END.getFullYear()} – bitte ein Datum in diesem Zeitraum wählen.`;
   return "";
@@ -3471,7 +3482,7 @@ function gInput(v) {
   }
   if (v.time) {
     inp.startTime = `${v.from}T${tpad(v.time)}:00`;
-    if (v.endTime) inp.endTime = `${to}T${tpad(v.endTime)}:00`;
+    if (v.endTime) inp.endTime = `${to === v.from && tpad(v.endTime) <= tpad(v.time) ? iso(addDays(parseIso(to), 1)) : to}T${tpad(v.endTime)}:00`;   // über Mitternacht
     else { const [h, m] = tpad(v.time).split(":"); const d = parseIso(v.from); d.setHours(+h + 1, +m); inp.endTime = localStamp(d); }
   } else { inp.allDay = true; inp.startTime = `${v.from}T00:00:00`; inp.endTime = `${iso(addDays(parseIso(to), 1))}T00:00:00`; }
   if (v.note && !(v.gAdopt && v.note === v.gNote0)) inp.description = v.note;   // übernommener Google-Text: unverändert lassen
@@ -3585,7 +3596,7 @@ async function delSeries(btn, m, id, a) {
 async function delEvent(btn, id, a) {
   const e0 = EV.find(x => x.id === id);
   if (e0 && e0.repeat && e0.repeat !== "none" && a) { delChoice(btn, id, a, false); return; }
-  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Auch in Google löschen?" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 9000); return; }
+  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Wirklich löschen? (auch in Google)" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 9000); return; }
   btn.disabled = true;
   const hadDocs = (EV.find(x => x.id === id)?.files || []).length;
   const tkL = e0 ? tkOfEv(e0) : [];
@@ -3693,6 +3704,7 @@ function tapEvent() { const t = TAP, ty = t.ty || "termin", d0 = t.date || TODAY
   if (ty === "deadline") Object.assign(v, { title: t.fk ? FK[t.fk].t : t.title || "Frist", fk: t.fk || "", to: v.from, time: "", endTime: "", remindDays: t.lead ?? (FK[t.fk]?.lead || 7), renew: +t.renew || 0 });
   if (ty === "contact") Object.assign(v, { from: t.edit?.from || iso(TODAY), to: t.edit?.from || iso(TODAY), time: "", endTime: "", everyWeeks: t.every || 8 });
   if (ty === "dienst") { v.from = v.to = t.days?.[0] || iso(d0); }
+  if (v.time && v.endTime && v.endTime < v.time && v.from === v.to && (ty === "dienst" || (v.time >= "17:00" && v.endTime <= "09:00"))) v.to = iso(addDays(parseIso(v.from), 1));   // z. B. Nachtdienst 22:00–06:00 endet am Folgetag
   return v; }
 function tapXOrder() { const t = TAP, ti = (t.title || "").toLowerCase();
   let o = TAP_XT[t.ty] || ["ort", "rep", "dauer", "notiz", "teilen"];
@@ -3854,7 +3866,8 @@ async function tapSave() { const t = TAP; if (t?.edit) { const e = t.edit;
   if (t.ty === "dienst" && (t.days || []).length > 1) {
     showForm(v); const sh = $("sheet"); if (sh) sh.style.visibility = "hidden";
     try { const v0 = formVals(), msg = validate(v0); if (msg) { $("f-err").textContent = msg; return; }
-      const undo = await applyChanges(t.days.map(d => ({ op: "add", event: { ...v0, from: d, to: d } })));
+      const nx = v0.time && v0.endTime && v0.endTime <= v0.time;
+      const undo = await applyChanges(t.days.map(d => ({ op: "add", event: { ...v0, from: d, to: nx ? iso(addDays(parseIso(d), 1)) : d } })));
       DRAFT_SAVED = true; closeSheet(); toast(`${t.days.length} Dienste eingetragen`, undo ? async () => { await undo(); } : null);
     } catch { $("f-err") && ($("f-err").textContent = "Das hat gerade nicht geklappt – bitte noch einmal versuchen."); } finally { if (sh) sh.style.visibility = ""; }
     return; }
@@ -3919,7 +3932,9 @@ document.addEventListener("change", ev => { const t = ev.target; if (!TAP || she
   if (t.id === "tp-end" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.dur = t.value; TAP.step.startsWith("x-") ? tapDone() : tapGo(tapNext()); return; }
   if (t.id === "tp-time" && /^\d{2}:\d{2}$/.test(t.value)) { TAP.hour = +t.value.slice(0, 2); TAP.min = +t.value.slice(3); TAP.allday = false; tapGo(TAP.ty === "dienst" ? "ende" : tapNext()); } });
 document.addEventListener("keydown", ev => { if (ev.key !== "Enter" || sheetMode !== "tap") return; const go = { "tp-hn": "tp-hn-go", "tp-title": "tp-title-go", "tp-place": "tp-place-go", "tp-yr": "tp-yr-go", "tp-no": "tp-no-go", "tp-fk": "tp-fk-go" }[ev.target?.id]; if (go) { ev.preventDefault(); $(go)?.click(); } });
-function formDirty() { return sheetMode === "form" && !editing && ["f-title", "f-place", "f-note", "f-pk-who", "f-pk-no"].some(id => ($(id)?.value || "").trim() && !$(id)?.dataset.pre); }
+function formDirty() { if (sheetMode !== "form") return false;
+  if (editing) { try { const v = formVals(); return ["title", "from", "time", "endTime", "note"].some(k => String(v[k] || "").trim() !== String(editing[k] || "").trim()) || ($("f-place")?.value || "").trim() !== String(editing.place || "").trim(); } catch { return false; } }   // Bearbeiten: etwas geändert?
+  return ["f-title", "f-place", "f-note", "f-pk-who", "f-pk-no"].some(id => ($(id)?.value || "").trim() && !$(id)?.dataset.pre); }
 function asstDirty() { return sheetMode === "asst" && (!!($("a-in")?.value || "").trim() || !!$("a-out")?.querySelector(".acts-list")); }
 function switchEntry(m, keepPref) {
   if (!keepPref) store.set("ft-entry", m);
@@ -3975,7 +3990,7 @@ function showAssistant(keepFiles) {
         <div id="a-kind" hidden></div><span class="note a-fl" id="a-files-l">${ASST_FILES.length ? esc(ASST_FILES.map(f => "📎 " + f.name).join(", ")) : ""}</span>` : ""}
       ${sample ? "" : `<p class="note">Die Texteingabe ist in dieser Ansicht nicht verfügbar. Nutze das Formular.</p>`}
       <span class="note mic-st" id="a-mic-st" aria-live="polite"></span>
-      <div class="btnrow"><button type="button" class="btn accent wide" id="a-go"${sample ? "" : " disabled"}>Umwandeln</button></div>
+      <div class="btnrow"><button type="button" class="btn accent wide" id="a-go"${sample ? "" : " disabled"}>Termine erkennen</button></div>
       <details class="ex-d"><summary>💡 Beispiele</summary><div class="ex">${ex.map(t => `<button type="button" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div></details>
       <div id="a-out"></div>
     </div>`, "asst");
@@ -4136,7 +4151,7 @@ ${ASST_DAY ? (ASST_TO ? `Im Kalender gewählter Zeitraum: ${iso(ASST_DAY)} bis $
   } catch (e) {
     out.innerHTML = `<p class="err">${e?.code === "rate_limited" ? RL(e) : e?.code === "not_granted" ? "Die Texteingabe ist nicht freigegeben. Nutze das Formular." : e?.code === "too_long" ? "Das war zu viel auf einmal. Versuch es mit weniger Text oder einem Dokument." : e?.code === "bad_image" ? "Das Bild konnte nicht gelesen werden – versuch einen Screenshot oder ein anderes Foto." : e?.code === "bad_output" ? "Das hat nicht geklappt. Formulier es etwas anders oder nutze das Formular." : "Der Dienst antwortet gerade nicht. Versuch es gleich noch einmal – deine Eingabe bleibt stehen."}</p>`;
   }
-  go.disabled = false; go.textContent = "Umwandeln";
+  go.disabled = false; go.textContent = "Termine erkennen";
 }
 function actHtml(a, i) {
   if (a.op === "task") { const k = a.task, ev = k.ev && EV.find(e => e.id === k.ev);
@@ -4175,7 +4190,7 @@ async function applyAssistant() {
     if (gs.length) { mcp.invalidate(GSERVER, "list_events").catch(() => {}); gResync(); }
     const undoOwn = own.length ? await applyChanges(own) : null;
     let files = ASST_FILES; ASST_FILES = [];
-    if (picked.some(a => a.nostore)) { files = []; setTimeout(() => toast("Nur das Ablaufdatum übernommen – das Foto des Ausweises wurde nicht gespeichert."), 1800); }
+    if (picked.some(a => a.nostore) && files.length) { files = []; setTimeout(() => toast("Nur das Ablaufdatum übernommen – das Foto des Ausweises wurde nicht gespeichert."), 4500); }
     DRAFT_SAVED = true; closeSheet();
     const newId = LAST_ADDED.find(x => ["trip", "termin"].includes(x.v.type)) || LAST_ADDED[0];
     if (files.length && newId && own.some(a => a.op === "add")) setTimeout(() => docUpload({ ...newId.v, id: newId.id, files: [], a: parseIso(newId.v.from), b: parseIso(newId.v.to || newId.v.from) }, files), 400);
@@ -4428,7 +4443,7 @@ async function initGoogle() {
 function renderGPill() {
   syncLegend();
   const el = $("g-btn"); if (!el) return;
-  el.hidden = !mcp;
+  el.hidden = !mcp || (gState !== "ok" && gState !== "loading" && store.get("ft-gshow") !== "1");   // nie verbunden: kein rotes „G“ – Google bleibt im Menü erreichbar
   const ok = gState === "ok" && gShow;
   $("g-dot").style.background = gState === "ok" ? "#2e9e4f" : gState === "loading" ? "var(--muted)" : "var(--holiday)";
   $("g-lbl").textContent = "G";
@@ -4469,7 +4484,8 @@ function showGoogleSheet() {
       ${gGroup(cals, c => sel.has(c.id), c => `<label class="tog setrow"><input type="checkbox" data-gcal="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}${gShow ? "" : " disabled"}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "cal")}
       ${canWrite ? `<div class="lbl" style="margin-top:16px">Hinweis, wenn andere hier etwas eintragen</div>
       ${gGroup(cals, c => notifyCals().includes(c.id), c => `<label class="tog setrow"><input type="checkbox" data-notify="${esc(c.id)}"${notifyCals().includes(c.id) ? " checked" : ""}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "not")}` : ""}
-      <p class="note" style="margin-top:10px">Google-Termine erscheinen in der Farbe ihres Kalenders. Bearbeiten kannst du sie weiter in der Google-App.</p>` : ""}`, "google");
+      <p class="note" style="margin-top:10px">Google-Termine erscheinen in der Farbe ihres Kalenders. Bearbeiten kannst du sie weiter in der Google-App.</p>
+      ${APP ? `<button type="button" class="link" id="g-forget" style="margin-top:14px;color:var(--muted)">Google-Verbindung trennen</button>` : ""}` : ""}`, "google");
 }
 function showGoogleEvent(o) {
   const e = o.ev, items = [];
@@ -4586,7 +4602,7 @@ function auHtml() {
     ${up ? `<p class="note">Tipp: Dein Passwortmanager (z. B. Bitwarden, iCloud-Schlüsselbund, Google) schlägt dir ein sicheres Passwort vor und merkt es sich.</p>` : ""}</form>`;
 }
 function auRender() { const b = $("au-box"); if (b) b.innerHTML = auHtml(); }
-function auBox() { return `<button type="button" class="wz-big accent" id="app-login"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="vertical-align:-4px;margin-right:8px"><path fill="#fff" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#fff" opacity=".85" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#fff" opacity=".7" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2L6.4 14z"/><path fill="#fff" opacity=".55" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6z"/></svg>Mit Google anmelden</button>
+function auBox() { return `<button type="button" class="wz-big gbtn" id="app-login"><svg viewBox="0 0 48 48" width="22" height="22" aria-hidden="true" style="vertical-align:-5px;margin-right:10px"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.2C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17z"/><path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.2A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.2-8.5 2.2-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.2C6.6 42.6 14.6 48 24 48z"/></svg>Mit Google anmelden</button>
     <div class="au-or"><span>oder mit E-Mail</span></div><div id="au-box">${auHtml()}</div>`; }
 const auEmail = () => { const v = ($("au-email")?.value || AU.email || "").replace(/\s+/g, ""); AU.email = v; return v; };
 const auValid = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
@@ -4662,7 +4678,7 @@ document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-
 const G_UNVERIFIED = true;   // bis Google PlanFlink geprüft hat: Hinweis auf die Warnseite
 const G_WARN = "Solange Google PlanFlink noch prüft, zeigt Google den Hinweis „Google hat diese App nicht überprüft“. Tippe dann auf „Erweitert“ und „Weiter zu planflink.de“ – und erlaube beide Kalender-Häkchen.";
 async function gConnect(go) {
-  if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Termine sehen und eintragen darf.</p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
+  if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Kalenderliste sehen sowie Termine lesen und eintragen darf. Damit zeigt PlanFlink deine Google-Termine an und trägt neue Termine dort ein – nur in den Kalendern, die du auswählst. <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a></p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
   const r = await window.mkConnectGoogle?.();
   if (r?.error) { const c = r.error.code || "";
     toast(c === "identity_already_exists" ? "Dieses Google-Konto gehört schon zu einem anderen PlanFlink-Konto." : c === "manual_linking_disabled" ? "Google verbinden ist für E-Mail-Konten noch nicht freigeschaltet." : "Google-Verbindung hat nicht geklappt: " + (r.error.message || c)); }
@@ -4780,6 +4796,7 @@ function showGate() {
     <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
+    <p class="note" style="text-align:center;margin:6px 0 0">Mit der Anmeldung gelten unsere <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutzhinweise</a>.</p>
     ${window.mkAuthErr ? `<p class="err" role="alert">${/^Die |^Google /.test(window.mkAuthErr) ? "" : "Die Anmeldung hat nicht geklappt: "}${esc(window.mkAuthErr)}</p>` : ""}<div class="au-wrap">${auBox()}</div>
     <button type="button" class="link" id="wz-look">Erst mal ohne Anmeldung umsehen</button>
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
@@ -5079,7 +5096,7 @@ let toastT;
 function toast(t, undo, lbl) {
   const el = $("toast"); el.innerHTML = `<span>${esc(t)}</span>${undo ? `<button type="button" id="toast-undo">${esc(lbl || "Rückgängig")}</button>` : ""}`; el.hidden = false;
   if (undo) $("toast-undo").onclick = async () => { el.hidden = true; try { await undo(); } catch { toast("Rückgängig hat nicht geklappt"); } };
-  clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 9000 : 3000);
+  clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, undo ? 15000 : 4000);   // genug Zeit auch für Langsamleser
 }
 document.addEventListener("click", ev => {
   if (Date.now() - swipedAt < 400 && ev.target.closest("#bigmonth, #week, #year")) { ev.preventDefault(); ev.stopPropagation(); return; }
@@ -5373,6 +5390,10 @@ document.addEventListener("click", ev => {
     case "l-share": shareTopic("custom", $("q").value.trim(), $("l-past").checked ? "year" : "future"); break;
     case "open-google": showGoogleSheet(); break;
     case "g-sync": closeSheet(); gSync(); break;
+    case "next-more": goPage?.("p1"); setView("list"); break;
+    case "g-forget": openSheet("Google trennen?", "Deine PlanFlink-Termine bleiben", `<p>PlanFlink zeigt dann keine Google-Termine mehr und trägt nichts mehr in Google ein. Die Freigabe wird bei Google zurückgenommen. Du kannst Google jederzeit wieder verbinden.</p><div class="btnrow"><button type="button" class="btn ghost" id="g-forget-no">Abbrechen</button><button type="button" class="btn accent" id="g-forget-yes">Trennen</button></div>`); break;
+    case "g-forget-no": showGoogleSheet(); break;
+    case "g-forget-yes": { el.disabled = true; window.mkGoogleForget?.().then(() => { closeSheet(); gTry = 0; initGoogle().then(() => renderAll?.()); toast("Google ist getrennt."); }); break; }
     case "show-btn": showSettings("main"); break;
     case "set-back": showSettings("main"); break;
     case "open-contacts": CT = []; ctImgCheck().then(showContacts); break;
@@ -5604,7 +5625,7 @@ renderAll();
   if (APP && /[?&]umzug=1/.test(location.search)) {   // vom alten pages.dev hierher umgeleitet
     try { history.replaceState(null, "", location.pathname + location.search.replace(/[?&]umzug=1/, "").replace(/^&/, "?") + location.hash); } catch {}
     (document.querySelector("header.top") ? document.querySelector("header.top").insertAdjacentHTML.bind(document.querySelector("header.top"), "afterend") : document.body.insertAdjacentHTML.bind(document.body, "afterbegin"))(`<div class="moved" role="note" id="moved-new"><div><b>Neue Adresse: planflink.de</b><span>Deine Termine sind alle da. Bitte melde dich hier einmal neu an. Hattest du die App auf dem Startbildschirm? Dann das alte Symbol löschen und von hier neu hinzufügen. Benachrichtigungen bitte im Menü neu einschalten.</span></div><a href="#" onclick="this.parentNode.remove();return false">Verstanden</a></div>`); }
-  if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>PlanFlink ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://mein-kalender-czb.pages.dev/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
+  if (!APP) document.body.insertAdjacentHTML("afterbegin", `<div class="moved" role="note"><div><b>PlanFlink ist umgezogen</b><span>Die neue App läuft ohne Claude-Konto – mit Google-Anmeldung, als App installierbar. Hier wird nichts mehr weiterentwickelt.</span></div><a href="https://planflink.de/app/" target="_blank" rel="noopener">Zur neuen App →</a></div>`);
   if (APP) { const L = document.querySelector(".mi-legal"); if (L) { L.querySelectorAll("a").forEach(a => a.href = a.href.replace("https://mein-kalender.onrender.com", location.origin).replace("?info&back=1", "?info"));
       L.insertAdjacentHTML("beforebegin", `<button type="button" class="mi" data-mi id="mi-account"><i class="dotc" style="--c:var(--muted)"></i>Konto<em class="mi-v">${esc((meName || "").split(/\s+/)[0])}</em></button>`); } }
   BASE = `data/users/${uid}/k`;      // privater Bereich: nur dieser Nutzer kann ihn lesen und schreiben
@@ -5711,7 +5732,7 @@ document.addEventListener("paste", ev => {
 });
 const HELP = [
   ["Was kann PlanFlink?", "PlanFlink ist nicht noch ein Kalender, sondern ein Assistent, der für dich mitdenkt.\n✍️ Schreib einfach, was ansteht – oder füg eine Mail oder WhatsApp ein. Die App trägt es selbst ein.\n📸 Foto von Hotelbuchung, Ticket oder Vertrag genügt – Datum, Ort, Fristen und Aufgaben kommen von allein.\n🚆 Züge und Flüge werden live beobachtet, Verspätungen kommen aufs Handy.\n⏰ Kündigungsfristen, Ausweis, Garantie, TÜV: Erinnerung genau dann, wenn es Zeit wird.\n🎂 Geburtstage, Ferien und Brückentage für die ganze Familie im Blick.\nProbier's gleich aus: Tipp auf „+ Eintragen“ und fotografier eine Buchung oder einen Brief."],
-  ["Wie trage ich eine Buchung oder Mail ein?", "Unten auf „+ Eintragen“ tippen, oben „✍️ Freitext“ wählen und den Text der Mail einfügen (lange ins Feld tippen → Einfügen). Dann „Umwandeln“. Ein PDF oder Foto vom Ticket lädst du mit „📎 Ticket, Foto oder PDF“ hoch. Auf Android geht es noch schneller: in der Mail auf „Teilen“ und „Kalender“ wählen."],
+  ["Wie trage ich eine Buchung oder Mail ein?", "Unten auf „+ Eintragen“ tippen, oben „✍️ Freitext“ wählen und den Text der Mail einfügen (lange ins Feld tippen → Einfügen). Dann „Termine erkennen“. Ein PDF oder Foto vom Ticket lädst du mit „📎 Ticket, Foto oder PDF“ hoch. Auf Android geht es noch schneller: in der Mail auf „Teilen“ und „Kalender“ wählen."],
   ["Wie hänge ich ein Ticket an eine vorhandene Reise?", "Die Reise im Kalender antippen. Unten im Feld „Dokumente“ auf „📎 Datei hinzufügen“ tippen und das Ticket (PDF oder Foto) auswählen. Danach „✨ Auswerten“ antippen und „Übernehmen“: Abfahrts- oder Abflugzeiten, Zug- bzw. Flugnummer, Aufgaben und Packliste kommen dann direkt in diese Reise."],
   ["Wie ändere ich die Farbe?", "Einen Eintrag antippen – unter „🎨 Farbe“ eine Farbe wählen. Für alle Einträge einer Art (z. B. alle Reisen): Menü ☰ → Anzeigen → Farben nach Art."],
   ["Wie gleiche ich mit Google ab?", "Das passiert von selbst: beim Öffnen der App und alle paar Minuten. Was du hier einträgst, landet auch in deinem Google Kalender – und damit in allen Kalender-Apps, die Google anzeigen (z. B. Business Kalender). Der Punkt am „G“ oben zeigt: grün = verbunden. Auf jedem Gerät musst du Google einmal verbinden."],

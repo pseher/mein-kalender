@@ -464,6 +464,7 @@ label.tp-c { display: flex; align-items: center; justify-content: center; text-a
 .day-add { margin-top: 10px; } .day-add .btn { flex: 1; } .day-add2 { display: flex; gap: 14px; }
 .lr .lr-ck { margin-right: 6px; color: var(--muted); } .tk-addev { margin-top: 4px; }
 .hd-logo { width: 28px; height: 28px; border-radius: 7px; vertical-align: -5px; margin-right: 8px; } .hd-f { color: var(--accent); }
+.wz-big.gbtn { background: #fff; color: #1f1f1f; border: 1px solid #747775; font-weight: 600; } .wz-big.gbtn:hover { background: #f8faf9; }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
 .seg.emode button { white-space: nowrap; }
@@ -1032,7 +1033,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
   </header>
   <div class="today-lbl" id="today-lbl"></div>
   <div class="hint-card inv" id="inv-card" hidden><b id="inv-card-t">Einladung</b><span>Wenn du annimmst, seht ihr die Termine, die ihr teilt, beide – auch in Google.</span><button type="button" class="btn accent" id="inv-card-go">Einladung ansehen</button></div>
-  <div class="hint-card" id="signin-card" hidden><b>Dein eigener Kalender – kostenlos</b><span>Melde dich bei Claude an, um Termine einzutragen und erinnert zu werden. Deine Einträge sieht nur du.</span><button type="button" class="btn accent small" id="signin-open">Anmelden – so geht’s</button></div>
+  <div class="hint-card" id="signin-card" hidden><b>Dein eigener Kalender – kostenlos</b><span>Melde dich kostenlos mit Google oder E-Mail an, dann kannst du Termine eintragen und wirst erinnert. Deine Einträge siehst nur du.</span><button type="button" class="btn accent small" id="signin-open">Anmelden – so geht’s</button></div>
   <div class="hint-card" id="quota-card" hidden><b>KI-Kontingent fast aufgebraucht</b><span></span><div class="btnrow"><button type="button" class="btn accent small" id="card-quota-go">Tarife ansehen</button><button type="button" class="btn ghost small" id="card-quota-x">OK</button></div></div>
   <div class="hint-card" id="app-card" hidden><b>Du bist gerade im Browser</b><span>Öffne PlanFlink lieber über das PlanFlink-Symbol auf deinem Startbildschirm – dort kommen Erinnerungen und Neuerungen zuverlässig an.</span><div class="btnrow"><button type="button" class="btn ghost small" id="card-app-x">Verstanden</button></div></div>
   <div class="hint-card" id="gdev-card" hidden><b>Google Kalender neu verbinden</b><span>Die Verbindung zu Google Kalender ist auf diesem Gerät nicht (mehr) aktiv. Damit deine Google-Termine wieder erscheinen und Einträge dort landen, verbinde Google einmal neu.</span><div class="btnrow"><button type="button" class="btn accent small" id="card-gdev-go">Mit Google verbinden</button><button type="button" class="btn ghost small" id="card-gdev-x">Später</button></div></div>

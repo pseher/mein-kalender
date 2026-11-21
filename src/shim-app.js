@@ -51,7 +51,7 @@ window.MK_APP = true;
     if (ev === "SIGNED_IN" && !startedWith && s) location.reload();
   });
   // Eine Anmeldung für beides: Konto + Zugriff auf Google Kalender (Google fragt die Kalender-Rechte einzeln ab)
-  const G_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events";
+  const G_SCOPES = "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events";   // nur Kalenderliste + Termine
   // Zustimmungsseite nur, wenn auf diesem Gerät noch kein Erneuerungsschlüssel liegt (Google gibt ihn nur dabei heraus)
   const G_LOGIN = "openid email profile";
   const gGo = (purpose, scope, extra = {}) => { const st = purpose + "." + (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
@@ -256,6 +256,10 @@ window.MK_APP = true;
     } catch { return session || await ready; }
   }
   const gStore = async rt => { try { const s = await freshSession(); if (!s) return; const r = await fetch(CFG.workerUrl + "/google/store", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ refresh_token: rt }) }); if (r.ok) lsSet("mk-g-srv", "1"); } catch {} };
+  // Google-Verbindung trennen: beim Worker vergessen und bei Google widerrufen, lokal löschen
+  window.mkGoogleForget = async () => { try { const s = await freshSession(); if (s) await fetch(CFG.workerUrl + "/google/forget", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); } catch {}
+    const rt = lsGet(GK.rt); if (rt) fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
+    Object.values(GK).forEach(k => lsSet(k, "")); lsSet("mk-g-srv", ""); try { sessionStorage.setItem("mk-g-none", session?.user?.id || "-"); } catch {} };
   async function gToken(force) {
     if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
     const rt = lsGet(GK.rt); let none = false; try { none = !rt && sessionStorage.getItem("mk-g-none") === (session?.user?.id || "-"); } catch {}

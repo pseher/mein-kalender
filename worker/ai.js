@@ -63,7 +63,7 @@ export default {
     // Konto löschen: Google-Freigabe zurückziehen, dann den Supabase-Nutzer löschen –
     // alle Zeilen in docs, outbox und ai_usage hängen per „on delete cascade“ daran und verschwinden mit.
     // Betreiber-Dashboard: nur für Konten aus dem Secret ADMIN_EMAIL (kommagetrennt)
-    const isAdmin = !!user.email && String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean).includes(String(user.email).toLowerCase());
+    const isAdmin = !!user.email && !!(user.email_confirmed_at || user.confirmed_at) && String(env.ADMIN_EMAIL || "").toLowerCase().split(",").map(x => x.trim()).filter(Boolean).includes(String(user.email).toLowerCase());
     if (route === "/admin/me") return out(200, { admin: isAdmin, configured: !!env.ADMIN_EMAIL });
     if (route.startsWith("/billing/") || route === "/admin/plan") return await billingRoute(route, req, env, user, isAdmin, out);
     if (route === "/admin/stats") {
@@ -124,6 +124,7 @@ export default {
     }
     if (route === "/account/delete") {
       let rt = ""; try { rt = String((await req.json()).refresh_token || ""); } catch {}
+      if (!rt) rt = await rtLoad(env, user.id);   // auch die fürs Konto gemerkte Verbindung widerrufen
       if (rt) await fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
       const adm = { apikey: env.SUPABASE_SERVICE_KEY, ...(env.SUPABASE_SERVICE_KEY.startsWith("sb_") ? {} : { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` }) };
       const d = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, { method: "DELETE", headers: adm });
