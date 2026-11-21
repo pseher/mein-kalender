@@ -461,13 +461,13 @@ function fitWeeks(fill) {
     const H = fill ? wb.clientHeight : Infinity;
     const hideAt = lim => items.filter(c => c.offsetTop + c.offsetHeight > lim || tops.indexOf(c.offsetTop) >= maxRows);
     let hid = hideAt(H - 1);
-    if (hid.length && !mqL.matches) hid = hideAt(H - 12);
+    if (hid.length && !mqL.matches) hid = hideAt(H - 17);
     if (!hid.length) return;
     const cnt = Array(7).fill(0);
     hid.forEach(c => { c.style.visibility = "hidden"; for (let i = +c.dataset.s; i <= +c.dataset.e; i++) cnt[i]++; });
     if (!fill) hid.forEach(c => c.style.display = "none");
     const w = wb.dataset.w;
-    cnt.forEach((n, i) => { if (!n) return; const t = bigEl.querySelector(`.mt[data-w="${w}"][data-c="${i}"]`); if (t) t.insertAdjacentHTML("beforeend", `<span class="chm">+${n}</span>`); });
+    cnt.forEach((n, i) => { if (!n) return; const t = bigEl.querySelector(`.mt[data-w="${w}"][data-c="${i}"]`); if (t) t.insertAdjacentHTML("beforeend", `<span class="chm" aria-label="${n} weitere Einträge">+${n}<span class="chw"> weitere</span></span>`); });
   });
 }
 function stepCal(n) { if (view === "two") setTwo(addDays(twoStart, 7 * n)); else setMonth(curMi + n); }

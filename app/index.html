@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261121094530";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261121200141";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -691,7 +691,8 @@ a.btn { text-decoration: none; display: inline-block; }
 .wb .ch.hl { background: none; color: var(--holiday); font-weight: 600; padding: 0 1px; }
 .mt { min-height: 96px; }
 .mg .mt { min-height: var(--mt-h, 96px); } .mg.wk2 .mt { min-height: max(180px, var(--mt-h, 180px)); }
-.mt .chm { position: absolute; left: 4px; bottom: 2px; padding: 0; line-height: 11px; }
+.mt .chm { position: absolute; left: 3px; bottom: 2px; z-index: 3; padding: 1px 6px; border-radius: 8px; background: var(--fg); color: var(--bg, #fff); font-size: 11px; font-weight: 700; line-height: 13px; opacity: 1; white-space: nowrap; }
+@media (max-width: 600px) { .mt .chm .chw { display: none; } }
 .mt .fx { position: absolute; left: 6px; right: 6px; bottom: 1px; height: 3px; border-radius: 2px; z-index: 2; }
 .d .fx { position: absolute; left: 3px; right: 3px; bottom: 1px; height: 2px; border-radius: 1px; }
 details.setgrp { border: 1px solid var(--line); border-radius: 10px; padding: 2px 10px; margin: 6px 0; }
@@ -1989,13 +1990,13 @@ function fitWeeks(fill) {
     const H = fill ? wb.clientHeight : Infinity;
     const hideAt = lim => items.filter(c => c.offsetTop + c.offsetHeight > lim || tops.indexOf(c.offsetTop) >= maxRows);
     let hid = hideAt(H - 1);
-    if (hid.length && !mqL.matches) hid = hideAt(H - 12);
+    if (hid.length && !mqL.matches) hid = hideAt(H - 17);
     if (!hid.length) return;
     const cnt = Array(7).fill(0);
     hid.forEach(c => { c.style.visibility = "hidden"; for (let i = +c.dataset.s; i <= +c.dataset.e; i++) cnt[i]++; });
     if (!fill) hid.forEach(c => c.style.display = "none");
     const w = wb.dataset.w;
-    cnt.forEach((n, i) => { if (!n) return; const t = bigEl.querySelector(`.mt[data-w="${w}"][data-c="${i}"]`); if (t) t.insertAdjacentHTML("beforeend", `<span class="chm">+${n}</span>`); });
+    cnt.forEach((n, i) => { if (!n) return; const t = bigEl.querySelector(`.mt[data-w="${w}"][data-c="${i}"]`); if (t) t.insertAdjacentHTML("beforeend", `<span class="chm" aria-label="${n} weitere Einträge">+${n}<span class="chw"> weitere</span></span>`); });
   });
 }
 function stepCal(n) { if (view === "two") setTwo(addDays(twoStart, 7 * n)); else setMonth(curMi + n); }
