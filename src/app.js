@@ -1478,7 +1478,7 @@ function renderUp() {
 const FOCUS_OPEN = { week: false, tasks: false, rem: false };
 function renderFocus() {
   const sec = $("sec-focus"); if (!sec) return;
-  if (SHOW.full || dbState !== "ready") { sec.hidden = true; return; }
+  if (SHOW.full || (dbState !== "ready" && !EV.length)) { sec.hidden = true; return; }   // auch bei kurzer Verbindungsstörung mit vorhandenen Daten zeigen
   const end = addDays(TODAY, 1), seen = new Set();
   const ev = OCC.filter(o => !o.part && o.a <= end && o.b >= TODAY && (o.ev.type !== "info" || !!o.ev.time) && !seen.has(o.ev.id + iso(o.a)) && seen.add(o.ev.id + iso(o.a)))
     .map(o => ({ k: "ev", d: o.a < TODAY ? TODAY : o.a, o }));
