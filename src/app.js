@@ -2913,7 +2913,20 @@ function buildPushPlan() {
 // ---- Zug-Wächter: Zugnummer + Bahnhof im Termin → der Server prüft live und meldet Verspätung/Gleis/Ausfall ----
 const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})\b/i;
 // Google-Termin für Zug-/Flug-Erkennung: Beschreibung (z. B. vom DB Navigator) als Notiz, Google-Ort als Ort
-const gv = e => e?.type === "google" ? { ...e, note: e.desc || "", place: e.note || "" } : e;
+const gv = (e, o) => { if (e?.type !== "google") return e; const from = o ? iso(o.a) : e.from || ""; const v = { ...e, from, note: e.desc || "", place: e.note || "" }; const L = dbLegs(v.note, from); if (L.length) v.legs = L; return v; };
+// Verbindung im Format des DB Navigators („S41 / Nach … / Ab 16:54 Berlin-Halensee, Gleis 1 / An 16:57 …“) → Teilstrecken
+function dbLegs(txt, date) {
+  const T = String(txt || ""); if (!/^\s*ab\s+\d{1,2}:\d{2}\s/im.test(T) || !/^\s*an\s+\d{1,2}:\d{2}\s/im.test(T)) return [];
+  const dm = T.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/), d0 = dm ? `${dm[3]}-${p2(+dm[2])}-${p2(+dm[1])}` : String(date || "").slice(0, 10); if (!parseIso(d0)) return [];
+  const out = []; let day = d0, last = null;
+  const at = t => { let x = `${day}T${hm5(t)}`; if (last && x < last) { day = iso(addDays(parseIso(day), 1)); x = `${day}T${hm5(t)}`; } last = x; return x; };
+  for (const blk of T.split(/\n\s*\n/)) {
+    const lines = blk.split("\n").map(x => x.trim()).filter(Boolean); const ab = lines.find(x => /^ab\s+\d/i.test(x)), an = lines.find(x => /^an\s+\d/i.test(x)); if (!ab || !an) continue;
+    const no = (lines[0].match(/^([A-Z]{1,4})\s?(\d{1,5})\b/) || []).slice(1).join(" ").trim(); if (!no) continue;
+    const pa = ab.match(/^ab\s+(\d{1,2}:\d{2})\s+(.+?)(?:,\s*gleis\s+(\S+))?$/i), pn = an.match(/^an\s+(\d{1,2}:\d{2})\s+(.+?)(?:,\s*gleis\s+(\S+))?$/i); if (!pa || !pn) continue;
+    out.push({ m: /^(ICE|IC|EC|RJ|RJX|NJ|EN|ECE|FLX|ES|TGV)\b/.test(no) ? "zug" : "zug", no, von: pa[2].trim(), ab: at(pa[1]), nach: pn[2].trim(), an: at(pn[1]), info: [pa[3] ? `ab Gl. ${pa[3]}` : "", pn[3] ? `an Gl. ${pn[3]}` : ""].filter(Boolean).join(" · "), ref: "" }); }
+  return out.slice(0, 6);
+}
 const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
 const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|der|die|das|den)$/i;
 function stationOf(e) {
@@ -2944,8 +2957,8 @@ function trainBadge(o) { const k0 = trainKey(o), s = TRST[k0] || Object.entries(
   const extra = F ? (s.bag ? ` · Band ${esc(s.bag)}` : s.kind === "dep" && s.pl ? ` · Gate ${esc(s.pl)}` : s.term ? ` · T${esc(s.term)}` : "") : s.pl ? ` · Gl. ${esc(s.pl)}` : "";
   return ` <span class="trb ${cls}" title="${esc(s.c ? "fällt aus" : s.d ? `+${s.d} Min.` : "pünktlich")}">${c}${t ? " " + esc(t) : ""}${extra}</span>`; }
 // ausführlich im Termin
-function trainDetail(o) { if (o.ev.type === "google") o = { ...o, ev: gv(o.ev) }; const P = (o.ev.legs || []).length > 1;
-  return trainDetail0(o) + connDetail(o.ev, P ? o.ev.from : iso(o.a), P ? `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-p` : trainKey(o), P ? null : TRST[trainKey(o)]); }
+function trainDetail(o) { if (o.ev.type === "google") o = { ...o, ev: gv(o.ev, o) }; else if (!(o.ev.legs || []).length && o.ev.note) { const D = dbLegs(o.ev.note, o.ev.from); if (D.length) o = { ...o, ev: { ...o.ev, legs: D } }; } const P = (o.ev.legs || []).length > 1;
+  return (P || (o.ev.legs || []).length ? "" : trainDetail0(o)) + connDetail(o.ev, P ? o.ev.from : iso(o.a), P ? `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-p` : trainKey(o), P ? null : TRST[trainKey(o)]); }
 function connDetail(e, date, base, main) {
   const C = connOf(e, date); if (!C.length) return "";
   const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
@@ -2995,7 +3008,8 @@ function flightRoute(e) {
 }
 // Teilstrecken aus der Notiz (Hin-/Rückfahrt, Umstiege): „Rückfahrt So 29.11., 13:59 Uhr ab Rostock Hbf (IC 2239)“ oder „LH 2420: MUC 21:40 → ARN 23:55“
 function tripLegs(e) {
-  if ((e.legs || []).length) return e.legs.filter(l => ["zug", "flug"].includes(l.m) && l.no).map(l => ({ train: l.no, st: l.von, date: l.ab.slice(0, 10), time: l.ab.slice(11, 16), prefer: "dep", ...(l.m === "flug" ? { mode: "flug" } : {}) })).slice(0, 6);
+  if (!(e.legs || []).length && e.note) { const D = dbLegs(e.note, e.from); if (D.length) e = { ...e, legs: D }; }
+  if ((e.legs || []).length) return e.legs.filter(l => ["zug", "flug"].includes(l.m) && l.no).map(l => ({ train: l.no, st: l.von.replace(/\s*\((S|U)\)\s*$/i, ""), date: l.ab.slice(0, 10), time: l.ab.slice(11, 16), prefer: "dep", ...(l.m === "flug" ? { mode: "flug" } : {}) })).slice(0, 6);
   const legs = [], y0 = (e.from || iso(TODAY)).slice(0, 4); let last = null;
   for (const seg of String(e.note || "").split(/\s·\s|;|\n/)) {
     const tm = seg.match(/(?<![\d.])(\d{1,2})[:.](\d{2})(?![.\d])\s*(?:uhr)?/i); if (!tm) continue;
@@ -3017,9 +3031,10 @@ const legKey = (e, l, i) => `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-${
 const hm5 = t => String(t).replace(".", ":").padStart(5, "0");
 const stNorm = t => String(t || "").toLowerCase().replace(/hauptbahnhof/g, "hbf").replace(/[^a-zäöüß]/g, "");
 function connOf(e, date) {
+  if (!(e.legs || []).length && e.note) { const D = dbLegs(e.note, e.from || date); if (D.length) e = { ...e, legs: D }; }
   const out = [], main = trainOf(e), seen = new Set(), add = c => { const k = `${c.train}|${stNorm(c.st)}`.replace(/\s/g, ""); if (seen.has(k)) return; seen.add(k); out.push(c); };
-  const L = (e.legs || []).filter(l => ["zug", "flug"].includes(l.m) && l.no);
-  for (let i = 0; i + 1 < L.length; i++) { const a = L[i], b = L[i + 1]; if (!a.an || b.m !== "zug" || stNorm(a.nach).slice(0, 6) !== stNorm(b.von).slice(0, 6) && !(a.m === "flug" && /flughafen|airport|fernbahnhof/i.test(b.von))) continue;
+  const L = (e.legs || []).filter(l => ["zug", "flug"].includes(l.m) && l.no);   // auch S-Bahn (S 41)
+  for (let i = 0; i + 1 < L.length; i++) { const a = L[i], b = L[i + 1]; const sn = x => stNorm(String(x).replace(/\(.*?\)/g, "")); if (!a.an || b.m !== "zug" || !(sn(a.nach) === sn(b.von) || sn(a.nach).startsWith(sn(b.von)) || sn(b.von).startsWith(sn(a.nach))) && !(a.m === "flug" && /flughafen|airport|fernbahnhof/i.test(b.von))) continue;
     const gap = (Date.parse(b.ab) - Date.parse(a.an)) / 60e3; if (gap < -5 || gap > 180) continue;   // auch über Mitternacht (volles Datum)
     add({ st: b.von, date: a.an.slice(0, 10), ddate: b.ab.slice(0, 10), arr: a.an.slice(11, 16), dep: b.ab.slice(11, 16), pl: "", prev: a.no, prevFlight: a.m === "flug", train: b.no, min: a.m === "flug" ? 45 : 5 }); }
   if (main && !L.length) { let prev = main;   // Notiz: jeder Umstieg nimmt den vorherigen Zug als Zubringer
@@ -3046,7 +3061,7 @@ function trainWatch() {
       if (l.mode === "flug" && !flightAllowed()) return;
       W.push({ id, train: l.train, st: l.st, at: at.toISOString(), title: evName(e).slice(0, 30), prefer: l.prefer, ...(l.mode ? { mode: "flug" } : {}) }); });
     if (L.length) seen.add("ev:" + e.id); }
-  OCC.filter(o => !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => { o = o.ev.type === "google" ? { ...o, ev: gv(o.ev) } : o;
+  OCC.filter(o => !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => { if (o.ev.type === "google") { const E = gv(o.ev, o); if ((E.legs || []).length >= 2) return; o = { ...o, ev: E }; }
     const rt = !flightOf(o.ev) && (o.ev.flight || o.ev.mode === "flug" || o.ev.pick?.mode === "flug" || FLIGHT_RE.test([o.ev.title, o.ev.note].join(" "))) ? flightRoute(o.ev) : null;
     const CC = !flightOf(o.ev) && o.ev.pick?.dir === "arr" ? connOf(o.ev, iso(o.a)) : [];
     const fl = flightOf(o.ev) || (rt ? `${rt.al ? rt.al + " " : ""}${rt.dep}→${rt.arr}` : ""), train = fl || (CC.length ? CC[CC.length - 1].train : trainOf(o.ev)); /* Abholen mit Umstiegen: der letzte Zug kommt am Abholbahnhof an */ if (!train) return; const st = fl ? (rt ? rt.dep : (o.ev.place || "").split(",")[0].trim()) : stationOf(o.ev); if (!st && !fl) return;
@@ -3057,8 +3072,12 @@ function trainWatch() {
     if (fl && !flightAllowed()) return;
     W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev).slice(0, 30), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}), ...(rt ? { route: rt } : {}) });
     if (!fl) connWatch(o.ev, iso(o.a), id, W); });
+  // Google-Termine mit Verbindung (DB Navigator): jede Teilstrecke und die Umstiege beobachten
+  OCC.filter(o => o.ev.type === "google" && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => { const E = gv(o.ev, o); if ((E.legs || []).length < 2) return;
+    tripLegs(E).forEach((l, i) => { const at = atOf(l.date, l.time); if (!at || at.getTime() < Date.now() - 30 * 60e3) return; W.push({ id: legKey(E, l, i), train: l.train, st: l.st, at: at.toISOString(), title: evName(E).slice(0, 30), prefer: "dep" }); });
+    connWatch(E, E.from, `${String(E.id).replace(/[^\w]/g, "").slice(-24)}-p`, W); });
   // Reisen mit Reiseplan: Umstiege zwischen aufeinanderfolgenden Zügen
-  for (const e of EV) if ((e.legs || []).length > 1) connWatch(e, e.from, `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-p`, W);
+  for (const e0 of EV) { const e = (e0.legs || []).length ? e0 : { ...e0, legs: dbLegs(e0.note, e0.from) }; if ((e.legs || []).length > 1) connWatch(e, e.from, `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-p`, W); }
   const ck = w => `${w.train}|${w.at}|${w.prefer}`, hasConn = new Set(W.filter(w => w.conn).map(ck));
   return W.filter(w => w.conn || !hasConn.has(ck(w))).sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 10);   // gleiche Fahrt nicht doppelt beobachten
 }
@@ -3272,7 +3291,8 @@ function showEvent(o) {
   const item = (title, sub, m) => (m ? meta : items).push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
   item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o), 1);
   if (e.who) item(`👤 für ${e.who}`, "");
-  const plan = tripPlan(o);
+  const DBL = !(e.legs || []).length && e.note ? dbLegs(e.note, e.from) : [];
+  const plan = DBL.length ? tripPlan({ ...o, ev: { ...e, legs: DBL } }).replace("Reiseplan", isT ? "Reiseplan" : "Verbindung") : tripPlan(o);
   let noteHtml = "", hintsHtml = "", factsHtml = "";
   if (isT) {
     const nz = t => String(t || "").toLowerCase().replace(/[^a-z0-9äöüß]/g, ""), P0 = nz(e.place);
@@ -3308,7 +3328,7 @@ function showEvent(o) {
     const metaHtml = meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "";
     const noteFirst = !(e.legs || []).length && !(e.facts || []).length;
     const tasks = items.length ? `<ul class="sheet-list">${items.join("")}</ul>` : "";
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}${packRow}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}${acts}`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${cta}${plan}${trainDetail(o)}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}${packRow}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}${acts}`, "event", { id: e.id, a: iso(o.a) });
     if (canWrite && placeCand(o)) fillPlaceSug(o); return; }
   // Das Wichtigste je Art ganz oben
   const rel = n => n === 0 ? "heute" : n === 1 ? "morgen" : n > 0 ? `in ${n} Tagen` : `vor ${-n} Tagen`, dn = dayDiff(TODAY, o.a), wdt = `${WDL[o.a.getDay()]}, ${fmt(o.a)}`;
@@ -4721,7 +4741,7 @@ function showGoogleEvent(o) {
   if (sheetCtx?.id !== o.ev.id) ACT_OPEN = false;
   const e = o.ev, items = [];
   items.push(`<li><i style="background:${e.color}"></i><div><b>Google · ${esc(e.cal)}</b>${e.creator ? `<div class="note">eingetragen von ${esc(e.creator)}</div>` : ""}${e.recurring ? `<div class="note">Teil einer Serie</div>` : ""}</div></li>`);
-  if (e.desc) items.push(`<li><i style="background:${e.color}"></i><div><b>Notiz</b>${noteList(e.desc)}</div></li>`);
+  if (e.desc) items.push(`<li><i style="background:${e.color}"></i><div>${dbLegs(e.desc, iso(o.a)).length ? `<details class="tp-note"><summary><b>Notiz</b> <small class="muted">· Originaltext</small></summary>${noteList(e.desc)}</details>` : `<b>Notiz</b>${noteList(e.desc)}`}</div></li>`);
   if (e.note) items.push(`<li><i style="background:${e.color}"></i><div><b>Ort</b><div class="note">${esc(e.note)}</div></div></li>`);
   if (tripParts(o).length) items.push(`<li><i style="background:var(--trip)"></i><div><b>Dazu gehört</b><div class="note" style="white-space:pre-line">${esc(partsList(o))}</div></div></li>`);
   if (o.part) items.push(`<li><i style="background:var(--trip)"></i><div><b>Teil der Reise</b><div class="note">${esc(evName(o.part.ev))} · ${fmt(o.part.a)}–${fmt(o.part.b)}</div></div></li>`);
@@ -4733,7 +4753,8 @@ function showGoogleEvent(o) {
       canWrite && isTrip(o) ? `<button type="button" data-adopt="${id}|${iso(o.a)}">🧳 Als Reise übernehmen</button>` : "", merkable(o) ? `<button type="button" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "",
       !isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) && (isUmg(o) || umgSet().size || EV.some(e => e.type === "mina")) ? `<button type="button" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : ""],
     del: w && `data-gdel="${id}|${iso(o.a)}"` });
-  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${qcol ? moreBox({}, qcol, []).replace("Dokumente · Erinnerung · ", "") : ""}${acts}`, "event", { id: e.id, a: iso(o.a) });
+  const GV = gv(e, o), gplan = (GV.legs || []).length ? tripPlan({ ...o, ev: GV, parts: [] }).replace("Reiseplan", "Verbindung") : "";
+  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${gplan}${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${qcol ? moreBox({}, qcol, []).replace("Dokumente · Erinnerung · ", "") : ""}${acts}`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 // ---- Google-Termine direkt ändern ----
