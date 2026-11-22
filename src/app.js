@@ -218,6 +218,9 @@ function legsClean(L) {
     return { m: LEG_ICON[m] ? m : "zug", no: st(x.no || x.nr, 30), von: st(x.von, 60), ab, nach: st(x.nach, 60), an: dt(x.an), info: st(x.info, 160), ref: st(x.ref || x.buchung, 40) }; }).filter(Boolean);
   const u = new Set(); return out.sort((a, b) => a.ab.localeCompare(b.ab)).filter(l => { const k = (l.no || l.von).toLowerCase().replace(/\s/g, "") + l.ab; if (u.has(k)) return false; u.add(k); return true; }).slice(0, 12);
 }
+function factsClean(F) { const u = new Set(); return (Array.isArray(F) ? F : []).map(x => ({ k: String(x?.k || "").trim().slice(0, 30), v: String(x?.v || "").replace(/\s+/g, " ").trim().slice(0, 160) }))
+  .filter(x => x.k && x.v && !u.has((x.k + x.v).toLowerCase()) && u.add((x.k + x.v).toLowerCase())).slice(0, 10); }
+const FACT_JSON = `"eckdaten": [{"k": "kurze Bezeichnung: Buchung, Reisende, Plätze, Tarif, Storno, Preis, Gepäck, Kontakt …", "v": "Wert, knapp"}]`;
 const LEG_JSON = `"verbindungen": [{"art": "zug|flug|bus|faehre", "nr": "Zug-/Flugnummer mit Gattung, z. B. „ICE 503“, „ES 474“, „Eurostar 9125“, „LH 2043“", "von": "Abfahrtsbahnhof/-flughafen", "ab": "YYYY-MM-DD HH:MM", "nach": "Ziel", "an": "YYYY-MM-DD HH:MM oder leer", "info": "kurz: Wagen, Platz, Gleis, Gate, Check-in bis …", "buchung": "Buchungsnummer oder leer"}]`;
 // zwei Aufgaben meinen dasselbe? (z. B. „Website … auf Störungen prüfen“ und „Auf … nach Störungen schauen“)
 const tkWords = t => new Set(String(t).toLowerCase().replace(/„[^“]*“|"[^"]*"/g, " ").split(/[^\p{L}\d]+/u).filter(w => w.length >= 4).map(w => w.slice(0, 6)));
@@ -235,7 +238,7 @@ function normalize(id, v) {
     place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, gAdopt: !!v.gAdopt, gSnap: String(v.gSnap || ""), gNote0: String(v.gNote0 || ""), mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
-    legs: legsClean(v.legs),
+    legs: legsClean(v.legs), facts: factsClean(v.facts),
     a, b: b && a && b < a ? a : b };
 }
 const evName = e => (isSharedEv(e) ? "👥 " : "") + (e.type === "birthday" ? `Geburtstag ${e.title}` : e.title);
@@ -2305,7 +2308,8 @@ Lies die Dokumente genau. Antworte NUR mit JSON:
 "ort": "vollständige Adresse von Unterkunft/Veranstaltungsort, nur wenn sie genau so im Dokument steht, sonst leer",
 "packliste": ["nur Dinge, die sich konkret aus den Dokumenten ergeben, z. B. „Personalausweis (Ticket nur mit Ausweis gültig)“, „BahnCard“, „Ticket ausgedruckt“, „Badesachen (Hotel hat Pool)“, „Abendgarderobe (Dresscode)“ – max. 6"],
 "aufgaben": [{"t": "konkrete Orga-Aufgabe, z. B. „Online-Check-in“, „Sitzplatz reservieren“, „Restbetrag zahlen“, „Stornofrist beachten“", "faellig": "YYYY-MM-DD, wenn sich ein Datum ergibt, sonst leer"}],
-${LEG_JSON}}
+${LEG_JSON},
+${FACT_JSON}}
 Höchstens 5 Aufgaben – nur Dinge, die man TUN muss (kein reiner Hinweis wie „nicht stornierbar“), und keine, die es schon gibt${tkOfEv(e).length ? ": " + tkOfEv(e).map(t => "„" + t.title + "“").join(", ") : ""}. verbindungen: jede Fahrt/jeder Flug aus den Dokumenten einzeln, mit vollem Datum; leer, wenn keine. Nichts erfinden, nichts Allgemeines. Deutsch.`, { modelTier: "default", images: imgs.length ? imgs : undefined });
     DAI = { id: e.id, r: r || {} }; renderDai();
   } catch (err) { say(err?.code === "rate_limited" ? RL(err) : "Die Dokumente konnten gerade nicht ausgewertet werden."); }
@@ -2318,7 +2322,7 @@ function renderDai() {
   (r.aufgaben || []).filter(t => t && t.t).forEach(t => { const x = { t: String(t.t), due: /^\d{4}-\d{2}-\d{2}$/.test(t.faellig || "") ? t.faellig : "" };
     if (tk.length < 5 && ![...have, ...tk.map(y => y.t)].some(h => tkSame(h, x.t))) tk.push(x); });
   const L0 = e.legs || [], lg = legsClean(r.verbindungen).filter(l => !L0.some(k => k.ab === l.ab && (k.no || k.von) === (l.no || l.von)));
-  DAI.lg = lg;
+  DAI.lg = lg; const F0 = e.facts || [], fc = factsClean(r.eckdaten).filter(f => !F0.some(g => g.k.toLowerCase() === f.k.toLowerCase() && g.v === f.v)); DAI.fc = fc;
   const md = MODES[r.anreise] && e.type === "trip" && r.anreise !== e.mode ? r.anreise : "";
   const ort = r.ort && !placeOf(e) ? String(r.ort) : "", info = [r.zusammenfassung, r.zeiten].filter(Boolean).map(String).join(" · ");
   DAI.pk = pk; DAI.tk = tk; DAI.md = md; DAI.ort = ort; DAI.info = info;
@@ -2327,6 +2331,7 @@ function renderDai() {
   const html = (info ? `<div class="dai-info">${esc(info)}</div>` : "") +
     sec("In den Eintrag übernehmen", [info && !(e.note || "").includes(String(r.zusammenfassung || "").slice(0, 30)) ? row('data-dai="note"', "Zusammenfassung in die Notiz") : "", md ? row('data-dai="mode"', "Anreise: " + MODES[md]) : "", ort ? row('data-dai="ort"', "Ort: " + ort) : ""].filter(Boolean)) +
     sec("Reiseplan", lg.map((l, i) => row(`data-dailg="${i}"`, `${LEG_ICON[l.m]} ${legTitle(l)}`, legWhen(l)))) +
+    sec("Eckdaten", fc.map((f, i) => row(`data-daifc="${i}"`, `${f.k}: ${f.v}`))) +
     sec(`Für die ${packLabel(e)}`, pk.map((t, i) => row(`data-daipk="${i}"`, t))) +
     sec("Aufgaben", tk.map((t, i) => row(`data-daitk="${i}"`, t.t, t.due ? "bis " + fmt(parseIso(t.due)) : "")));
   const any = /type="checkbox"/.test(html);
@@ -2344,10 +2349,11 @@ async function docApply() {
   if (pk.length) up.packlist = [...pk, ...(e.packlist || [])];
   const tk = DAI.tk.filter((_, i) => on(`[data-daitk="${i}"]`)), lg = (DAI.lg || []).filter((_, i) => on(`[data-dailg="${i}"]`));
   if (lg.length) up.legs = legsClean([...(e.legs || []), ...lg]);
+  const fc = (DAI.fc || []).filter((_, i) => on(`[data-daifc="${i}"]`)); if (fc.length) up.facts = factsClean([...(e.facts || []), ...fc]);
   try {
     if (Object.keys(up).length) { await COLL("events").doc(e.id).update(up); Object.assign(e, up); if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e }).then(() => gResync(400)).catch(() => {}); }
     for (const t of tk) await addTask({ title: `${t.t} („${e.title}“)`, due: t.due, ev: e.id });
-    const n = pk.length + tk.length + lg.length + ["note", "mode", "place"].filter(k => k in up).length;
+    const n = pk.length + tk.length + lg.length + fc.length + ["note", "mode", "place"].filter(k => k in up).length;
     toast(n ? `${n} Punkt${n > 1 ? "e" : ""} übernommen` : "Nichts übernommen");
     const o = findOcc(e.id, iso(e.a)); o ? showEvent(o) : closeSheet();
   } catch (err) { toast(writeErr(err)); }
@@ -3103,7 +3109,7 @@ function tripPlan(o) {
   const e = o.ev, rows = [];
   (e.legs || []).forEach(l => { const d = l.ab.slice(0, 10), an = l.an ? (l.an.slice(0, 10) !== d ? `an ${fmt(parseIso(l.an.slice(0, 10)))} ${l.an.slice(11)}` : `an ${l.an.slice(11)}`) : "";
     rows.push({ d, t: l.ab.slice(11), i: LEG_ICON[l.m], b: legTitle(l), s: [an, l.info, l.ref ? "Buchung " + l.ref : ""].filter(Boolean).join(" · ") }); });
-  tripParts(o).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: "🏨", b: shortName(x.ev), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
+  tripParts(o).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: "🏨", b: shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, ""), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
   if (!rows.length) return "";
   rows.sort((a, b) => (a.d + (a.t || "99")).localeCompare(b.d + (b.t || "99")));
   let h = "", last = "";
@@ -3112,21 +3118,22 @@ function tripPlan(o) {
     h += r.occ ? `<button type="button" class="tp-r" data-occ="${esc(r.occ)}">${inner}</button>` : `<div class="tp-r">${inner}</div>`; });
   return `<div class="tplan"><div class="tp-h">Reiseplan</div>${h}</div>`;
 }
-const planable = e => ["trip", "urlaub"].includes(e.type) && !(e.legs || []).length && /\d{1,2}[:.]\d{2}/.test(e.note || "") && !!sample && canWrite && EV.includes(e);
+const planable = e => ["trip", "urlaub"].includes(e.type) && !(e.legs || []).length && !(e.facts || []).length && String(e.note || "").length > 60 && !!sample && canWrite && EV.includes(e);
 async function planFromNote(e) {
-  const b = document.querySelector("[data-tplan]"); if (b) { b.disabled = true; b.textContent = "Ich ordne die Verbindungen …"; }
+  const b = document.querySelector("[data-tplan]"); if (b) { b.disabled = true; b.textContent = "Ich ordne die Notiz …"; }
   try {
     const r = await (window.MK_TASK = "reiseplan", sample.json)(`Aus dieser Notiz zu einer Reise („${e.title}“, ${rngTxt(e.a, e.b, true)}) sollen die einzelnen Fahrten und Flüge herausgezogen werden. Heute ist ${fmtY(TODAY)}.
 Notiz:
 ${String(e.note).slice(0, 6000)}
-Antworte NUR mit JSON: {${LEG_JSON}}
-Jede Fahrt/jeder Flug genau einmal (die Notiz enthält oft dasselbe doppelt), mit vollem Datum. Nichts erfinden.`, { modelTier: "default" });
-    const L = legsClean(r?.verbindungen);
-    if (!L.length) { toast("In der Notiz habe ich keine Fahrten mit Datum und Uhrzeit gefunden"); if (b) b.remove(); return; }
-    await COLL("events").doc(e.id).update({ legs: L }); e.legs = L;
-    toast(`Reiseplan mit ${L.length} Verbindung${L.length > 1 ? "en" : ""} erstellt`);
+Antworte NUR mit JSON: {${LEG_JSON}, ${FACT_JSON}}
+verbindungen: jede Fahrt/jeder Flug genau einmal (die Notiz enthält oft dasselbe doppelt), mit vollem Datum.
+eckdaten: alles Weitere Wichtige aus der Notiz, das NICHT schon in den Verbindungen steht (Buchungsnummern stehen dort schon), z. B. Reisende/Namen, Tarif, Stornierbarkeit, Preis gesamt, Gepäck, Kontakt – höchstens 8, je Bezeichnung einmal. Nichts erfinden.`, { modelTier: "default" });
+    const L = legsClean(r?.verbindungen), F = factsClean(r?.eckdaten);
+    if (!L.length && !F.length) { toast("In der Notiz habe ich nichts Ordnbares gefunden"); if (b) b.remove(); return; }
+    await COLL("events").doc(e.id).update({ legs: L, facts: F }); e.legs = L; e.facts = F;
+    toast(`Übersicht erstellt: ${L.length} Verbindung${L.length === 1 ? "" : "en"}, ${F.length} Eckdaten`);
     const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
-  } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Reiseplan aus der Notiz erstellen"; } }
+  } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
 }
 function showEvent(o) {
   if (o.ev.type === "google") return showGoogleEvent(o);
@@ -3136,25 +3143,32 @@ function showEvent(o) {
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
-  const item = (title, sub) => items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
-  item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o));
+  const isT = ["trip", "urlaub"].includes(e.type) && !o.part, meta = [];
+  const item = (title, sub, m) => (m && isT ? meta : items).push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
+  item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o), 1);
   if (e.who) item(`👤 für ${e.who}`, "");
   const plan = tripPlan(o);
-  if (e.note) items.push(plan && (e.legs || []).length ? `<li><i style="background:${colorOf(e)}"></i><div><details class="tp-note"><summary><b>Notiz</b> <small class="muted">· ausführlich</small></summary><div class="note">${linkify(e.note)}</div></details></div></li>`
+  let noteHtml = "", hintsHtml = "", factsHtml = "";
+  if (isT) {
+    const F = [...(e.place ? [{ k: "Ort", v: e.place }] : []), ...(e.facts || [])];
+    if (F.length) factsHtml = `<div class="tcard"><div class="tp-h">Eckdaten</div><dl class="tfacts">${F.map(x => `<dt>${esc(x.k)}</dt><dd>${linkify(x.v)}</dd>`).join("")}</dl></div>`;
+    const short = (e.legs || []).length || (e.facts || []).length;
+    if (e.note) noteHtml = `<details class="tcard tp-note"${short ? "" : " open"}><summary><span class="tp-h">Notiz${short ? " · Originaltext" : ""}</span></summary><div class="note" style="margin-top:6px">${linkify(e.note)}</div></details>`;
+  } else if (e.note) items.push(plan && (e.legs || []).length ? `<li><i style="background:${colorOf(e)}"></i><div><details class="tp-note"><summary><b>Notiz</b> <small class="muted">· ausführlich</small></summary><div class="note">${linkify(e.note)}</div></details></div></li>`
     : `<li><i style="background:${colorOf(e)}"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div>${planable(e) ? `<button type="button" class="link" data-tplan="${esc(e.id)}" style="margin-top:6px">✨ Reiseplan aus der Notiz erstellen</button>` : ""}</div></li>`);
-  if (e.place) item("Ort", e.place);
-  if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) item("Reise", hs.join(" · ")); }
+  if (e.place && !isT) item("Ort", e.place);
+  if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) { if (isT) hintsHtml = `<div class="tcard"><div class="tp-h">Gut zu wissen</div><ul class="thints">${hs.flatMap(h => h.split(" · ")).map(h => `<li>${linkify(h)}</li>`).join("")}</ul></div>`; else item("Reise", hs.join(" · ")); } }
   if (o.part) item("Teil der Reise", `${evName(o.part.ev)} · ${fmt(o.part.a)}–${fmt(o.part.b)}`);
-  if (cf.length && !tripParts(o).length) item("Überschneidung", cf.join(", "));
-  { const ri = remindInfo(o); if (ri) item("Erinnerung", ri); }
+  if (cf.length && !tripParts(o).length) item("Überschneidung", cf.join(", "), 1);
+  { const ri = remindInfo(o); if (ri) item("Erinnerung", ri, 1); }
   { const T = canWrite ? tkOfEv(e).filter(t => !t.done || (t.doneAt && Date.now() - Date.parse(t.doneAt) < 30 * 864e5)) : [], addB = canWrite && !e.shared && EV.includes(e) ? `<button type="button" class="link tk-addev" data-tkaddev="${esc(e.id)}">+ Aufgabe dazu</button>` : "";
     if (!T.length && addB) items.push(`<li><i style="background:var(--line)"></i><div>${addB}</div></li>`); if (T.length) items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>Aufgaben dazu (${T.filter(t => !t.done).length} offen)</b><div class="ev-tk">${T.map(t => `<div class="tk${t.done ? " dn" : ""}"><input type="checkbox" class="ckb" ${t.done ? `data-tkundo="${esc(t.id)}" checked` : `data-tkdone="${esc(t.id)}"`} aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title.replace(/\s*\(„[^“]*“\)$/, ""))}</span>${t.due ? dueLbl(t.due) : ""}</button></div>`).join("")}</div>${addB}</div></li>`); }
-  if (e.thanks) item("Danke-Erinnerung", "am Tag danach");
+  if (e.thanks) item("Danke-Erinnerung", "am Tag danach", 1);
   let gResend = "";
-  if (e.gcal) { if (e.gEventId) item("Auch in Google", calLabel(e.gcal)); else { item("Google", `noch nicht in „${calLabel(e.gcal)}“ eingetragen`); if (canWrite && gWritable()) gResend = `<button type="button" class="btn ghost small" data-gsend="${esc(e.id)}">An Google senden</button>`; } }
+  if (e.gcal) { if (e.gEventId) item("Auch in Google", calLabel(e.gcal), 1); else { item("Google", `noch nicht in „${calLabel(e.gcal)}“ eingetragen`, 1); if (canWrite && gWritable()) gResend = `<button type="button" class="btn ghost small" data-gsend="${esc(e.id)}">An Google senden</button>`; } }
   const st = [];
   for (let t = o.a; t <= o.b && st.length < 1; t = addDays(t, 1)) { const d = dayOf(t); if (d && winOf(t)) st.push(`schulfrei in ${JOINT.join(", ")}`); }
-  if (st.length) item("Schule", st[0]);
+  if (st.length) item("Schule", st[0], 1);
   const id = esc(e.id);
   const acts = (canWrite ? `<button type="button" class="btn small" data-edit="${id}">Bearbeiten</button><button type="button" class="btn ghost small" data-move="${id}">Verschieben</button>` : "") +
     (canWrite ? `<button type="button" class="btn ghost small" data-shev="${id}|${iso(o.a)}">👥 ${effTo(e).length ? "Geteilt: " + esc(shareNames(effTo(e)).join(", ")) : "Mit … teilen"}</button>` : "") +
@@ -3164,6 +3178,13 @@ function showEvent(o) {
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
   const qcol = canWrite && !e.gReadOnly ? qcolBox(id, e.color, catColor(catOf(e) || e.type), "Farbe dieses Eintrags", `Farbe für alle „${TYPES[e.type]?.label || "Einträge"}“ ändern`) : "";
+  if (isT) {
+    const cta = planable(e) ? `<div class="tcard tcta"><b>Notiz übersichtlich machen?</b><span class="note">Ich ziehe Verbindungen und Eckdaten aus der Notiz heraus – das Original bleibt erhalten.</span><button type="button" class="btn small" data-tplan="${esc(e.id)}">✨ Übersicht aus der Notiz erstellen</button></div>` : "";
+    const metaHtml = meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "";
+    const noteFirst = !(e.legs || []).length && !(e.facts || []).length;
+    const tasks = items.length ? `<ul class="sheet-list">${items.join("")}</ul>` : "";
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${hintsHtml}${noteFirst ? noteHtml : ""}${tasks}<div id="place-sug" hidden></div>${docsBox(e)}${noteFirst ? "" : noteHtml}${metaHtml}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+    if (canWrite && placeCand(o)) fillPlaceSug(o); return; }
   openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
@@ -3498,7 +3519,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, gAdopt: !!e.gAdopt, gSnap: e.gSnap || "", gNote0: e.gNote0 || "", mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
-  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, legs: Array.isArray(e.legs) ? e.legs : [] });
+  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, legs: Array.isArray(e.legs) ? e.legs : [], facts: Array.isArray(e.facts) ? e.facts : [] });
 let gWarn = 0, gGone = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
@@ -3513,7 +3534,8 @@ async function applyChanges(changes) {
     } else if (c.op === "update") {
       const prev = EV.find(x => x.id === c.id), pv = prev ? plain(prev) : null, v = plain(c.event);
       if (c.event.gcal === undefined && pv) v.gcal = pv.gcal;
-      if (!(c.event.legs || []).length && pv) v.legs = pv.legs;   // Reiseplan bleibt beim Bearbeiten im Formular erhalten
+      if (!(c.event.legs || []).length && pv) v.legs = pv.legs;
+      if (!(c.event.facts || []).length && pv) v.facts = pv.facts;   // Reiseplan bleibt beim Bearbeiten im Formular erhalten
       v.gEventId = pv ? pv.gEventId : ""; if (pv?.gAdopt) { v.gAdopt = true; v.gSnap = pv.gSnap; v.gNote0 = pv.gNote0; }
       if (pv && pv.gReadOnly) { v.gcal = pv.gcal; v.gReadOnly = true; }   // aus Google übernommen: Google-Termin bleibt unverändert
       else if (pv && pv.gEventId && (v.gcal !== pv.gcal || v.repeat !== pv.repeat)) { await gDelete(pv); v.gEventId = ""; }

@@ -169,6 +169,15 @@ button { font: inherit; color: inherit; }
 details.qcol > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 32px; } details.qcol > summary::-webkit-details-marker { display: none; }
 details.qcol > summary::after { content: "▾"; margin-left: auto; color: var(--muted); } details.qcol[open] > summary::after { content: "▴"; } details.qcol[open] > summary { margin-bottom: 6px; }
 .qcol-cur { width: 16px; height: 16px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.tcard { margin: 10px 0 6px; padding: 10px 12px; border-radius: 12px; background: var(--soft); }
+.tcard .tp-h, .tplan .tp-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tfacts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 8px 0 2px; } .tfacts dt { color: var(--muted); font-size: 14px; } .tfacts dd { margin: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.thints { margin: 6px 0 2px; padding-left: 18px; display: grid; gap: 4px; font-size: 15px; }
+.tcta { display: grid; gap: 6px; justify-items: start; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.tmeta { display: grid; gap: 2px; background: none; border: 1px solid var(--line); } .tmeta .tm { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 8px; font-size: 14px; padding: 2px 0; }
+.tmeta .tm > i { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; } .tmeta .tm > div { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; } .tmeta .tm b { font-weight: 600; } .tmeta .tm .note { margin: 0; color: var(--muted); }
+details.tcard.tp-note > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; } details.tcard.tp-note > summary::-webkit-details-marker { display: none; }
+details.tcard.tp-note > summary::after { content: "▾"; color: var(--muted); } details.tcard.tp-note[open] > summary::after { content: "▴"; }
 .tplan { margin: 10px 0 6px; padding: 10px 12px 6px; border-radius: 12px; background: var(--soft); }
 .tplan .tp-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .tplan .tp-d { font-weight: 700; font-size: 14px; margin: 10px 0 2px; padding-top: 8px; border-top: 1px solid var(--line); } .tplan .tp-h + .tp-d { border-top: 0; padding-top: 0; margin-top: 6px; }
