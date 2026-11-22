@@ -3233,7 +3233,9 @@ function showEvent(o) {
   const plan = tripPlan(o);
   let noteHtml = "", hintsHtml = "", factsHtml = "";
   if (isT) {
-    const F = [...(e.place && !(e.stays || []).some(u => u.adr && (u.adr.includes(e.place.split(",")[0]) || e.place.includes(u.adr.split(",")[0]))) ? [{ k: "Ort", v: e.place }] : []), ...(e.facts || [])];
+    const nz = t => String(t || "").toLowerCase().replace(/[^a-z0-9äöüß]/g, ""), P0 = nz(e.place);
+    const isStay = (e.stays || []).some(u => (u.adr && (P0.includes(nz(u.adr.split(",")[0])) || nz(u.adr).includes(nz(e.place.split(",")[0])))) || (u.name && P0.includes(nz(u.name).slice(0, 12))));
+    const F = [...(e.place && !isStay ? [{ k: "Ort", v: e.place }] : []), ...(e.facts || [])];
     if (F.length) factsHtml = `<div class="tcard"><div class="tp-h">Eckdaten${(e.legs || []).length + (e.facts || []).length && !!sample && canWrite && e.note ? `<button type="button" class="link tp-re" data-tplan="${esc(e.id)}">↻ neu ordnen</button>` : ""}</div><dl class="tfacts">${F.map(x => `<dt>${esc(x.k)}</dt><dd>${linkify(x.v)}</dd>`).join("")}</dl></div>`;
     const short = (e.legs || []).length || (e.facts || []).length;
     if (e.note) noteHtml = `<details class="tcard tp-note"${short ? "" : " open"}><summary><span class="tp-h">Notiz${short ? " · Originaltext" : ""}</span></summary>${noteList(e.note)}</details>`;
@@ -3253,22 +3255,21 @@ function showEvent(o) {
   for (let t = o.a; t <= o.b && st.length < 1; t = addDays(t, 1)) { const d = dayOf(t); if (d && winOf(t)) st.push(`schulfrei in ${JOINT.join(", ")}`); }
   if (st.length) item("Schule", st[0], 1);
   const id = esc(e.id);
-  const acts = (canWrite ? `<button type="button" class="btn small" data-edit="${id}">Bearbeiten</button><button type="button" class="btn ghost small" data-move="${id}">Verschieben</button>` : "") +
-    (canWrite ? `<button type="button" class="btn ghost small" data-shev="${id}|${iso(o.a)}">👥 ${effTo(e).length ? "Geteilt: " + esc(shareNames(effTo(e)).join(", ")) : "Mit … teilen"}</button>` : "") +
-    `<button type="button" class="btn ghost small" data-share="${id}|${iso(o.a)}">Als Bild/Text</button>` + gResend +
-    (["trip", "termin", "urlaub"].includes(e.type) ? `<button type="button" class="btn ghost small" data-pack="${id}">${packLabel(e)}${e.packlist.length ? ` ${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : ""}</button>` : "") +
-    (["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" class="btn ghost small" data-ideas="${id}|${iso(o.a)}">Ideen</button>` : "") +
-    routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
-    (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
+  // Aktionen: eine ruhige Leiste mit den häufigsten, der Rest unter „Mehr“
+  const rq = placeOf(e) || (e.type === "trip" ? e.title : ""), qq = encodeURIComponent(rq || "");
+  const tile = (attr, ic, lbl, cls = "") => `<button type="button" class="act ${cls}" ${attr}><span aria-hidden="true">${ic}</span>${esc(lbl)}</button>`;
+  const shared = effTo(e).length;
+  const acts = `<div class="actbar">${canWrite ? tile(`data-edit="${id}"`, "✏️", "Ändern", "pri") + (isT ? "" : tile(`data-move="${id}"`, "📅", "Verschieben")) + tile(`data-shev="${id}|${iso(o.a)}"`, "👥", shared ? "Geteilt" : "Teilen") + (isT ? tile(`data-pack="${id}"`, "🎒", e.packlist.length ? `${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : packLabel(e)) : "") : tile(`data-share="${id}|${iso(o.a)}"`, "📤", "Als Bild/Text")}${rq ? `<a class="act" href="https://www.google.com/maps/dir/?api=1&destination=${qq}" target="_blank" rel="noopener"><span aria-hidden="true">🧭</span>Route</a>` : ""}</div>
+    <details class="actmore"><summary>⋯ Weitere Aktionen</summary><div class="actlist">${canWrite && isT ? `<button type="button" data-move="${id}">📅 Verschieben</button>` : ""}${canWrite ? `<button type="button" data-share="${id}|${iso(o.a)}">📤 Als Bild/Text teilen</button>` : ""}${gResend.replace('class="btn ghost small"', "")}${["trip", "termin", "urlaub"].includes(e.type) && !(isT && canWrite) ? `<button type="button" data-pack="${id}">🎒 ${packLabel(e)}${e.packlist.length ? ` · ${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : ""}</button>` : ""}${["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" data-ideas="${id}|${iso(o.a)}">💡 Geschenk-Ideen</button>` : ""}${rq ? `<a href="https://maps.apple.com/?daddr=${qq}" target="_blank" rel="noopener">🗺 Route mit Apple Karten</a>` : ""}${canWrite ? `<button type="button" class="del" data-del="${id}|${iso(o.a)}">🗑 Löschen</button>` : ""}</div></details>`;
   const qcol = canWrite && !e.gReadOnly ? qcolBox(id, e.color, catColor(catOf(e) || e.type), "Farbe dieses Eintrags", `Farbe für alle „${TYPES[e.type]?.label || "Einträge"}“ ändern`) : "";
   if (isT) {
     const cta = planable(e) ? `<div class="tcard tcta"><b>Notiz übersichtlich machen?</b><span class="note">Ich ziehe Verbindungen und Eckdaten aus der Notiz heraus – das Original bleibt erhalten.</span><button type="button" class="btn small" data-tplan="${esc(e.id)}">✨ Übersicht aus der Notiz erstellen</button></div>` : "";
     const metaHtml = meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "";
     const noteFirst = !(e.legs || []).length && !(e.facts || []).length;
     const tasks = items.length ? `<ul class="sheet-list">${items.join("")}</ul>` : "";
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}${acts}`, "event", { id: e.id, a: iso(o.a) });
     if (canWrite && placeCand(o)) fillPlaceSug(o); return; }
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${moreBox(e, docsBox(e) + (meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "") + qcol, [])}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${moreBox(e, docsBox(e) + (meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "") + qcol, [])}${acts}`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
