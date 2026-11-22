@@ -220,6 +220,12 @@ function legsClean(L) {
 }
 function factsClean(F) { const u = new Set(); return (Array.isArray(F) ? F : []).map(x => ({ k: String(x?.k || "").trim().slice(0, 30), v: String(x?.v || "").replace(/\s+/g, " ").trim().slice(0, 160) }))
   .filter(x => x.k && x.v && !u.has((x.k + x.v).toLowerCase()) && u.add((x.k + x.v).toLowerCase())).slice(0, 10); }
+function staysClean(S) {
+  const st = (x, n) => String(x || "").replace(/\s+/g, " ").trim().slice(0, n), d = x => /^\d{4}-\d{2}-\d{2}/.test(String(x || "")) ? String(x).slice(0, 10) : "";
+  const u = new Set(); return (Array.isArray(S) ? S : []).map(x => ({ name: st(x?.name, 80), adr: st(x?.adr || x?.adresse, 120), von: d(x?.von || x?.anreise), bis: d(x?.bis || x?.abreise), ci: st(x?.ci || x?.checkin, 120), co: st(x?.co || x?.checkout, 80), room: st(x?.room || x?.zimmer, 80), ref: st(x?.ref || x?.buchung, 40), info: st(x?.info, 160) }))
+    .filter(x => x.name && x.von && !u.has(x.name.toLowerCase() + x.von) && u.add(x.name.toLowerCase() + x.von)).sort((a, b) => a.von.localeCompare(b.von)).slice(0, 8);
+}
+const STAY_JSON = `"unterkuenfte": [{"name": "Name der Unterkunft", "adresse": "Straße, Ort", "anreise": "YYYY-MM-DD", "abreise": "YYYY-MM-DD", "checkin": "z. B. ab 15:00, Selbst-Check-in, Code kommt am Anreisetag", "checkout": "z. B. bis 11:00", "zimmer": "", "buchung": "Buchungsnummer oder leer", "info": "kurz: Frühstück, Parken, Kontakt …"}]`;
 const FACT_JSON = `"eckdaten": [{"k": "kurze Bezeichnung: Buchung, Reisende, Plätze, Tarif, Storno, Preis, Gepäck, Kontakt …", "v": "Wert, knapp"}]`;
 const LEG_JSON = `"verbindungen": [{"art": "zug|flug|bus|faehre", "nr": "Zug-/Flugnummer mit Gattung, z. B. „ICE 503“, „ES 474“, „Eurostar 9125“, „LH 2043“", "von": "Abfahrtsbahnhof/-flughafen", "ab": "YYYY-MM-DD HH:MM", "nach": "Ziel", "an": "YYYY-MM-DD HH:MM oder leer", "info": "kurz: Wagen, Platz, Gleis, Gate, Check-in bis …", "buchung": "Buchungsnummer oder leer"}]`;
 // zwei Aufgaben meinen dasselbe? (z. B. „Website … auf Störungen prüfen“ und „Auf … nach Störungen schauen“)
@@ -238,7 +244,7 @@ function normalize(id, v) {
     place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, gAdopt: !!v.gAdopt, gSnap: String(v.gSnap || ""), gNote0: String(v.gNote0 || ""), mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
-    legs: legsClean(v.legs), facts: factsClean(v.facts),
+    legs: legsClean(v.legs), facts: factsClean(v.facts), stays: staysClean(v.stays),
     a, b: b && a && b < a ? a : b };
 }
 const evName = e => (isSharedEv(e) ? "👥 " : "") + (e.type === "birthday" ? `Geburtstag ${e.title}` : e.title);
@@ -2325,7 +2331,9 @@ Lies die Dokumente genau. Antworte NUR mit JSON:
 "packliste": ["nur Dinge, die sich konkret aus den Dokumenten ergeben, z. B. „Personalausweis (Ticket nur mit Ausweis gültig)“, „BahnCard“, „Ticket ausgedruckt“, „Badesachen (Hotel hat Pool)“, „Abendgarderobe (Dresscode)“ – max. 6"],
 "aufgaben": [{"t": "konkrete Orga-Aufgabe, z. B. „Online-Check-in“, „Sitzplatz reservieren“, „Restbetrag zahlen“, „Stornofrist beachten“", "faellig": "YYYY-MM-DD, wenn sich ein Datum ergibt, sonst leer"}],
 ${LEG_JSON},
+${STAY_JSON},
 ${FACT_JSON}}
+eckdaten nur für das, was weder zu einer Verbindung noch zu einer Unterkunft gehört.
 Höchstens 5 Aufgaben – nur Dinge, die man TUN muss (kein reiner Hinweis wie „nicht stornierbar“), und keine, die es schon gibt${tkOfEv(e).length ? ": " + tkOfEv(e).map(t => "„" + t.title + "“").join(", ") : ""}. verbindungen: jede Fahrt/jeder Flug aus den Dokumenten einzeln, mit vollem Datum; leer, wenn keine. Nichts erfinden, nichts Allgemeines. Deutsch.`, { modelTier: "default", images: imgs.length ? imgs : undefined });
     DAI = { id: e.id, r: r || {} }; renderDai();
   } catch (err) { say(err?.code === "rate_limited" ? RL(err) : "Die Dokumente konnten gerade nicht ausgewertet werden."); }
@@ -2339,6 +2347,7 @@ function renderDai() {
     if (tk.length < 5 && ![...have, ...tk.map(y => y.t)].some(h => tkSame(h, x.t))) tk.push(x); });
   const L0 = e.legs || [], lg = legsClean(r.verbindungen).filter(l => !L0.some(k => k.ab === l.ab && (k.no || k.von) === (l.no || l.von)));
   DAI.lg = lg; const F0 = e.facts || [], fc = factsClean(r.eckdaten).filter(f => !F0.some(g => g.k.toLowerCase() === f.k.toLowerCase() && g.v === f.v)); DAI.fc = fc;
+  const U0 = e.stays || [], us = staysClean(r.unterkuenfte).filter(u => !U0.some(x => x.von === u.von && x.name.toLowerCase() === u.name.toLowerCase())); DAI.us = us;
   const md = MODES[r.anreise] && e.type === "trip" && r.anreise !== e.mode ? r.anreise : "";
   const ort = r.ort && !placeOf(e) ? String(r.ort) : "", info = [r.zusammenfassung, r.zeiten].filter(Boolean).map(String).join(" · ");
   DAI.pk = pk; DAI.tk = tk; DAI.md = md; DAI.ort = ort; DAI.info = info;
@@ -2347,6 +2356,7 @@ function renderDai() {
   const html = (info ? `<div class="dai-info">${esc(info)}</div>` : "") +
     sec("In den Eintrag übernehmen", [info && !(e.note || "").includes(String(r.zusammenfassung || "").slice(0, 30)) ? row('data-dai="note"', "Zusammenfassung in die Notiz") : "", md ? row('data-dai="mode"', "Anreise: " + MODES[md]) : "", ort ? row('data-dai="ort"', "Ort: " + ort) : ""].filter(Boolean)) +
     sec("Reiseplan", lg.map((l, i) => row(`data-dailg="${i}"`, `${LEG_ICON[l.m]} ${legTitle(l)}`, legWhen(l)))) +
+    sec("Unterkunft", us.map((u, i) => row(`data-daius="${i}"`, `🏨 ${u.name}`, [u.von && u.bis ? `${fmt(parseIso(u.von))} – ${fmt(parseIso(u.bis))}` : "", u.adr].filter(Boolean).join(" · ")))) +
     sec("Eckdaten", fc.map((f, i) => row(`data-daifc="${i}"`, `${f.k}: ${f.v}`))) +
     sec(`Für die ${packLabel(e)}`, pk.map((t, i) => row(`data-daipk="${i}"`, t))) +
     sec("Aufgaben", tk.map((t, i) => row(`data-daitk="${i}"`, t.t, t.due ? "bis " + fmt(parseIso(t.due)) : "")));
@@ -2366,10 +2376,11 @@ async function docApply() {
   const tk = DAI.tk.filter((_, i) => on(`[data-daitk="${i}"]`)), lg = (DAI.lg || []).filter((_, i) => on(`[data-dailg="${i}"]`));
   if (lg.length) up.legs = legsClean([...(e.legs || []), ...lg]);
   const fc = (DAI.fc || []).filter((_, i) => on(`[data-daifc="${i}"]`)); if (fc.length) up.facts = factsClean([...(e.facts || []), ...fc]);
+  const us = (DAI.us || []).filter((_, i) => on(`[data-daius="${i}"]`)); if (us.length) up.stays = staysClean([...(e.stays || []), ...us]);
   try {
     if (Object.keys(up).length) { await COLL("events").doc(e.id).update(up); Object.assign(e, up); if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e }).then(() => gResync(400)).catch(() => {}); }
     for (const t of tk) await addTask({ title: `${t.t} („${e.title}“)`, due: t.due, ev: e.id });
-    const n = pk.length + tk.length + lg.length + fc.length + ["note", "mode", "place"].filter(k => k in up).length;
+    const n = pk.length + tk.length + lg.length + fc.length + us.length + ["note", "mode", "place"].filter(k => k in up).length;
     toast(n ? `${n} Punkt${n > 1 ? "e" : ""} übernommen` : "Nichts übernommen");
     const o = findOcc(e.id, iso(e.a)); o ? showEvent(o) : closeSheet();
   } catch (err) { toast(writeErr(err)); }
@@ -3163,9 +3174,15 @@ function tripPlan(o) {
   const e = o.ev, rows = [];
   (e.legs || []).forEach(l => { const d = l.ab.slice(0, 10), an = l.an ? (l.an.slice(0, 10) !== d ? `an ${fmt(parseIso(l.an.slice(0, 10)))} ${l.an.slice(11)}` : `an ${l.an.slice(11)}`) : "";
     rows.push({ d, t: l.ab.slice(11), i: LEG_ICON[l.m], b: legTitle(l), s: [an, l.info, l.ref ? "Buchung " + l.ref : ""].filter(Boolean).join(" · ") }); });
-  tripParts(o).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: "🏨", b: shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, ""), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
+  const U = e.stays || [], same = (a, b) => { const A = tkWords(a), B = tkWords(b); let n = 0; A.forEach(w => { if (B.has(w)) n++; }); return n >= 1 && n / Math.min(A.size || 1, B.size || 1) >= 0.5; };
+  const parts = tripParts(o), used = new Set();
+  U.forEach(u => { const pt = parts.find(x => !used.has(x) && same(shortName(x.ev), u.name)); if (pt) used.add(pt);
+    const ciT = (u.ci.match(/\b(\d{1,2}:\d{2})\b/) || [])[1] || "";
+    rows.push({ d: u.von, t: ciT, i: "🏨", b: u.name, s: [u.bis ? `bis ${fmt(parseIso(u.bis))}` : "", u.adr, u.room, u.ci ? `Check-in: ${u.ci}` : "", u.ref ? `Buchung ${u.ref}` : "", u.info].filter(Boolean).join(" · "), occ: pt ? `${pt.ev.id}|${iso(pt.a)}` : "" });
+    if (u.bis && u.bis !== u.von) rows.push({ d: u.bis, t: (u.co.match(/\b(\d{1,2}:\d{2})\b/) || [])[1] || "", i: "🔑", b: `Check-out ${u.name}`, s: u.co }); });
+  parts.filter(x => !used.has(x)).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: "🏨", b: shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, ""), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
   if (!rows.length) return "";
-  rows.sort((a, b) => (a.d + (a.t || "99")).localeCompare(b.d + (b.t || "99")));
+  rows.sort((a, b) => (a.d + (a.i === "🔑" ? "00" : a.t || "99")).localeCompare(b.d + (b.i === "🔑" ? "00" : b.t || "99")));
   let h = "", last = "";
   rows.forEach(r => { if (r.d !== last) { h += `<div class="tp-d">${esc(fmt(parseIso(r.d)))}</div>`; last = r.d; }
     const inner = `<span class="tp-t">${esc(r.t)}</span><span class="tp-i">${r.i}</span><span class="tp-x"><b>${esc(r.b)}</b>${r.s ? `<small>${esc(r.s)}</small>` : ""}</span>`;
@@ -3179,13 +3196,14 @@ async function planFromNote(e) {
     const r = await (window.MK_TASK = "reiseplan", sample.json)(`Aus dieser Notiz zu einer Reise („${e.title}“, ${rngTxt(e.a, e.b, true)}) sollen die einzelnen Fahrten und Flüge herausgezogen werden. Heute ist ${fmtY(TODAY)}.
 Notiz:
 ${String(e.note).slice(0, 6000)}
-Antworte NUR mit JSON: {${LEG_JSON}, ${FACT_JSON}}
+Antworte NUR mit JSON: {${LEG_JSON}, ${STAY_JSON}, ${FACT_JSON}}
 verbindungen: jede Fahrt/jeder Flug genau einmal (die Notiz enthält oft dasselbe doppelt), mit vollem Datum.
-eckdaten: alles Weitere Wichtige aus der Notiz, das NICHT schon in den Verbindungen steht (Buchungsnummern stehen dort schon), z. B. Reisende/Namen, Tarif, Stornierbarkeit, Preis gesamt, Gepäck, Kontakt – höchstens 8, je Bezeichnung einmal. Nichts erfinden.`, { modelTier: "default" });
-    const L = legsClean(r?.verbindungen), F = factsClean(r?.eckdaten);
-    if (!L.length && !F.length) { toast("In der Notiz habe ich nichts Ordnbares gefunden"); if (b) b.remove(); return; }
-    await COLL("events").doc(e.id).update({ legs: L, facts: F }); e.legs = L; e.facts = F;
-    toast(`Übersicht erstellt: ${L.length} Verbindung${L.length === 1 ? "" : "en"}, ${F.length} Eckdaten`);
+unterkuenfte: jedes Hotel/jede Wohnung genau einmal mit An- und Abreisedatum und allem, was dazu gehört (Adresse, Check-in, Zimmer, Buchung).
+eckdaten: nur, was weder zu einer Verbindung noch zu einer Unterkunft gehört, z. B. Reisende, Tarif/Storno, Gesamtpreis, Gepäck – höchstens 6, je Bezeichnung einmal. Nichts erfinden.`, { modelTier: "default" });
+    const L = legsClean(r?.verbindungen), F = factsClean(r?.eckdaten), U = staysClean(r?.unterkuenfte);
+    if (!L.length && !F.length && !U.length) { toast("In der Notiz habe ich nichts Ordnbares gefunden"); if (b) b.remove(); return; }
+    await COLL("events").doc(e.id).update({ legs: L, facts: F, stays: U }); e.legs = L; e.facts = F; e.stays = U;
+    toast(`Übersicht erstellt: ${L.length} Verbindung${L.length === 1 ? "" : "en"}, ${U.length} Unterkunft${U.length === 1 ? "" : "e"}, ${F.length} Eckdaten`);
     const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
   } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
 }
@@ -3215,8 +3233,8 @@ function showEvent(o) {
   const plan = tripPlan(o);
   let noteHtml = "", hintsHtml = "", factsHtml = "";
   if (isT) {
-    const F = [...(e.place ? [{ k: "Ort", v: e.place }] : []), ...(e.facts || [])];
-    if (F.length) factsHtml = `<div class="tcard"><div class="tp-h">Eckdaten</div><dl class="tfacts">${F.map(x => `<dt>${esc(x.k)}</dt><dd>${linkify(x.v)}</dd>`).join("")}</dl></div>`;
+    const F = [...(e.place && !(e.stays || []).some(u => u.adr && (u.adr.includes(e.place.split(",")[0]) || e.place.includes(u.adr.split(",")[0]))) ? [{ k: "Ort", v: e.place }] : []), ...(e.facts || [])];
+    if (F.length) factsHtml = `<div class="tcard"><div class="tp-h">Eckdaten${(e.legs || []).length + (e.facts || []).length && !!sample && canWrite && e.note ? `<button type="button" class="link tp-re" data-tplan="${esc(e.id)}">↻ neu ordnen</button>` : ""}</div><dl class="tfacts">${F.map(x => `<dt>${esc(x.k)}</dt><dd>${linkify(x.v)}</dd>`).join("")}</dl></div>`;
     const short = (e.legs || []).length || (e.facts || []).length;
     if (e.note) noteHtml = `<details class="tcard tp-note"${short ? "" : " open"}><summary><span class="tp-h">Notiz${short ? " · Originaltext" : ""}</span></summary>${noteList(e.note)}</details>`;
   } else if (e.note) items.push(plan && (e.legs || []).length ? `<li><i style="background:${colorOf(e)}"></i><div><details class="tp-note"><summary><b>Notiz</b> <small class="muted">· ausführlich</small></summary>${noteList(e.note)}</details></div></li>`
@@ -3584,7 +3602,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, gAdopt: !!e.gAdopt, gSnap: e.gSnap || "", gNote0: e.gNote0 || "", mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
-  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, legs: Array.isArray(e.legs) ? e.legs : [], facts: Array.isArray(e.facts) ? e.facts : [] });
+  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, legs: Array.isArray(e.legs) ? e.legs : [], facts: Array.isArray(e.facts) ? e.facts : [], stays: Array.isArray(e.stays) ? e.stays : [] });
 let gWarn = 0, gGone = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
@@ -3600,7 +3618,8 @@ async function applyChanges(changes) {
       const prev = EV.find(x => x.id === c.id), pv = prev ? plain(prev) : null, v = plain(c.event);
       if (c.event.gcal === undefined && pv) v.gcal = pv.gcal;
       if (!(c.event.legs || []).length && pv) v.legs = pv.legs;
-      if (!(c.event.facts || []).length && pv) v.facts = pv.facts;   // Reiseplan bleibt beim Bearbeiten im Formular erhalten
+      if (!(c.event.facts || []).length && pv) v.facts = pv.facts;
+      if (!(c.event.stays || []).length && pv) v.stays = pv.stays;   // Reiseplan bleibt beim Bearbeiten im Formular erhalten
       v.gEventId = pv ? pv.gEventId : ""; if (pv?.gAdopt) { v.gAdopt = true; v.gSnap = pv.gSnap; v.gNote0 = pv.gNote0; }
       if (pv && pv.gReadOnly) { v.gcal = pv.gcal; v.gReadOnly = true; }   // aus Google übernommen: Google-Termin bleibt unverändert
       else if (pv && pv.gEventId && (v.gcal !== pv.gcal || v.repeat !== pv.repeat)) { await gDelete(pv); v.gEventId = ""; }

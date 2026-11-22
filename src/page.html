@@ -179,6 +179,7 @@ details.more-det > summary::-webkit-details-marker { display: none; } details.mo
 details.more-det > summary::after { content: "▾"; color: var(--muted); font-size: 18px; } details.more-det[open] > summary::after { content: "▴"; } details.more-det[open] > summary b::after { content: ""; }
 .tcard { margin: 10px 0 6px; padding: 10px 12px; border-radius: 12px; background: var(--soft); }
 .tcard .tp-h, .tplan .tp-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tcard .tp-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .tp-re { font-size: 13px; letter-spacing: 0; text-transform: none; font-weight: 600; }
 .tfacts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 8px 0 2px; } .tfacts dt { color: var(--muted); font-size: 14px; } .tfacts dd { margin: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
 .thints { margin: 6px 0 2px; padding-left: 18px; display: grid; gap: 4px; font-size: 15px; }
 .tcta { display: grid; gap: 6px; justify-items: start; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
