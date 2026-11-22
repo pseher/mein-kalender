@@ -244,7 +244,7 @@ function normalize(id, v) {
     place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, gAdopt: !!v.gAdopt, gSnap: String(v.gSnap || ""), gNote0: String(v.gNote0 || ""), mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
-    legs: legsClean(v.legs), facts: factsClean(v.facts), stays: staysClean(v.stays),
+    legs: legsClean(v.legs), facts: factsClean(v.facts), stays: staysClean(v.stays), remMin: v.remMin === undefined || v.remMin === null || v.remMin === "" ? "" : Math.max(-1, Math.min(10080, +v.remMin || 0)),
     a, b: b && a && b < a ? a : b };
 }
 const evName = e => (isSharedEv(e) ? "👥 " : "") + (e.type === "birthday" ? `Geburtstag ${e.title}` : e.title);
@@ -2882,8 +2882,9 @@ function buildPushPlan() {
     const parts = [...(hol ? ["🎉 " + hol.name] : []), ...L.map(o => isBd(o) ? `🎂 ${bdName(o)}` : !sameDay(o.a, n) ? `🏠 Rückreise ${evName(o.ev)}` : `${o.ev.time ? o.ev.time + " " : ""}${evName(o.ev)}`), ...tk.map(t => "☐ " + t.title)];
     const cnt = L.length + tk.length;
     add(`eve-${iso(n)}`, at(d, N.eveTime || "20:00"), `Morgen, ${WDL[n.getDay()]}${cnt ? ` · ${cnt} ${cnt === 1 ? "Eintrag" : "Einträge"}` : ""}`, parts.slice(0, 6).join(" · ") + (parts.length > 6 ? " …" : "")); }
-  if (N.ev) occs.filter(o => o.ev.time && !isBd(o) && !isUmg(o) && o.a <= end).forEach(o => { const st = at(o.a, o.ev.time), lead = +N.evLead || 60, pl = placeOf(o.ev);
-    const lt = lead >= 1440 ? "Morgen" : lead >= 60 ? `In ${lead / 60} Std.` : `In ${lead} Min.`;
+  occs.filter(o => o.ev.time && !isBd(o) && !isUmg(o) && o.a <= end).forEach(o => { const own = o.ev.remMin !== undefined && o.ev.remMin !== ""; if (!N.ev && !own) return;
+    const st = at(o.a, o.ev.time), lead = own ? +o.ev.remMin : +N.evLead || 60, pl = placeOf(o.ev); if (lead < 0) return;
+    const lt = lead >= 1440 ? "Morgen" : lead >= 60 ? `In ${lead / 60} Std.` : lead > 0 ? `In ${lead} Min.` : "Jetzt";
     add(`ev-${o.ev.id}-${iso(o.a)}`, new Date(st - lead * 60e3), `${lt}: ${evName(o.ev)}`, `${o.ev.time} Uhr${pl ? " · " + pl : ""}`, pl ? { r: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pl)}` } : {}); });
   if (N.bd) occs.forEach(o => {
     if (isBd(o)) { const age = ageTxt(o); add(`bd-${o.ev.id}-${iso(o.a)}`, at(o.a, "08:00"), `🎂 Heute: ${bdName(o)}`, age ? `${age} – vergiss nicht zu gratulieren` : "Vergiss nicht zu gratulieren");
@@ -3173,6 +3174,9 @@ function showDay(dt) {
   document.querySelectorAll(`.d[data-day="${d.k}"], .mc[data-day="${d.k}"]`).forEach(el => el.classList.add("sel"));
 }
 // Wann erscheint die Erinnerung? (im Kalender unter „Erinnerungen“ – plus Google-Benachrichtigung, falls auch in Google)
+// Erinnerung je Termin (Minuten vorher; "" = Standard aus ☰ → Benachrichtigungen, -1 = keine)
+const REM_OPTS = [["", "Standard"], ["-1", "Keine"], ["0", "Zur Startzeit"], ["10", "10 Min. vorher"], ["30", "30 Min. vorher"], ["60", "1 Std. vorher"], ["120", "2 Std. vorher"], ["1440", "1 Tag vorher"]];
+const remLbl = m => m <= 0 ? "zur Startzeit" : m >= 1440 ? `${m / 1440 === 1 ? "1 Tag" : m / 1440 + " Tage"} vorher` : m >= 60 ? `${m / 60} Std. vorher` : `${m} Min. vorher`;
 function remindInfo(o) {
   const e = o.ev, y = o.a.getFullYear(); let lead = 0, what = "";
   if (e.type === "birthday") { const age = e.birthYear ? y - e.birthYear : 0, round = age && isRoundAge(age), kid = !!e.birthYear && age < 18;
@@ -3180,6 +3184,9 @@ function remindInfo(o) {
   else if (["anniversary", "deadline"].includes(e.type)) lead = e.remindDays;
   else if (e.type === "trip") { lead = tripDays(); what = "Reise-Hinweise"; }
   else if (e.thanks) return "";
+  if (!(lead > 0) && e.time && !["birthday", "anniversary", "deadline"].includes(e.type)) { const m = e.remMin === "" || e.remMin === undefined ? (NTP.ev === false ? -1 : +NTP.evLead || 60) : +e.remMin;
+    if (m < 0) return e.gcal && e.gEventId ? "nur über Google (deine Standard-Benachrichtigung)" : "keine";
+    return `${remLbl(m)} als Nachricht aufs Handy${ntSub ? "" : " – dafür ☰ → Benachrichtigungen einschalten"}${e.gcal && e.gEventId ? " · zusätzlich Google" : ""}`; }
   if (!(lead > 0)) return e.gcal && e.gEventId ? "über Google (deine Standard-Benachrichtigung)" : "";
   const from = addDays(o.a, -lead), n = dayDiff(TODAY, from);
   const when = n > 0 ? `ab ${WDL[from.getDay()].slice(0, 2)} ${p2(from.getDate())}.${p2(from.getMonth() + 1)}. (${lead} Tage vorher${what ? ", " + what : ""})` : o.a >= TODAY ? `läuft schon – steht jetzt unter „Erinnerungen“` : "";
@@ -3278,7 +3285,7 @@ function showEvent(o) {
   if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) { if (isT) hintsHtml = `<div class="tcard"><div class="tp-h">Gut zu wissen</div><ul class="thints">${hs.flatMap(h => h.split(" · ")).map(h => `<li>${linkify(h)}</li>`).join("")}</ul></div>`; else item("Reise", hs.join(" · ")); } }
   if (o.part) item("Teil der Reise", `${evName(o.part.ev)} · ${fmt(o.part.a)}–${fmt(o.part.b)}`);
   if (cf.length && !tripParts(o).length) item("Überschneidung", cf.join(", "), 1);
-  { const ri = remindInfo(o); if (ri) item("Erinnerung", ri, 1); }
+  { const ri = remindInfo(o); if (ri) item("Erinnerung", ri, !(e.time && !["birthday", "anniversary", "deadline", "trip", "urlaub"].includes(e.type))); }   // bei Terminen mit Uhrzeit sichtbar
   { const T = canWrite ? tkOfEv(e).filter(t => !t.done || (t.doneAt && Date.now() - Date.parse(t.doneAt) < 30 * 864e5)) : [], addB = canWrite && !e.shared && EV.includes(e) ? `<button type="button" class="link tk-addev" data-tkaddev="${esc(e.id)}">+ Aufgabe dazu</button>` : "";
     if (!T.length && addB) items.push(`<li><i style="background:var(--line)"></i><div>${addB}</div></li>`); if (T.length) items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>Aufgaben dazu (${T.filter(t => !t.done).length} offen)</b><div class="ev-tk">${T.map(t => `<div class="tk${t.done ? " dn" : ""}"><input type="checkbox" class="ckb" ${t.done ? `data-tkundo="${esc(t.id)}" checked` : `data-tkdone="${esc(t.id)}"`} aria-label="${esc(t.title)} erledigt"><button type="button" class="tk-t" data-tkedit="${esc(t.id)}"><span>${esc(t.title.replace(/\s*\(„[^“]*“\)$/, ""))}</span>${t.due ? dueLbl(t.due) : ""}</button></div>`).join("")}</div>${addB}</div></li>`); }
   if (e.thanks) item("Danke-Erinnerung", "am Tag danach", 1);
@@ -3460,7 +3467,8 @@ function showForm(e, preset) {
       <button type="button" class="link f-time-add" id="f-time-add">🕒 Uhrzeit hinzufügen</button>
       <div class="qchips" id="f-qt">${QTIMES.map(t => `<button type="button" class="tkq" data-qt="${t}">${t}</button>`).join("")}</div>
       <div class="two" id="f-time-wrap"><div><label for="f-time" id="f-time-l">Uhrzeit</label><input id="f-time" type="time" value="${esc(v.time)}"></div>
-      <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div><button type="button" class="link f-time-x" id="f-time-x">✕ ohne Uhrzeit</button></div>
+      <div><label for="f-end">bis</label><input id="f-end" type="time" value="${esc(v.endTime)}"></div>
+      <div class="f-remmin" style="grid-column:1/-1"><label for="f-remmin">Erinnerung</label><select id="f-remmin">${REM_OPTS.map(([k, l]) => `<option value="${k}"${String(v.remMin ?? "") === k ? " selected" : ""}>${k === "" ? `Standard (${remLbl(+NTP.evLead || 60)})` : l}</option>`).join("")}</select></div><button type="button" class="link f-time-x" id="f-time-x">✕ ohne Uhrzeit</button></div>
       <div class="two" id="f-extra">
         <div id="f-by-wrap"><label for="f-by">Geburtsjahr</label><input id="f-by" type="number" inputmode="numeric" min="1900" max="2028" placeholder="fürs Alter" value="${esc(v.birthYear || "")}"></div>
         <div id="f-sy-wrap"><label for="f-sy">Seit Jahr</label><input id="f-sy" type="number" inputmode="numeric" min="1900" max="2028" placeholder="z. B. 2015" value="${esc(v.startYear || "")}"></div>
@@ -3598,7 +3606,7 @@ function formVals0() {
     done: editing ? editing.done : [], startYear: type === "anniversary" ? +g("f-sy") || 0 : 0, everyWeeks: contact ? Math.max(1, +g("f-ew") || 8) : 8,
     thanks: ["termin", "trip"].includes(type) && $("f-thx").checked, packlist: editing ? editing.packlist : [],
     who: contact || type === "birthday" ? "" : g("f-who"), color: (() => { const w = contact || type === "birthday" ? "" : g("f-who"), c = document.querySelector('[data-fcol][aria-checked="true"]')?.dataset.fcol || ""; if (w) { const M = whoCols(); if (c) M[whoKey(w)] = c; else delete M[whoKey(w)]; store.set("ft-whoc", JSON.stringify(M)); return ""; } return c; })(),
-    place: g("f-place"), flight: type === "trip" && fMode() === "flug", mode: type === "trip" ? fMode() : "", files: editing ? editing.files || [] : [], legs: editing ? editing.legs || [] : ["trip", "urlaub"].includes(type) ? FORM_LEGS : [], kids: type === "trip" && $("f-kids").checked,
+    place: g("f-place"), flight: type === "trip" && fMode() === "flug", mode: type === "trip" ? fMode() : "", files: editing ? editing.files || [] : [], remMin: $("f-time-wrap") && !$("f-time-wrap").hidden && $("f-remmin") ? $("f-remmin").value : (editing?.remMin ?? ""), legs: editing ? editing.legs || [] : ["trip", "urlaub"].includes(type) ? FORM_LEGS : [], kids: type === "trip" && $("f-kids").checked,
     country: editing && (editing.place || "") === g("f-place") && editing.title === g("f-title") ? editing.country || "" : "",
     gcal: formVis !== "me" && isShareCal(formVis) ? formVis : $("f-gcal") ? (isShareCal($("f-gcal").value) && formVis === "me" && $("f-vis") ? "primary" : $("f-gcal").value) : (editing ? editing.gcal : ""), gReadOnly: editing ? !!editing.gReadOnly : false,
     fam: type === "birthday" && $("f-fam") ? $("f-fam").checked : (editing ? !!editing.fam : false),
@@ -3642,7 +3650,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, gAdopt: !!e.gAdopt, gSnap: e.gSnap || "", gNote0: e.gNote0 || "", mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
-  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, legs: Array.isArray(e.legs) ? e.legs : [], facts: Array.isArray(e.facts) ? e.facts : [], stays: Array.isArray(e.stays) ? e.stays : [] });
+  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, remMin: e.remMin ?? "", legs: Array.isArray(e.legs) ? e.legs : [], facts: Array.isArray(e.facts) ? e.facts : [], stays: Array.isArray(e.stays) ? e.stays : [] });
 let gWarn = 0, gGone = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
