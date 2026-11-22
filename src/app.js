@@ -2912,6 +2912,8 @@ function buildPushPlan() {
 }
 // ---- Zug-Wächter: Zugnummer + Bahnhof im Termin → der Server prüft live und meldet Verspätung/Gleis/Ausfall ----
 const TRAIN_RE = /\b(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB)\s?-?(\d{1,5})\b/i;
+// Google-Termin für Zug-/Flug-Erkennung: Beschreibung (z. B. vom DB Navigator) als Notiz, Google-Ort als Ort
+const gv = e => e?.type === "google" ? { ...e, note: e.desc || "", place: e.note || "" } : e;
 const trainOf = e => { const m = [e.title, e.note, e.place].filter(Boolean).join(" · ").match(TRAIN_RE); return m ? `${m[1].toUpperCase()} ${m[2]}` : ""; };
 const STOPW = /^(vom|von|am|an|zum|zur|zu|ab|nach|in|im|bei|aus|abholen|hin|bringen|der|die|das|den)$/i;
 function stationOf(e) {
@@ -2942,7 +2944,7 @@ function trainBadge(o) { const k0 = trainKey(o), s = TRST[k0] || Object.entries(
   const extra = F ? (s.bag ? ` · Band ${esc(s.bag)}` : s.kind === "dep" && s.pl ? ` · Gate ${esc(s.pl)}` : s.term ? ` · T${esc(s.term)}` : "") : s.pl ? ` · Gl. ${esc(s.pl)}` : "";
   return ` <span class="trb ${cls}" title="${esc(s.c ? "fällt aus" : s.d ? `+${s.d} Min.` : "pünktlich")}">${c}${t ? " " + esc(t) : ""}${extra}</span>`; }
 // ausführlich im Termin
-function trainDetail(o) { const P = (o.ev.legs || []).length > 1;
+function trainDetail(o) { if (o.ev.type === "google") o = { ...o, ev: gv(o.ev) }; const P = (o.ev.legs || []).length > 1;
   return trainDetail0(o) + connDetail(o.ev, P ? o.ev.from : iso(o.a), P ? `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-p` : trainKey(o), P ? null : TRST[trainKey(o)]); }
 function connDetail(e, date, base, main) {
   const C = connOf(e, date); if (!C.length) return "";
@@ -3044,7 +3046,7 @@ function trainWatch() {
       if (l.mode === "flug" && !flightAllowed()) return;
       W.push({ id, train: l.train, st: l.st, at: at.toISOString(), title: evName(e).slice(0, 30), prefer: l.prefer, ...(l.mode ? { mode: "flug" } : {}) }); });
     if (L.length) seen.add("ev:" + e.id); }
-  OCC.filter(o => !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
+  OCC.filter(o => !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => { o = o.ev.type === "google" ? { ...o, ev: gv(o.ev) } : o;
     const rt = !flightOf(o.ev) && (o.ev.flight || o.ev.mode === "flug" || o.ev.pick?.mode === "flug" || FLIGHT_RE.test([o.ev.title, o.ev.note].join(" "))) ? flightRoute(o.ev) : null;
     const CC = !flightOf(o.ev) && o.ev.pick?.dir === "arr" ? connOf(o.ev, iso(o.a)) : [];
     const fl = flightOf(o.ev) || (rt ? `${rt.al ? rt.al + " " : ""}${rt.dep}→${rt.arr}` : ""), train = fl || (CC.length ? CC[CC.length - 1].train : trainOf(o.ev)); /* Abholen mit Umstiegen: der letzte Zug kommt am Abholbahnhof an */ if (!train) return; const st = fl ? (rt ? rt.dep : (o.ev.place || "").split(",")[0].trim()) : stationOf(o.ev); if (!st && !fl) return;
@@ -4719,6 +4721,7 @@ function showGoogleEvent(o) {
   if (sheetCtx?.id !== o.ev.id) ACT_OPEN = false;
   const e = o.ev, items = [];
   items.push(`<li><i style="background:${e.color}"></i><div><b>Google · ${esc(e.cal)}</b>${e.creator ? `<div class="note">eingetragen von ${esc(e.creator)}</div>` : ""}${e.recurring ? `<div class="note">Teil einer Serie</div>` : ""}</div></li>`);
+  if (e.desc) items.push(`<li><i style="background:${e.color}"></i><div><b>Notiz</b>${noteList(e.desc)}</div></li>`);
   if (e.note) items.push(`<li><i style="background:${e.color}"></i><div><b>Ort</b><div class="note">${esc(e.note)}</div></div></li>`);
   if (tripParts(o).length) items.push(`<li><i style="background:var(--trip)"></i><div><b>Dazu gehört</b><div class="note" style="white-space:pre-line">${esc(partsList(o))}</div></div></li>`);
   if (o.part) items.push(`<li><i style="background:var(--trip)"></i><div><b>Teil der Reise</b><div class="note">${esc(evName(o.part.ev))} · ${fmt(o.part.a)}–${fmt(o.part.b)}</div></div></li>`);
