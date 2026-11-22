@@ -1389,17 +1389,23 @@ function dayChips(d) {
   return c.join("");
 }
 // Kurzfassung für Listen: „🚆 2× Zug · Berlin Hbf → London St Pancras · 🏨 Kula London Bridge“ statt der ganzen Notiz
-function evBrief(o) {
+function evBrief(o, lines) {
   const e = o.ev, L = e.legs || [], P = (() => { try { return tripParts(o); } catch { return []; } })(), out = [];
   if (L.length) { const n = {}; L.forEach(l => n[l.m] = (n[l.m] || 0) + 1); const nm = { zug: "Zug", flug: "Flug", bus: "Bus", faehre: "Fähre", auto: "Auto" };
-    out.push(`${Object.entries(n).map(([m, k]) => `${LEG_ICON[m]} ${k > 1 ? k + "× " : ""}${nm[m]}`).join(", ")} · ${L[0].von} → ${L[L.length - 1].nach || "…"}`); }
-  if (P.length) out.push(`🏨 ${P.slice(0, 2).map(x => shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, "")).join(", ")}${P.length > 2 ? ` +${P.length - 2}` : ""}`);
-  if (out.length) return out.join(" · ");
+    out.push(`${Object.entries(n).map(([m, k]) => `${LEG_ICON[m]} ${k > 1 ? k + "× " : ""}${nm[m]}`).join(", ")}${lines ? ":" : " ·"} ${L[0].von} → ${L[L.length - 1].nach || "…"}`); }
+  const hn = x => shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, "");
+  if (P.length) { if (lines) P.slice(0, 4).forEach(x => out.push(`🏨 ${hn(x)}`)); else out.push(`🏨 ${P.slice(0, 2).map(hn).join(", ")}${P.length > 2 ? ` +${P.length - 2}` : ""}`); }
+  if (out.length) return lines ? out : out.join(" · ");
   const first = String(e.note || "").replace(/📎\s*/g, "").replace(/https?:\/\/\S+/g, "🔗").split(/\n| · /)[0].trim();
-  return [e.place && !/^https?:/.test(e.place) ? e.place.split(",")[0] : "", first.length > 70 ? first.slice(0, 68).replace(/\s\S*$/, "") + " …" : first].filter(Boolean).join(" · ");
+  const r = [e.place && !/^https?:/.test(e.place) ? `📍 ${e.place.split(",")[0]}` : "", first.length > 70 ? first.slice(0, 68).replace(/\s\S*$/, "") + " …" : first].filter(Boolean);
+  return lines ? r : r.join(" · ").replace(/^📍 /, "");
 }
 const occBtn = (o, showRange) => {
-  const e = o.ev, age = ageTxt(o), sub = [showRange && !sameDay(o.a, o.b) ? rngTxt(o.a, o.b) : "", age, evBrief(o)].filter(Boolean).join(" · ");
+  const e = o.ev, age = ageTxt(o);
+  if (showRange) {   // Tagesblatt: Stichpunkte untereinander
+    const L = [[!sameDay(o.a, o.b) ? `🗓 ${rngTxt(o.a, o.b)}` : "", age].filter(Boolean).join(" · "), ...evBrief(o, true)].filter(Boolean);
+    return `<button type="button" class="evr evr-b" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${dotSt(e)}></span><span class="n">${esc(evName(e))}${L.length ? `<ul class="evb">${L.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}</span></button>`; }
+  const sub = [age, evBrief(o)].filter(Boolean).join(" · ");
   return `<button type="button" class="evr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${dotSt(e)}></span><span class="n">${esc(evName(e))}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
 };
 // Woche: dieselbe feste Zeile wie in „Heute“ – [Uhrzeit] [Punkt] [Titel + eine Zeile Zusatz]
@@ -3189,11 +3195,16 @@ function moreBox(e, inner, extra) {
   const nf = (e.files || []).length, what = [...extra.filter(Boolean), nf ? `${nf} Dokument${nf > 1 ? "e" : ""}` : "Dokumente", "Erinnerung", e.gEventId ? "Google" : "", "Farbe"].filter(Boolean);
   return `<details class="more-det"${MORE_OPEN ? " open" : ""}><summary><span><b>Mehr anzeigen</b><small>${esc(what.join(" · "))}</small></span></summary>${inner}</details>`;
 }
+// Notiz als kurze Stichpunkte: an Zeilenumbrüchen, „ · “ und 📎-Abschnitten trennen
+function noteList(t) {
+  const P = String(t || "").split(/\n+|\s·\s|(?=📎)|,\s(?=Umstieg\b)/i).map(x => x.replace(/^[-•·\s]+/, "").trim()).filter(Boolean);
+  return P.length < 2 ? `<div class="note">${linkify(t)}</div>` : `<ul class="note nlist">${P.map(x => `<li>${linkify(x)}</li>`).join("")}</ul>`;
+}
 function showEvent(o) {
   if (o.ev.type === "google") return showGoogleEvent(o);
   const e = o.ev, cf = conflicts(o), items = [];
   if (e.shared) { const it = [`<li><i style="background:var(--both)"></i><div><b>Geteilt von ${esc(e.shared.from || "jemandem")}</b><div class="note">Änderungen sieht ihr beide</div></div></li>`];
-    if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div></div></li>`);
+    if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b>${noteList(e.note)}</div></li>`);
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
@@ -3207,9 +3218,9 @@ function showEvent(o) {
     const F = [...(e.place ? [{ k: "Ort", v: e.place }] : []), ...(e.facts || [])];
     if (F.length) factsHtml = `<div class="tcard"><div class="tp-h">Eckdaten</div><dl class="tfacts">${F.map(x => `<dt>${esc(x.k)}</dt><dd>${linkify(x.v)}</dd>`).join("")}</dl></div>`;
     const short = (e.legs || []).length || (e.facts || []).length;
-    if (e.note) noteHtml = `<details class="tcard tp-note"${short ? "" : " open"}><summary><span class="tp-h">Notiz${short ? " · Originaltext" : ""}</span></summary><div class="note" style="margin-top:6px">${linkify(e.note)}</div></details>`;
-  } else if (e.note) items.push(plan && (e.legs || []).length ? `<li><i style="background:${colorOf(e)}"></i><div><details class="tp-note"><summary><b>Notiz</b> <small class="muted">· ausführlich</small></summary><div class="note">${linkify(e.note)}</div></details></div></li>`
-    : `<li><i style="background:${colorOf(e)}"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div>${planable(e) ? `<button type="button" class="link" data-tplan="${esc(e.id)}" style="margin-top:6px">✨ Reiseplan aus der Notiz erstellen</button>` : ""}</div></li>`);
+    if (e.note) noteHtml = `<details class="tcard tp-note"${short ? "" : " open"}><summary><span class="tp-h">Notiz${short ? " · Originaltext" : ""}</span></summary>${noteList(e.note)}</details>`;
+  } else if (e.note) items.push(plan && (e.legs || []).length ? `<li><i style="background:${colorOf(e)}"></i><div><details class="tp-note"><summary><b>Notiz</b> <small class="muted">· ausführlich</small></summary>${noteList(e.note)}</details></div></li>`
+    : `<li><i style="background:${colorOf(e)}"></i><div><b>Notiz</b>${noteList(e.note)}${planable(e) ? `<button type="button" class="link" data-tplan="${esc(e.id)}" style="margin-top:6px">✨ Reiseplan aus der Notiz erstellen</button>` : ""}</div></li>`);
   if (e.place && !isT) item("Ort", e.place);
   if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) { if (isT) hintsHtml = `<div class="tcard"><div class="tp-h">Gut zu wissen</div><ul class="thints">${hs.flatMap(h => h.split(" · ")).map(h => `<li>${linkify(h)}</li>`).join("")}</ul></div>`; else item("Reise", hs.join(" · ")); } }
   if (o.part) item("Teil der Reise", `${evName(o.part.ev)} · ${fmt(o.part.a)}–${fmt(o.part.b)}`);
