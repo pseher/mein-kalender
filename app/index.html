@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261122121325";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261122124635";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -533,6 +533,17 @@ button { font: inherit; color: inherit; }
 .a-day { display: inline-flex; align-items: center; gap: 8px; background: var(--soft); border-radius: 999px; padding: 6px 8px 6px 14px; margin: 0 0 10px; font-size: 15px; } .a-day .link { padding: 2px 6px; font-size: 15px; }
 .fcols { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; } .fcol { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); background: var(--soft); color: var(--muted); font: 700 13px/1 inherit; cursor: pointer; padding: 0; }
 .fcol[aria-checked="true"] { outline: 3px solid var(--fg); outline-offset: 2px; }
+details.qcol > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 32px; } details.qcol > summary::-webkit-details-marker { display: none; }
+details.qcol > summary::after { content: "▾"; margin-left: auto; color: var(--muted); } details.qcol[open] > summary::after { content: "▴"; } details.qcol[open] > summary { margin-bottom: 6px; }
+.qcol-cur { width: 16px; height: 16px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.tplan { margin: 10px 0 6px; padding: 10px 12px 6px; border-radius: 12px; background: var(--soft); }
+.tplan .tp-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.tplan .tp-d { font-weight: 700; font-size: 14px; margin: 10px 0 2px; padding-top: 8px; border-top: 1px solid var(--line); } .tplan .tp-h + .tp-d { border-top: 0; padding-top: 0; margin-top: 6px; }
+.tplan .tp-r { display: grid; grid-template-columns: 46px 24px minmax(0, 1fr); gap: 4px; align-items: start; width: 100%; padding: 5px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.tplan button.tp-r { cursor: pointer; } .tplan button.tp-r .tp-x b::after { content: " ›"; color: var(--muted); }
+.tplan .tp-t { font-family: var(--f-mono); font-size: 13px; font-weight: 600; color: var(--accent); padding-top: 2px; } .tplan .tp-i { font-size: 16px; line-height: 1.3; }
+.tplan .tp-x { display: grid; gap: 1px; min-width: 0; } .tplan .tp-x b { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; } .tplan .tp-x small { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+details.tp-note > summary { cursor: pointer; list-style: none; } details.tp-note > summary::-webkit-details-marker { display: none; } details.tp-note > summary::after { content: " ▾"; color: var(--muted); } details.tp-note[open] > summary::after { content: " ▴"; }
 .qcol { margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; } .qcol-h { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; margin-bottom: 8px; } .qcol-h .link { font-size: 13px; } .qcol .fcols { margin: 0; }
 .upd-bar { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; border: 0; border-radius: 999px; padding: 10px 16px; background: var(--both); color: var(--both-ink, #fff); font: 600 14px/1.2 inherit; box-shadow: 0 6px 20px rgba(0,0,0,.18); cursor: pointer; }
 .plans { display: grid; gap: 14px; } .plan-cur { background: var(--soft); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; } .pc-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; } .pc-h span { color: var(--muted); font-size: 13px; }
@@ -1739,6 +1750,18 @@ const kidsNames = () => famBy("kind");
 let uid = null, BASE = "";
 const COLL = n => db.collection(`${BASE}/${n}`);
 
+// ---- Reiseplan: Verbindungen (Züge, Flüge, Busse, Fähren) als feste Liste am Eintrag ----
+const LEG_ICON = { zug: "🚆", flug: "✈️", bus: "🚌", faehre: "⛴️", auto: "🚗" };
+function legsClean(L) {
+  const st = (x, n) => String(x || "").replace(/\s+/g, " ").trim().slice(0, n), dt = x => { const m = String(x || "").match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}:\d{2})/); return m ? `${m[1]}T${m[2].padStart(5, "0")}` : ""; };
+  const out = (Array.isArray(L) ? L : []).map(x => { const ab = dt(x?.ab); if (!ab) return null; const m = String(x.m || x.art || "zug").toLowerCase().replace("ä", "ae");
+    return { m: LEG_ICON[m] ? m : "zug", no: st(x.no || x.nr, 30), von: st(x.von, 60), ab, nach: st(x.nach, 60), an: dt(x.an), info: st(x.info, 160), ref: st(x.ref || x.buchung, 40) }; }).filter(Boolean);
+  const u = new Set(); return out.sort((a, b) => a.ab.localeCompare(b.ab)).filter(l => { const k = (l.no || l.von).toLowerCase().replace(/\s/g, "") + l.ab; if (u.has(k)) return false; u.add(k); return true; }).slice(0, 12);
+}
+const LEG_JSON = `"verbindungen": [{"art": "zug|flug|bus|faehre", "nr": "Zug-/Flugnummer mit Gattung, z. B. „ICE 503“, „ES 474“, „Eurostar 9125“, „LH 2043“", "von": "Abfahrtsbahnhof/-flughafen", "ab": "YYYY-MM-DD HH:MM", "nach": "Ziel", "an": "YYYY-MM-DD HH:MM oder leer", "info": "kurz: Wagen, Platz, Gleis, Gate, Check-in bis …", "buchung": "Buchungsnummer oder leer"}]`;
+// zwei Aufgaben meinen dasselbe? (z. B. „Website … auf Störungen prüfen“ und „Auf … nach Störungen schauen“)
+const tkWords = t => new Set(String(t).toLowerCase().replace(/„[^“]*“|"[^"]*"/g, " ").split(/[^\p{L}\d]+/u).filter(w => w.length >= 4).map(w => w.slice(0, 6)));
+const tkSame = (a, b) => { const A = tkWords(a), B = tkWords(b); if (!A.size || !B.size) return false; let n = 0; A.forEach(w => { if (B.has(w)) n++; }); return n / Math.min(A.size, B.size) >= 0.6; };
 function normalize(id, v) {
   v = v || {};
   const a = parseIso(v.from), b = parseIso(v.to || v.from) || a;
@@ -1752,6 +1775,7 @@ function normalize(id, v) {
     place: String(v.place || ""), flight: !!v.flight, kids: !!v.kids, mode: MODES[v.mode] ? v.mode : "", files: Array.isArray(v.files) ? v.files.filter(f => f && f.id && (f.n || f.r2)).map(f => ({ id: String(f.id), name: String(f.name || "Dokument"), type: String(f.type || ""), size: +f.size || 0, n: +f.n || 0, ...(f.r2 ? { r2: 1 } : {}), at: String(f.at || "") })) : [], gReadOnly: !!v.gReadOnly, gAdopt: !!v.gAdopt, gSnap: String(v.gSnap || ""), gNote0: String(v.gNote0 || ""), mOnly: !!v.mOnly, pick: v.pick && typeof v.pick === "object" ? { dir: v.pick.dir === "dep" ? "dep" : "arr", mode: ["zug", "flug", "bus", "auto"].includes(v.pick.mode) ? v.pick.mode : "zug", who: String(v.pick.who || "").slice(0, 40), no: String(v.pick.no || "").slice(0, 20) } : null, skip: Array.isArray(v.skip) ? v.skip.filter(x => /^\d{4}-\d\d-\d\d$/.test(x)).slice(-300) : [], color: ECOLM[v.color] ? String(v.color) : "", who: String(v.who || "").trim().slice(0, 40), country: String(v.country || ""),
     shareTo: Array.isArray(v.shareTo) ? v.shareTo.map(String) : [], shareNo: Array.isArray(v.shareNo) ? v.shareNo.map(String) : [], sid: String(v.sid || ""), shadow: !!v.shadow,
     packlist: Array.isArray(v.packlist) ? v.packlist.filter(x => x && x.t).map(x => ({ t: String(x.t), k: String(x.k || ""), d: !!x.d })) : [],
+    legs: legsClean(v.legs),
     a, b: b && a && b < a ? a : b };
 }
 const evName = e => (isSharedEv(e) ? "👥 " : "") + (e.type === "birthday" ? `Geburtstag ${e.title}` : e.title);
@@ -3820,8 +3844,9 @@ Lies die Dokumente genau. Antworte NUR mit JSON:
 "anreise": "auto, zug, bus, rad, flug oder leer – nur wenn eindeutig",
 "ort": "vollständige Adresse von Unterkunft/Veranstaltungsort, nur wenn sie genau so im Dokument steht, sonst leer",
 "packliste": ["nur Dinge, die sich konkret aus den Dokumenten ergeben, z. B. „Personalausweis (Ticket nur mit Ausweis gültig)“, „BahnCard“, „Ticket ausgedruckt“, „Badesachen (Hotel hat Pool)“, „Abendgarderobe (Dresscode)“ – max. 6"],
-"aufgaben": [{"t": "konkrete Orga-Aufgabe, z. B. „Online-Check-in“, „Sitzplatz reservieren“, „Restbetrag zahlen“, „Stornofrist beachten“", "faellig": "YYYY-MM-DD, wenn sich ein Datum ergibt, sonst leer"}]}
-Höchstens 5 Aufgaben. Nichts erfinden, nichts Allgemeines. Deutsch.`, { modelTier: "default", images: imgs.length ? imgs : undefined });
+"aufgaben": [{"t": "konkrete Orga-Aufgabe, z. B. „Online-Check-in“, „Sitzplatz reservieren“, „Restbetrag zahlen“, „Stornofrist beachten“", "faellig": "YYYY-MM-DD, wenn sich ein Datum ergibt, sonst leer"}],
+${LEG_JSON}}
+Höchstens 5 Aufgaben – nur Dinge, die man TUN muss (kein reiner Hinweis wie „nicht stornierbar“), und keine, die es schon gibt${tkOfEv(e).length ? ": " + tkOfEv(e).map(t => "„" + t.title + "“").join(", ") : ""}. verbindungen: jede Fahrt/jeder Flug aus den Dokumenten einzeln, mit vollem Datum; leer, wenn keine. Nichts erfinden, nichts Allgemeines. Deutsch.`, { modelTier: "default", images: imgs.length ? imgs : undefined });
     DAI = { id: e.id, r: r || {} }; renderDai();
   } catch (err) { say(err?.code === "rate_limited" ? RL(err) : "Die Dokumente konnten gerade nicht ausgewertet werden."); }
 }
@@ -3829,7 +3854,11 @@ function renderDai() {
   const e = EV.find(x => x.id === DAI?.id), r = DAI?.r, body = $("dai-body"); if (!e || !body) return;
   const seen = new Set((e.packlist || []).map(x => x.t.toLowerCase()));
   const pk = (r.packliste || []).map(String).filter(t => t && !seen.has(t.toLowerCase())).slice(0, 6);
-  const tk = (r.aufgaben || []).filter(t => t && t.t).slice(0, 5).map(t => ({ t: String(t.t), due: /^\d{4}-\d{2}-\d{2}$/.test(t.faellig || "") ? t.faellig : "" }));
+  const have = tkOfEv(e).map(t => t.title), tk = [];
+  (r.aufgaben || []).filter(t => t && t.t).forEach(t => { const x = { t: String(t.t), due: /^\d{4}-\d{2}-\d{2}$/.test(t.faellig || "") ? t.faellig : "" };
+    if (tk.length < 5 && ![...have, ...tk.map(y => y.t)].some(h => tkSame(h, x.t))) tk.push(x); });
+  const L0 = e.legs || [], lg = legsClean(r.verbindungen).filter(l => !L0.some(k => k.ab === l.ab && (k.no || k.von) === (l.no || l.von)));
+  DAI.lg = lg;
   const md = MODES[r.anreise] && e.type === "trip" && r.anreise !== e.mode ? r.anreise : "";
   const ort = r.ort && !placeOf(e) ? String(r.ort) : "", info = [r.zusammenfassung, r.zeiten].filter(Boolean).map(String).join(" · ");
   DAI.pk = pk; DAI.tk = tk; DAI.md = md; DAI.ort = ort; DAI.info = info;
@@ -3837,6 +3866,7 @@ function renderDai() {
   const sec = (h, rows) => rows.length ? `<h3 class="pkh">${h}</h3><div class="gcals">${rows.join("")}</div>` : "";
   const html = (info ? `<div class="dai-info">${esc(info)}</div>` : "") +
     sec("In den Eintrag übernehmen", [info && !(e.note || "").includes(String(r.zusammenfassung || "").slice(0, 30)) ? row('data-dai="note"', "Zusammenfassung in die Notiz") : "", md ? row('data-dai="mode"', "Anreise: " + MODES[md]) : "", ort ? row('data-dai="ort"', "Ort: " + ort) : ""].filter(Boolean)) +
+    sec("Reiseplan", lg.map((l, i) => row(`data-dailg="${i}"`, `${LEG_ICON[l.m]} ${legTitle(l)}`, legWhen(l)))) +
     sec(`Für die ${packLabel(e)}`, pk.map((t, i) => row(`data-daipk="${i}"`, t))) +
     sec("Aufgaben", tk.map((t, i) => row(`data-daitk="${i}"`, t.t, t.due ? "bis " + fmt(parseIso(t.due)) : "")));
   const any = /type="checkbox"/.test(html);
@@ -3852,11 +3882,12 @@ async function docApply() {
   if (DAI.ort && on('[data-dai="ort"]')) up.place = DAI.ort;
   const pk = DAI.pk.filter((_, i) => on(`[data-daipk="${i}"]`)).map(t => ({ t, k: "Aus Dokumenten", d: false }));
   if (pk.length) up.packlist = [...pk, ...(e.packlist || [])];
-  const tk = DAI.tk.filter((_, i) => on(`[data-daitk="${i}"]`));
+  const tk = DAI.tk.filter((_, i) => on(`[data-daitk="${i}"]`)), lg = (DAI.lg || []).filter((_, i) => on(`[data-dailg="${i}"]`));
+  if (lg.length) up.legs = legsClean([...(e.legs || []), ...lg]);
   try {
     if (Object.keys(up).length) { await COLL("events").doc(e.id).update(up); Object.assign(e, up); if (e.gEventId && e.gcal && gWritable()) gUpdate({ ...e }).then(() => gResync(400)).catch(() => {}); }
     for (const t of tk) await addTask({ title: `${t.t} („${e.title}“)`, due: t.due, ev: e.id });
-    const n = pk.length + tk.length + ["note", "mode", "place"].filter(k => k in up).length;
+    const n = pk.length + tk.length + lg.length + ["note", "mode", "place"].filter(k => k in up).length;
     toast(n ? `${n} Punkt${n > 1 ? "e" : ""} übernommen` : "Nichts übernommen");
     const o = findOcc(e.id, iso(e.a)); o ? showEvent(o) : closeSheet();
   } catch (err) { toast(writeErr(err)); }
@@ -4605,6 +4636,38 @@ function remindInfo(o) {
   const when = n > 0 ? `ab ${WDL[from.getDay()].slice(0, 2)} ${p2(from.getDate())}.${p2(from.getMonth() + 1)}. (${lead} Tage vorher${what ? ", " + what : ""})` : o.a >= TODAY ? `läuft schon – steht jetzt unter „Erinnerungen“` : "";
   return when ? `${when}${e.gcal && e.gEventId ? " · zusätzlich Google-Benachrichtigung" : ""}` : "";
 }
+const legTitle = l => `${l.no ? l.no + " · " : ""}${l.von}${l.nach ? " → " + l.nach : ""}`;
+const legWhen = l => { const a = parseIso(l.ab.slice(0, 10)); return `${fmt(a)}, ${l.ab.slice(11)}${l.an ? ` – ${l.an.slice(0, 10) !== l.ab.slice(0, 10) ? fmt(parseIso(l.an.slice(0, 10))) + ", " : ""}${l.an.slice(11)}` : ""}`; };
+// Übersicht einer Reise: Fahrten/Flüge und Unterkünfte nach Tagen, statt alles in der Notiz
+function tripPlan(o) {
+  const e = o.ev, rows = [];
+  (e.legs || []).forEach(l => { const d = l.ab.slice(0, 10), an = l.an ? (l.an.slice(0, 10) !== d ? `an ${fmt(parseIso(l.an.slice(0, 10)))} ${l.an.slice(11)}` : `an ${l.an.slice(11)}`) : "";
+    rows.push({ d, t: l.ab.slice(11), i: LEG_ICON[l.m], b: legTitle(l), s: [an, l.info, l.ref ? "Buchung " + l.ref : ""].filter(Boolean).join(" · ") }); });
+  tripParts(o).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: "🏨", b: shortName(x.ev), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
+  if (!rows.length) return "";
+  rows.sort((a, b) => (a.d + (a.t || "99")).localeCompare(b.d + (b.t || "99")));
+  let h = "", last = "";
+  rows.forEach(r => { if (r.d !== last) { h += `<div class="tp-d">${esc(fmt(parseIso(r.d)))}</div>`; last = r.d; }
+    const inner = `<span class="tp-t">${esc(r.t)}</span><span class="tp-i">${r.i}</span><span class="tp-x"><b>${esc(r.b)}</b>${r.s ? `<small>${esc(r.s)}</small>` : ""}</span>`;
+    h += r.occ ? `<button type="button" class="tp-r" data-occ="${esc(r.occ)}">${inner}</button>` : `<div class="tp-r">${inner}</div>`; });
+  return `<div class="tplan"><div class="tp-h">Reiseplan</div>${h}</div>`;
+}
+const planable = e => ["trip", "urlaub"].includes(e.type) && !(e.legs || []).length && /\d{1,2}[:.]\d{2}/.test(e.note || "") && !!sample && canWrite && EV.includes(e);
+async function planFromNote(e) {
+  const b = document.querySelector("[data-tplan]"); if (b) { b.disabled = true; b.textContent = "Ich ordne die Verbindungen …"; }
+  try {
+    const r = await (window.MK_TASK = "reiseplan", sample.json)(`Aus dieser Notiz zu einer Reise („${e.title}“, ${rngTxt(e.a, e.b, true)}) sollen die einzelnen Fahrten und Flüge herausgezogen werden. Heute ist ${fmtY(TODAY)}.
+Notiz:
+${String(e.note).slice(0, 6000)}
+Antworte NUR mit JSON: {${LEG_JSON}}
+Jede Fahrt/jeder Flug genau einmal (die Notiz enthält oft dasselbe doppelt), mit vollem Datum. Nichts erfinden.`, { modelTier: "default" });
+    const L = legsClean(r?.verbindungen);
+    if (!L.length) { toast("In der Notiz habe ich keine Fahrten mit Datum und Uhrzeit gefunden"); if (b) b.remove(); return; }
+    await COLL("events").doc(e.id).update({ legs: L }); e.legs = L;
+    toast(`Reiseplan mit ${L.length} Verbindung${L.length > 1 ? "en" : ""} erstellt`);
+    const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
+  } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Reiseplan aus der Notiz erstellen"; } }
+}
 function showEvent(o) {
   if (o.ev.type === "google") return showGoogleEvent(o);
   const e = o.ev, cf = conflicts(o), items = [];
@@ -4616,10 +4679,11 @@ function showEvent(o) {
   const item = (title, sub) => items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
   item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o));
   if (e.who) item(`👤 für ${e.who}`, "");
-  if (e.note) items.push(`<li><i style="background:${colorOf(e)}"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div></div></li>`);
+  const plan = tripPlan(o);
+  if (e.note) items.push(plan && (e.legs || []).length ? `<li><i style="background:${colorOf(e)}"></i><div><details class="tp-note"><summary><b>Notiz</b> <small class="muted">· ausführlich</small></summary><div class="note">${linkify(e.note)}</div></details></div></li>`
+    : `<li><i style="background:${colorOf(e)}"></i><div><b>Notiz</b><div class="note">${linkify(e.note)}</div>${planable(e) ? `<button type="button" class="link" data-tplan="${esc(e.id)}" style="margin-top:6px">✨ Reiseplan aus der Notiz erstellen</button>` : ""}</div></li>`);
   if (e.place) item("Ort", e.place);
   if (e.type === "trip") { const C = COUNTRIES[tripCountry(e)]; const hs = [C ? `Ziel: ${C.n}${C.entry ? " · " + C.entry : ""}${C.toll && byCar(e) ? " · " + C.toll : ""}` : "", modeOf(e) ? "Anreise: " + MODES[modeOf(e)] + (modeOf(e) === "flug" ? " (Tickets, Check-in, Ausweise)" : "") : "", withKids(e) ? "mit Kindern" : "", ...bdaysIn(o.a, o.b).map(b => `Geburtstag ${b.ev.title} am ${fmt(b.a)}`)].filter(Boolean); if (hs.length) item("Reise", hs.join(" · ")); }
-  if (tripParts(o).length) item("Dazu gehört", partsList(o));
   if (o.part) item("Teil der Reise", `${evName(o.part.ev)} · ${fmt(o.part.a)}–${fmt(o.part.b)}`);
   if (cf.length && !tripParts(o).length) item("Überschneidung", cf.join(", "));
   { const ri = remindInfo(o); if (ri) item("Erinnerung", ri); }
@@ -4640,7 +4704,7 @@ function showEvent(o) {
     routeLinks(placeOf(e) || (e.type === "trip" ? e.title : "")) +
     (canWrite ? `<button type="button" class="btn danger small push" data-del="${id}|${iso(o.a)}">Löschen</button>` : "");
   const qcol = canWrite && !e.gReadOnly ? qcolBox(id, e.color, catColor(catOf(e) || e.type), "Farbe dieses Eintrags", `Farbe für alle „${TYPES[e.type]?.label || "Einträge"}“ ändern`) : "";
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
@@ -4650,7 +4714,7 @@ let formVis = "me", formVisManual = false, formShManual = false;
 function setVis(v, manual) { formVis = v; if (manual) formVisManual = true; document.querySelectorAll("#f-vis [data-vis]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.vis === v)));
   const g = $("f-gcal-wrap"); if (g) g.hidden = v !== "me" || $("f-type")?.value === "contact"; }
 let fTimeOpen = false;   // Uhrzeit-Felder erst auf Wunsch zeigen
-let FORM_FILES = [], FORM_TYPE_SET = false, FORM_DIR_SET = false, FORM_UMST = [];
+let FORM_LEGS = [], FORM_FILES = [], FORM_TYPE_SET = false, FORM_DIR_SET = false, FORM_UMST = [];
 // Vor dem Auslesen kurz fragen, wofür das Dokument ist – sonst landet eine Zugverbindung gern als „Termin“
 const KIND_OPTS = [["trip", "🧳 Reise"], ["urlaub", "🏖️ Urlaub"], ["arr", "🙋 Abholen"], ["dep", "👋 Bringen"], ["termin", "📅 Termin"], ["deadline", "⏰ Frist"], ["auto", "✨ Selbst erkennen"]];
 const DIR_OPTS = [["arr", "🙋 Abholen – jemand kommt an"], ["dep", "👋 Bringen – jemand fährt ab"]];
@@ -4699,7 +4763,7 @@ async function formFromDocs(files, link, mail) {
       : cur === "urlaub" ? `\nDer Nutzer füllt gerade das Formular „Urlaub & Ferien“ aus: type "urlaub", title = Ziel bzw. Unterkunft, from/to = Urlaubszeitraum, time = erste Abfahrt/Abflug, Hin- und Rückreise (Zug/Flug, Zeiten) kurz in note.`
       : cur === "deadline" ? `\nDer Nutzer trägt gerade eine Frist ein (Vertrag, Ausweis, Garantie, TÜV …): ${FK_AI}` : "");
     const r = await (window.MK_TASK = "formular-anhang", sample.json)(`${ATTACH_HINT}${ctx}
-Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen" | "deadline", "fk": "", "renew": 0, "remindDays": 0, "nostore": false, "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": "", "umst": []} oder null}
+Heute ist ${fmtY(TODAY)}. Antworte NUR mit JSON: {"type": "trip" | "termin" | "urlaub" | "abholen" | "deadline", "fk": "", "renew": 0, "remindDays": 0, "nostore": false, "title": "", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "time": "HH:MM oder leer", "endTime": "HH:MM oder leer", "place": "", "mode": "", "flight": false, "note": "", "pick": {"dir": "arr" | "dep", "mode": "zug" | "flug" | "bus", "who": "", "no": "", "umst": []} oder null, ${LEG_JSON}}
 ${UMST_HINT}
 ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "default", images: att.imgs.length ? att.imgs : undefined });
     if (!r || !parseIso(r.from)) { await say("Ich konnte kein Datum finden – bitte selbst ergänzen."); return; }
@@ -4707,6 +4771,7 @@ ${[...att.texts, ...lk.texts].join("\n\n").slice(0, 20000)}`, { modelTier: "defa
     const addNote = n => { const f = $("f-note"), cur = f.value.trim(); n = String(n || "").replace(/\s*\n\s*/g, " · ").trim(); if (n && !cur.includes(n)) f.value = [cur, n].filter(Boolean).join(" · "); };
     const ty = FORM_TYPE_SET || cur === "abholen" || cur === "urlaub" || cur === "deadline" ? cur : r.type === "abholen" ? "abholen" : ["trip", "termin", "deadline", "urlaub"].includes(r.type) ? r.type : "";
     if (ty && ty !== cur) { $("f-type").value = ty; syncFormFields(); }
+    FORM_LEGS = legsClean(r.verbindungen);
     if (ty === "abholen") {
       const pk = r.pick || {}, tap = (a, v) => document.querySelector(`[${a}="${v}"]`)?.click();
       if (!FORM_DIR_SET && ["arr", "dep"].includes(pk.dir)) tap("data-pkdir", pk.dir);
@@ -4744,7 +4809,7 @@ function tapFromForm() { const t = TAP; FROM_TAP = false; if (!t) return closeSh
   t.note = ($("f-note")?.value || "").trim(); if (!["birthday", "anniversary"].includes(t.ty)) { t.rep = $("f-rep")?.value && $("f-rep").value !== "custom" ? $("f-rep").value : t.rep; t.until = $("f-until")?.value || t.until; } if (/^\d{2}:\d{2}$/.test(tm) && fTimeOpen) { t.hour = +tm.slice(0, 2); t.min = +tm.slice(3); t.allday = false; } t.step = "fertig"; renderTap(); }
 function showForm(e, preset) {
   ADJ = null; FROM_TAP = false;
-  if (!arguments[0]) FORM_FILES = [];
+  if (!arguments[0]) { FORM_FILES = []; FORM_LEGS = []; }
   FORM_TYPE_SET = !!(e && (e.id || e.type)); FORM_DIR_SET = !!(e && e.id && e.pick?.dir); KIND_RES = null;
   editing = e && e.id ? e : null;
   const v = e || { type: "termin", title: "", from: preset || iso(TODAY), to: preset || iso(TODAY), time: "", endTime: "", repeat: "none", until: "", birthYear: "", note: "", gcal: gWritable() ? "primary" : "" };
@@ -4929,7 +4994,7 @@ function formVals0() {
     done: editing ? editing.done : [], startYear: type === "anniversary" ? +g("f-sy") || 0 : 0, everyWeeks: contact ? Math.max(1, +g("f-ew") || 8) : 8,
     thanks: ["termin", "trip"].includes(type) && $("f-thx").checked, packlist: editing ? editing.packlist : [],
     who: contact || type === "birthday" ? "" : g("f-who"), color: (() => { const w = contact || type === "birthday" ? "" : g("f-who"), c = document.querySelector('[data-fcol][aria-checked="true"]')?.dataset.fcol || ""; if (w) { const M = whoCols(); if (c) M[whoKey(w)] = c; else delete M[whoKey(w)]; store.set("ft-whoc", JSON.stringify(M)); return ""; } return c; })(),
-    place: g("f-place"), flight: type === "trip" && fMode() === "flug", mode: type === "trip" ? fMode() : "", files: editing ? editing.files || [] : [], kids: type === "trip" && $("f-kids").checked,
+    place: g("f-place"), flight: type === "trip" && fMode() === "flug", mode: type === "trip" ? fMode() : "", files: editing ? editing.files || [] : [], legs: editing ? editing.legs || [] : ["trip", "urlaub"].includes(type) ? FORM_LEGS : [], kids: type === "trip" && $("f-kids").checked,
     country: editing && (editing.place || "") === g("f-place") && editing.title === g("f-title") ? editing.country || "" : "",
     gcal: formVis !== "me" && isShareCal(formVis) ? formVis : $("f-gcal") ? (isShareCal($("f-gcal").value) && formVis === "me" && $("f-vis") ? "primary" : $("f-gcal").value) : (editing ? editing.gcal : ""), gReadOnly: editing ? !!editing.gReadOnly : false,
     fam: type === "birthday" && $("f-fam") ? $("f-fam").checked : (editing ? !!editing.fam : false),
@@ -4958,7 +5023,7 @@ async function saveForm() {
   const btn = $("f-save"); btn.disabled = true; btn.textContent = "Speichert …";
   try {
     const was = editing; const undo = await applyChanges([was ? { op: "update", id: was.id, event: v } : { op: "add", event: v }]);
-    const files = FORM_FILES; FORM_FILES = []; const added = !was && LAST_ADDED[0];
+    const files = FORM_FILES; FORM_FILES = []; FORM_LEGS = []; const added = !was && LAST_ADDED[0];
     DRAFT_SAVED = true; closeSheet(); (SHOW.hide || []).includes($("f-type")?.value || v?.type) ? toast(v?.type === "deadline" ? `${was ? "Gespeichert" : "Eingetragen"} – zu finden unter ☰ → Meine Fristen. Du wirst rechtzeitig erinnert.` : `${was ? "Gespeichert" : "Eingetragen"} – steht nicht im Kalender, du wirst rechtzeitig erinnert`, undo) : savedToast(v, was ? "gespeichert" : "eingetragen", undo);
     if (files.length && added) setTimeout(() => docUpload({ ...added.v, id: added.id, files: [], a: parseIso(added.v.from), b: parseIso(added.v.to || added.v.from) }, files), 400);
     if (v.type === "birthday" && canWrite) { const k = famKey(v.title), inFam = FAM().some(p => famKey(p.name) === k || p.key === k); const b = parseIso(v.from);
@@ -4973,7 +5038,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
   remindDays: e.remindDays === undefined || e.remindDays === "" ? (REMIND_DEF[e.type] ?? 0) : +e.remindDays, giftDone: Array.isArray(e.giftDone) ? e.giftDone : [],
   done: Array.isArray(e.done) ? e.done : [], startYear: e.startYear || 0, everyWeeks: e.everyWeeks || 8, thanks: !!e.thanks, packlist: Array.isArray(e.packlist) ? e.packlist : [],
   place: e.place || "", flight: !!e.flight, kids: !!e.kids, mode: e.mode || "", files: Array.isArray(e.files) ? e.files : [], gReadOnly: !!e.gReadOnly, gAdopt: !!e.gAdopt, gSnap: e.gSnap || "", gNote0: e.gNote0 || "", mOnly: !!e.mOnly, pick: e.pick || null, skip: e.skip || [], color: e.color || "", who: e.who || "", country: e.country || "", fam: !!e.fam,
-  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0 });
+  shareTo: Array.isArray(e.shareTo) ? e.shareTo : [], shareNo: Array.isArray(e.shareNo) ? e.shareNo : [], sid: e.sid || "", shadow: !!e.shadow, fk: e.fk || "", renew: +e.renew || 0, legs: Array.isArray(e.legs) ? e.legs : [] });
 let gWarn = 0, gGone = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
@@ -4988,6 +5053,7 @@ async function applyChanges(changes) {
     } else if (c.op === "update") {
       const prev = EV.find(x => x.id === c.id), pv = prev ? plain(prev) : null, v = plain(c.event);
       if (c.event.gcal === undefined && pv) v.gcal = pv.gcal;
+      if (!(c.event.legs || []).length && pv) v.legs = pv.legs;   // Reiseplan bleibt beim Bearbeiten im Formular erhalten
       v.gEventId = pv ? pv.gEventId : ""; if (pv?.gAdopt) { v.gAdopt = true; v.gSnap = pv.gSnap; v.gNote0 = pv.gNote0; }
       if (pv && pv.gReadOnly) { v.gcal = pv.gcal; v.gReadOnly = true; }   // aus Google übernommen: Google-Termin bleibt unverändert
       else if (pv && pv.gEventId && (v.gcal !== pv.gcal || v.repeat !== pv.repeat)) { await gDelete(pv); v.gEventId = ""; }
@@ -5042,9 +5108,10 @@ async function gCreate(v) {
     const res = await mcp.callTool(GSERVER, "create_event", inp); const id = gIdOf(res?.payload); if (!id) gWarn++; return id; }
   catch { gWarn++; return ""; }
 }
+let QCOL_OPEN = false; document.addEventListener("toggle", e => { if (e.target?.classList?.contains("qcol")) QCOL_OPEN = e.target.open; }, true);
 function qcolBox(key, cur, base, label, typeLink) {
-  return `<div class="qcol"><div class="qcol-h"><b>🎨 Farbe</b>${typeLink ? `<button type="button" class="link" id="set-farben">${esc(typeLink)}</button>` : ""}</div>
-    <div class="fcols sm" role="radiogroup" aria-label="${esc(label)}">${[["", "Standardfarbe", ""], ...ECOL].map(([cid, n, hex]) => `<button type="button" role="radio" class="fcol" data-qcol="${esc(key)}|${cid}" title="${n}" aria-label="${n}" aria-checked="${(cur || "") === cid}" style="background:${hex || base}">${hex ? "" : "A"}</button>`).join("")}</div></div>`;
+  return `<details class="qcol"${QCOL_OPEN ? " open" : ""}><summary><b>🎨 Farbe ändern</b> <i class="qcol-cur" style="background:${esc((ECOL.find(c => c[0] === cur) || [])[2] || base)}"></i></summary><div class="qcol-h">${typeLink ? `<button type="button" class="link" id="set-farben">${esc(typeLink)}</button>` : ""}</div>
+    <div class="fcols sm" role="radiogroup" aria-label="${esc(label)}">${[["", "Standardfarbe", ""], ...ECOL].map(([cid, n, hex]) => `<button type="button" role="radio" class="fcol" data-qcol="${esc(key)}|${cid}" title="${n}" aria-label="${n}" aria-checked="${(cur || "") === cid}" style="background:${hex || base}">${hex ? "" : "A"}</button>`).join("")}</div></details>`;
 }
 async function quickGColor(evid, cid) {
   const o = OCC.find(x => x.ev.id === evid), e = o?.ev; if (!e || !mcp || gState !== "ok") return; use("farbe_schnell_google");
@@ -5618,6 +5685,7 @@ Felder für neue/geänderte eigene Termine:
 - mode: Anreise bei Reisen: "zug" | "flug" | "bus" | "auto" | "rad" | "" (nur wenn eindeutig)
 - place: Ort für die Navigation. Bei einem Hotel, Restaurant oder bekannten Ort die vollständige Adresse (Name, Straße Nr., PLZ Ort), aber NUR wenn du sie sicher kennst – sonst Name und Ort wie genannt (z. B. "Inselhotel, Potsdam"). Nichts erfinden. Ohne Ortsangabe ""
 - flight: true bei Reisen mit Flug (Flugnummer, Flughafen, Airline), sonst false
+- legs: NUR bei Reisen/Urlaub, wenn Tickets oder Verbindungen mit Datum und Uhrzeit vorliegen: jede Fahrt/jeder Flug einzeln als [{"art": "zug|flug|bus|faehre", "nr": "", "von": "", "ab": "YYYY-MM-DD HH:MM", "nach": "", "an": "YYYY-MM-DD HH:MM", "info": "Wagen/Platz/Gleis kurz", "buchung": ""}] – sonst weglassen
 - kids: true, wenn Kinder${kidsNames().length ? ` (${kidsNames().join(", ")})` : ""} mitreisen, sonst false
 - bei type "deadline" zusätzlich fk, renew, remindDays, nostore: ${FK_AI}
 - calendar: siehe unten
@@ -6793,6 +6861,7 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-docsave]"))) { const [id, fid] = el.dataset.docsave.split("|"); docSave(id, fid); return; }
   if ((el = q("[data-docdel]"))) { const [id, fid] = el.dataset.docdel.split("|"); if (el.dataset.sure) docDelete(id, fid); else { el.dataset.sure = 1; el.textContent = "Wirklich löschen?"; } return; }
   if ((el = q("[data-docback]"))) { const e = EV.find(x => x.id === el.dataset.docback), o = e && findOcc(e.id, iso(e.a)); if (o) showEvent(o); else closeSheet(); return; }
+  if ((el = q("[data-tplan]"))) { const e = EV.find(x => x.id === el.dataset.tplan); if (e) planFromNote(e); return; }
   if ((el = q("[data-docai]"))) { const e = EV.find(x => x.id === el.dataset.docai); if (e) docAnalyze(e); return; }
   if ((el = q("#dai-ok"))) { docApply(); return; }
   if ((el = q("[data-pack]"))) { const e = EV.find(x => x.id === el.dataset.pack); if (e) showPack(e); return; }
