@@ -113,14 +113,16 @@ export async function runSchedule(env) {
       if (fl && billMode(env) !== "off") { if (!PM) PM = await planMap(env).catch(() => ({})); if (PM[uid] && !PM[uid].flight) continue; }
       try { const r = await (fl ? flightCheck : trainCheck)(env, w, trains[w.id] || {}, now, plan.tz); trains = { ...trains, [w.id]: r.state }; trCh = true; (r.msgs || []).forEach(m => msgs.push(m));
         S[fl ? "wf" : "wt"]++; if (r.state?.seen) S.found++; S.wmsg += (r.msgs || []).length; } catch {} }
-    // Anschlüsse: kommt der Zubringer so spät an, dass der Anschluss knapp wird oder weg ist?
+    // Anschlüsse: kommt der Zubringer so spät an, dass der Anschluss knapp wird oder weg ist? Stufen: 0 ok · 1 knapp · 2 weg · 3 Zubringer fällt aus
     if (pref.train !== false) for (const w of (plan.watch || []).filter(w => w.conn)) { const A = trains[w.conn.a], D = trains[w.id]; if (!A?.seen || !D?.seen || D.c) continue;
-      const ar = Date.parse(A.pt) + (A.d || 0) * 60e3, dp = Date.parse(D.pt) + (D.d || 0) * 60e3, gap = Math.round((dp - ar) / 60e3), min = w.conn.min || 4;
-      const hm = t => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: plan.tz || "Europe/Berlin" }), at = (A.sn || w.st).replace(/\s*\[\d+\]$/, "");
-      if (gap < min && !D.cw) { msgs.push({ title: gap < 0 ? `❌ Anschluss ${w.train} nicht zu schaffen` : `⚠️ Anschluss ${w.train} gefährdet`, body: `${w.conn.prev} kommt ca. ${hm(ar)} in ${at} an${A.pl ? ` (Gl. ${A.pl})` : ""}, ${w.train} fährt ${hm(dp)}${D.pl ? ` (Gl. ${D.pl})` : ""} – ${gap < 0 ? "bitte Alternative prüfen" : `nur ${gap} Min. zum Umsteigen`}`, tag: "conn-" + w.id, url: "/app/", urgent: true });
-        trains = { ...trains, [w.id]: { ...D, cw: 1 } }; trCh = true; }
-      else if (gap >= min + 2 && D.cw === 1) { msgs.push({ title: `✅ Anschluss ${w.train} wieder erreichbar`, body: `${w.conn.prev} ca. ${hm(ar)} an, ${w.train} ab ${hm(dp)} – ${gap} Min. zum Umsteigen`, tag: "conn-" + w.id, url: "/app/" });
-        trains = { ...trains, [w.id]: { ...D, cw: 2 } }; trCh = true; } }
+      const hm = t => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: plan.tz || "Europe/Berlin" }), at = (A.sn || w.st).replace(/\s*\[\d+\]$/, ""), was = D.lv || 0;
+      const set = (lv, m) => { if (m) msgs.push({ ...m, tag: "conn-" + w.id, url: "/app/" }); trains = { ...trains, [w.id]: { ...D, lv } }; trCh = true; };
+      if (A.c) { if (was !== 3) set(3, { title: `❌ Zubringer ${w.conn.prev} fällt aus`, body: `Anschluss ${w.train} in ${at} (${hm(Date.parse(D.pt) + (D.d || 0) * 60e3)}) – bitte neu planen`, urgent: true }); continue; }
+      const ar = Date.parse(A.pt) + (A.d || 0) * 60e3, dp = Date.parse(D.pt) + (D.d || 0) * 60e3, gap = Math.round((dp - ar) / 60e3), min = w.conn.min || 5;
+      const lv = gap < 0 ? 2 : gap < min ? 1 : 0;
+      if (lv > was && was !== 3) set(lv, { title: lv === 2 ? `❌ Anschluss ${w.train} nicht zu schaffen` : `⚠️ Anschluss ${w.train} gefährdet`, body: `${w.conn.prev} kommt ca. ${hm(ar)} in ${at} an${A.pl ? ` (Gl. ${A.pl})` : ""}, ${w.train} fährt ${hm(dp)}${D.pl ? ` (Gl. ${D.pl})` : ""} – ${lv === 2 ? "bitte Alternative prüfen" : `nur ${gap} Min. zum Umsteigen`}`, urgent: true });
+      else if (was && was !== 3 && lv === 0 && gap >= min + 2) set(0, { title: `✅ Anschluss ${w.train} wieder erreichbar`, body: `${w.conn.prev} ca. ${hm(ar)} an, ${w.train} ab ${hm(dp)} – ${gap} Min. zum Umsteigen` });
+      else if (was === 3 && !A.c) set(lv, null); }
     // gleiche Meldung (Titel + Text) nur einmal je Durchlauf
     const mk = new Set(), uniq = msgs.filter(m => { const k = `${m.title}|${m.body}`; if (mk.has(k)) return false; mk.add(k); return true; });
     // erst als gesendet merken, dann senden – so kann ein zweiter, überlappender Durchlauf nichts doppelt schicken

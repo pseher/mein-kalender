@@ -225,8 +225,8 @@ function staysClean(S) {
   const u = new Set(); return (Array.isArray(S) ? S : []).map(x => ({ name: st(x?.name, 80), adr: st(x?.adr || x?.adresse, 120), von: d(x?.von || x?.anreise), bis: d(x?.bis || x?.abreise), ci: st(x?.ci || x?.checkin, 120), co: st(x?.co || x?.checkout, 80), room: st(x?.room || x?.zimmer, 80), ref: st(x?.ref || x?.buchung, 40), info: st(x?.info, 160) }))
     .filter(x => x.name && x.von && !u.has(x.name.toLowerCase() + x.von) && u.add(x.name.toLowerCase() + x.von)).sort((a, b) => a.von.localeCompare(b.von)).slice(0, 8);
 }
-const STAY_JSON = `"unterkuenfte": [{"name": "Name der Unterkunft", "adresse": "Straße, Ort", "anreise": "YYYY-MM-DD", "abreise": "YYYY-MM-DD", "checkin": "z. B. ab 15:00, Selbst-Check-in, Code kommt am Anreisetag", "checkout": "z. B. bis 11:00", "zimmer": "", "buchung": "Buchungsnummer oder leer", "info": "kurz: Frühstück, Parken, Kontakt …"}]`;
-const FACT_JSON = `"eckdaten": [{"k": "kurze Bezeichnung: Buchung, Reisende, Plätze, Tarif, Storno, Preis, Gepäck, Kontakt …", "v": "Wert, knapp"}]`;
+const STAY_JSON = `"unterkuenfte": [{"name": "Name der Unterkunft", "adresse": "Straße, Ort", "anreise": "YYYY-MM-DD", "abreise": "YYYY-MM-DD", "checkin": "z. B. ab 15:00, Selbst-Check-in (KEINE Zugangscodes/PINs übernehmen)", "checkout": "z. B. bis 11:00", "zimmer": "", "buchung": "Buchungsnummer oder leer", "info": "kurz: Frühstück, Parken, Kontakt …"}]`;
+const FACT_JSON = `"eckdaten": [{"k": "kurze Bezeichnung: Buchung, Reisende, Plätze, Tarif, Storno, Preis, Gepäck …", "v": "Wert, knapp"}]`;
 const LEG_JSON = `"verbindungen": [{"art": "zug|flug|bus|faehre", "nr": "Zug-/Flugnummer mit Gattung, z. B. „ICE 503“, „ES 474“, „Eurostar 9125“, „LH 2043“", "von": "Abfahrtsbahnhof/-flughafen", "ab": "YYYY-MM-DD HH:MM", "nach": "Ziel", "an": "YYYY-MM-DD HH:MM oder leer", "info": "kurz: Wagen, Platz, Gleis, Gate, Check-in bis …", "buchung": "Buchungsnummer oder leer"}]`;
 // zwei Aufgaben meinen dasselbe? (z. B. „Website … auf Störungen prüfen“ und „Auf … nach Störungen schauen“)
 const tkWords = t => new Set(String(t).toLowerCase().replace(/„[^“]*“|"[^"]*"/g, " ").split(/[^\p{L}\d]+/u).filter(w => w.length >= 4).map(w => w.slice(0, 6)));
@@ -285,10 +285,12 @@ function expand() {
 }
 // ---- Reise bündeln: Hotels, Flüge, Unterkünfte innerhalb einer Reise gehören zur Reise ----
 // Unterkünfte auch in zusammengesetzten Wörtern: „Landhotel“, „Strandhotel“, „Ferienpension“
-const PART_RE = /🏨|✈|🚆|\b(stay at|aufenthalt|flug|flight|zug|bahn|ice|apartment|wohnung|airbnb|booking|check-?in|mietwagen|rental car|fähre|ferry)\b|hotel|ferienwohnung|ferienhaus|unterkunft|pension\b|hostel|resort|lodge|gasthof|gästehaus|herberge/i;
+const PART_RE = /🏨|✈|🚆|\b(stay at|aufenthalt|flug|flight|zug|bahn|ice|apartment|wohnung|airbnb|booking|check-?in|mietwagen|rental car|fähre|ferry)\b|hotel|ferienwohnung|ferienhaus|fewo|unterkunft|pension\b|hostel|resort|lodge|gasthof|gästehaus|herberge/i;
 // gleiche Tage und ein gemeinsames Wort im Titel/Ort (z. B. „Landhotel Burg“) – gehört zur selben Reise
 const tripWords = e => new Set(`${e.title || ""} ${e.place || ""}`.toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w => w.length >= 5 && !/^(urlaub|reise|ferien|auszeit|zimmer|termin)$/.test(w)));
 const sameTrip = (o, t) => sameDay(o.a, t.a) && sameDay(o.b, t.b) && [...tripWords(o.ev)].some(w => tripWords(t.ev).has(w));
+const TRANS_RE = /✈|🚆|\b(flug|flight|zug|bahn|ice|ic|rj|ec|fähre|ferry|mietwagen|rental car)\b/i;
+const STAY_RE = /🏨|hotel|wohnung|ferienhaus|unterkunft|pension\b|hostel|resort|lodge|gasthof|gästehaus|herberge|airbnb|apartment|stay at|fewo/i;
 const GENERIC_TRIP = /^\s*(urlaub|reise|ferien|auszeit|trip)\b/i;
 // Wer wird bei gleich langen Einträgen der Reise-Kopf? Eigene Reise > allgemeiner Titel („Urlaub“) > Google-Reise; bei Gleichstand fest nach id
 const headRank = o => (o.ev.type === "trip" ? 4 : 0) + (GENERIC_TRIP.test(o.ev.title) ? 2 : 0) + (isTrip(o) ? 1 : 0);
@@ -298,13 +300,17 @@ function groupTrips() {
   const trips = OCC.filter(o => isTrip(o) && dayDiff(o.a, o.b) >= 1);
   if (!trips.length) return;
   OCC.forEach(o => {
-    const e = o.ev; if (["birthday", "anniversary", "contact", "mina", "info"].includes(e.type) || e.type === "season") return;
+    const e = o.ev; if (["birthday", "anniversary", "contact", "mina", "info", "abholen", "dienst", "deadline"].includes(e.type) || e.type === "season") return;   // Abholen/Bringen, Dienste & Fristen nie in eine Reise packen
     if (!PART_RE.test(`${e.title} ${shortName(e)}`) && !isTrip(o) && !trips.some(t => t !== o && t.ev !== e && sameTrip(o, t))) return;
+    const isMove = TRANS_RE.test(`${e.title} ${shortName(e)}`) && !STAY_RE.test(`${e.title} ${shortName(e)}`);
     const ol = dayDiff(o.a, o.b); let best = null;
     trips.forEach(t => {
       if (t === o || t.ev === e || o.a < addDays(t.a, -1) || o.b > addDays(t.b, 1)) return;
+      // Flug/Zug gehört nur dazu, wenn er am An- oder Abreisetag liegt oder ein Wort (Ort, Ziel) mit der Reise teilt – sonst ist es eine andere Reise
+      if (isMove && !(Math.abs(dayDiff(o.a, t.a)) <= 1 || Math.abs(dayDiff(o.b, t.b)) <= 1 || [...tripWords(e)].some(w => tripWords(t.ev).has(w) || String(t.ev.note || "").toLowerCase().includes(w)))) return;
       const tl = dayDiff(t.a, t.b); if (tl < ol) return;
-      if (tl === ol && headRank(t) <= headRank(o)) return;   // gleich lang: nur der „stärkere“ Eintrag wird Reise-Kopf (sonst gegenseitig versteckt)
+      const oS = STAY_RE.test(`${e.title} ${shortName(e)}`), tS = STAY_RE.test(`${t.ev.title} ${shortName(t.ev)}`);
+      if (tl === ol && !(oS && !tS) && headRank(t) <= headRank(o)) return;   // gleich lang: Unterkunft gehört zur Reise, sonst entscheidet der Rang   // gleich lang: nur der „stärkere“ Eintrag wird Reise-Kopf (sonst gegenseitig versteckt)
       if (!best || tl > dayDiff(best.a, best.b)) best = t; });
     o.part = best;
   });
@@ -1296,7 +1302,7 @@ function showShareEv(e, dateIso) {
   openSheet(`„${shortName0(e)}“ teilen`, SHR.contacts.length ? "Mit wem? Ändert einer etwas, sieht es der andere." : "", SHR.contacts.length ? `<div class="setv">
     ${shrChips("data-shto", effTo(e))}
     ${e.repeat !== "none" ? `<div class="vis" style="margin-top:12px"><button type="button" data-shscope="all" aria-checked="true">Ganze Serie</button><button type="button" data-shscope="one" aria-checked="false">Nur am ${fmt(parseIso(dateIso))}</button></div>` : ""}
-    <div class="btnrow"><button type="button" class="btn accent" id="shto-save">Speichern</button><button type="button" class="btn ghost" id="shto-x">Abbrechen</button></div></div>`
+    <p class="note" style="margin:8px 0 0">Geteilt werden Titel, Zeit, Ort und Notiz – Reiseplan, Buchungsnummern und Dokumente bleiben bei dir.</p><div class="btnrow"><button type="button" class="btn accent" id="shto-save">Speichern</button><button type="button" class="btn ghost" id="shto-x">Abbrechen</button></div></div>`
     : `<p class="sg-n">Lade erst jemanden ein (☰ → „Teilen mit …“). Sobald die Person angenommen hat, kannst du hier teilen.</p><div class="btnrow"><button type="button" class="btn accent" id="mi-share">Personen einladen</button></div>`, "shareev");
   shrFor.scope = "all";
 }
@@ -2298,7 +2304,7 @@ const TRAIN_RULE = `ZÜGE (wichtig, damit die App den Zug live beobachten kann):
 - Eigene Zugfahrt ohne Übernachtung: type "termin", title "<Zug> <Von> → <Nach>", time = Abfahrt, endTime = Ankunft, place = Abfahrtsbahnhof. Mit Übernachtung: Reise wie unten, note beginnt mit "<Zug> ab <Abfahrtsbahnhof> <Zeit>".
 - Mehrere Teilstrecken mit Umstieg: der ERSTE Zug in den Titel, alle Teilstrecken kurz in note.
 FLÜGE: note immer im Format "<Airline> <Flugnummer falls sichtbar>: <IATA> HH:MM → <IATA> HH:MM" je Teilstrecke, getrennt mit "; " (z. B. "Lufthansa LH 2043: BER 18:55 → MUC 20:05; LH 2420: MUC 21:40 → ARN 23:55"). time = Abflugzeit der ersten Teilstrecke, flight = true, mode = "flug". Keine Flugnummer erfinden.`;
-const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45 · Buchung ABC123"). Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.
+const ATTACH_HINT = `Angehängt sind Tickets, Buchungsbestätigungen oder Links. Lies sie genau und lege daraus den passenden Eintrag an – meist eine Reise (type "trip"): title = Ziel bzw. Hotel/Unterkunft (kurz, z. B. "Hotel VAYA Achensee" oder "München"), from/to = An- und Abreisetag, time = Abfahrts-/Abflugzeit bzw. Check-in, endTime leer, place = vollständige Adresse der Unterkunft/des Ziels NUR wenn sie im Dokument steht, mode = "zug" | "flug" | "bus" | "auto" | "rad" | "" nur wenn eindeutig, flight = true bei Flug, note = das Wichtigste kurz (z. B. "ICE 503 · Wagen 12, Platz 45") – Buchungsnummern, Ticketnummern, Codes, PINs und Preise NICHT in note, sondern nur in legs bzw. unterkünften (buchung); Zugangscodes und PINs gar nicht übernehmen. Konzert-/Theater-/Veranstaltungstickets: type "termin" mit Datum, Einlass/Beginn als time, Ort als place. Hin- und Rückfahrt gehören zu EINER Reise. Nichts erfinden.
 ${TRAIN_RULE}`;
 async function docAnalyze(e, extra) {
   const fs = e.files || []; if ((!fs.length && !extra?.link && !extra?.mail) || !sample) return;
@@ -2324,7 +2330,7 @@ async function docAnalyze(e, extra) {
 Eintrag: "${e.title}" (${TYPES[e.type].label}), ${rngTxt(e.a, e.b, true)}${timeTxt(e) ? ", " + timeTxt(e) + " Uhr" : ""}. ${placeOf(e) ? "Ort: " + placeOf(e) + "." : ""} Heute ist ${fmtY(TODAY)}.
 ${texts.join("\n\n").slice(0, 14000)}
 Lies die Dokumente genau. Antworte NUR mit JSON:
-{"zusammenfassung": "1–2 kurze Sätze, was das ist, mit den wichtigsten Daten (z. B. „Bahnticket Berlin Hbf → München Hbf, ICE 503, Wagen 12, Platz 45, Buchung ABC123“)",
+{"zusammenfassung": "1–2 kurze Sätze, was das ist, mit den wichtigsten Daten (z. B. „Bahnticket Berlin Hbf → München Hbf, ICE 503, Wagen 12, Platz 45“) – OHNE Buchungsnummern, Ticketnummern, Codes, PINs oder Preise (die gehören nur in verbindungen/unterkuenfte)",
 "zeiten": "wichtige Zeiten, z. B. „Abfahrt 08:12 Berlin Hbf · Check-in ab 15 Uhr“, sonst leer",
 "anreise": "auto, zug, bus, rad, flug oder leer – nur wenn eindeutig",
 "ort": "vollständige Adresse von Unterkunft/Veranstaltungsort, nur wenn sie genau so im Dokument steht, sonst leer",
@@ -2943,12 +2949,13 @@ function connDetail(e, date, base, main) {
   const line = (tr, kind, st, plan, S, plFallback, estD) => { const p = S?.seen ? new Date(S.pt) : plan, d = S?.seen ? (S.d || 0) : (estD || 0), real = new Date(p.getTime() + d * 60e3), pl = S?.pl || plFallback;
     const stt = S?.c ? "❌ fällt aus" : !S?.seen ? (estD ? `🟡 voraussichtlich +${estD} Min. (ca. ${hm(real)})` : "⏳ noch keine Live-Daten") : d >= 5 ? `🔴 +${d} Min. (ca. ${hm(real)})` : d >= 2 ? `🟡 +${d} Min.` : "✅ pünktlich";
     return `<div class="trl">🚆 <b>${esc(tr)}</b> ${kind} ${esc(st)} ${hm(p)} – <b>${stt}</b>${pl ? ` · Gl. <b>${esc(pl)}</b>${S?.pp && S.pp !== pl ? ` (statt ${esc(S.pp)})` : ""}` : ""}</div>`; };
-  return C.map((c, k) => { const A = TRST[`${base}-c${k}a`], D = TRST[`${base}-c${k}d`], pa = atOf(c.date, c.arr), pd = atOf(c.date, c.dep, pa); if (!pa || !pd) return "";
+  return C.map((c, k) => { const A = TRST[`${base}-c${k}a`], D = TRST[`${base}-c${k}d`], [pa, pd] = connTimes(e, c, k, C); if (!pa || !pd) return ""; const MIN = c.min || 5;
     const estD = !A?.seen && main?.seen ? (main.d || 0) : 0;
     const ar = A?.seen ? new Date(Date.parse(A.pt) + (A.d || 0) * 60e3) : new Date(pa.getTime() + estD * 60e3);
     const dp = D?.seen ? new Date(Date.parse(D.pt) + (D.d || 0) * 60e3) : pd, gap = Math.round((dp - ar) / 60e3), st = (A?.sn || D?.sn || c.st).replace(/\s*\[\d+\]$/, "");
-    const head = D?.c ? `❌ Anschluss ${esc(c.train)} fällt aus` : estD && gap < 4 ? `⚠️ Umstieg gefährdet${gap < 0 ? "" : ` – nur ${gap} Min.`}, wenn ${esc(c.prev)} die Verspätung behält` : gap < 0 ? `❌ Umstieg nicht zu schaffen` : gap < 4 ? `⚠️ Umstieg knapp – nur ${gap} Min.` : `✅ Umstieg in ${esc(st)} klappt · ${gap} Min.`;
-    return `<div class="trd trc"><b>${head}</b>${line(c.prev, "an", st, pa, A, "", estD)}${line(c.train, "ab", st, pd, D, c.pl, 0)}${!D?.seen && pd > new Date() && Date.now() < pd - 150 * 60e3 ? `<span class="note">live ab ${hm(new Date(pd - 150 * 60e3))} Uhr</span>` : ""}</div>`; }).join("");
+    if (!A?.seen && !D?.seen && pd - Date.now() > 20 * 3600e3) return `<div class="trd trc"><b>🔁 Umstieg in ${esc(st)}: ${gap} Min. Zeit</b><br><span class="note">${esc(c.prev)} an ${c.arr} → ${esc(c.train)} ab ${c.dep}${c.pl ? ` · Gl. ${esc(c.pl)}` : ""} · live ab dem Reisetag</span></div>`;
+    const head = D?.c ? `❌ Anschluss ${esc(c.train)} fällt aus` : estD && gap < MIN ? `⚠️ Umstieg gefährdet${gap < 0 ? "" : ` – nur ${gap} Min.`}, wenn ${esc(c.prev)} die Verspätung behält` : gap < 0 ? `❌ Umstieg nicht zu schaffen` : gap < MIN ? `⚠️ Umstieg knapp – nur ${gap} Min.` : `✅ Umstieg in ${esc(st)} klappt · ${gap} Min.`;
+    return `<div class="trd trc"><b>${head}</b>${line(c.prev, "an", st, pa, A, "", estD)}${line(c.train, "ab", st, pd, D, c.pl, 0)}${!D?.seen && pd > new Date() && Date.now() < pd - 150 * 60e3 ? `<span class="note">live ab ${sameDay(pd, TODAY) ? "" : fmt(pd) + " "}${hm(new Date(pd - 150 * 60e3))} Uhr</span>` : ""}</div>`; }).join("");
 }
 function trainDetail0(o) {
   const lg = legsDetail(o); if (lg) return lg;
@@ -2985,6 +2992,7 @@ function flightRoute(e) {
 }
 // Teilstrecken aus der Notiz (Hin-/Rückfahrt, Umstiege): „Rückfahrt So 29.11., 13:59 Uhr ab Rostock Hbf (IC 2239)“ oder „LH 2420: MUC 21:40 → ARN 23:55“
 function tripLegs(e) {
+  if ((e.legs || []).length) return e.legs.filter(l => ["zug", "flug"].includes(l.m) && l.no).map(l => ({ train: l.no, st: l.von, date: l.ab.slice(0, 10), time: l.ab.slice(11, 16), prefer: "dep", ...(l.m === "flug" ? { mode: "flug" } : {}) })).slice(0, 6);
   const legs = [], y0 = (e.from || iso(TODAY)).slice(0, 4); let last = null;
   for (const seg of String(e.note || "").split(/\s·\s|;|\n/)) {
     const tm = seg.match(/(?<![\d.])(\d{1,2})[:.](\d{2})(?![.\d])\s*(?:uhr)?/i); if (!tm) continue;
@@ -3006,21 +3014,25 @@ const legKey = (e, l, i) => `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-${
 const hm5 = t => String(t).replace(".", ":").padStart(5, "0");
 const stNorm = t => String(t || "").toLowerCase().replace(/hauptbahnhof/g, "hbf").replace(/[^a-zäöüß]/g, "");
 function connOf(e, date) {
-  const out = [], main = trainOf(e);
-  if (main) for (const m of String(e.note || "").matchAll(/\ban\s+([\p{L}.\- ]+?)\s+(\d{1,2}[:.]\d{2})[^·;\n]*?umstieg\s+(?:um\s+)?(\d{1,2}[:.]\d{2})(?:\s*\(?\s*gl(?:eis)?\.?\s*(\w+)\)?)?\s*(?:in\s+(?:den\s+|die\s+)?)?(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB|S)\s?(\d{1,5})/giu))
-    out.push({ st: m[1].trim(), date, arr: hm5(m[2]), dep: hm5(m[3]), pl: m[4] || "", prev: main, train: `${m[5].toUpperCase()} ${m[6]}` });
-  const L = (e.legs || []).filter(l => l.m === "zug");
-  for (let i = 0; i + 1 < L.length; i++) { const a = L[i], b = L[i + 1]; if (!a.an || !a.no || !b.no || a.an.slice(0, 10) !== b.ab.slice(0, 10) || stNorm(a.nach) !== stNorm(b.von)) continue;
-    if ((Date.parse(b.ab) - Date.parse(a.an)) / 60e3 > 180) continue;
-    out.push({ st: b.von, date: b.ab.slice(0, 10), arr: a.an.slice(11), dep: b.ab.slice(11), pl: "", prev: a.no, train: b.no }); }
+  const out = [], main = trainOf(e), seen = new Set(), add = c => { const k = `${c.train}|${stNorm(c.st)}`.replace(/\s/g, ""); if (seen.has(k)) return; seen.add(k); out.push(c); };
+  const L = (e.legs || []).filter(l => ["zug", "flug"].includes(l.m) && l.no);
+  for (let i = 0; i + 1 < L.length; i++) { const a = L[i], b = L[i + 1]; if (!a.an || b.m !== "zug" || stNorm(a.nach).slice(0, 6) !== stNorm(b.von).slice(0, 6) && !(a.m === "flug" && /flughafen|airport|fernbahnhof/i.test(b.von))) continue;
+    const gap = (Date.parse(b.ab) - Date.parse(a.an)) / 60e3; if (gap < -5 || gap > 180) continue;   // auch über Mitternacht (volles Datum)
+    add({ st: b.von, date: a.an.slice(0, 10), ddate: b.ab.slice(0, 10), arr: a.an.slice(11, 16), dep: b.ab.slice(11, 16), pl: "", prev: a.no, prevFlight: a.m === "flug", train: b.no, min: a.m === "flug" ? 45 : 5 }); }
+  if (main && !L.length) { let prev = main;   // Notiz: jeder Umstieg nimmt den vorherigen Zug als Zubringer
+    for (const m of String(e.note || "").matchAll(/\ban\s+([\p{L}.\- ]+?)\s+(\d{1,2}[:.]\d{2})[^·;\n]*?umstieg\s+(?:um\s+)?(\d{1,2}[:.]\d{2})(?:\s*\(?\s*gl(?:eis)?\.?\s*(\w+)\)?)?\s*(?:in\s+(?:den\s+|die\s+)?)?(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB|S)\s?(\d{1,5})/giu)) {
+      const tr = `${m[5].toUpperCase()} ${m[6]}`; add({ st: m[1].trim(), date, arr: hm5(m[2]), dep: hm5(m[3]), pl: m[4] || "", prev, train: tr, min: 5 }); prev = tr; } }
   return out.slice(0, 3);
 }
 const atOf = (date, t, after) => { const d = parseIso(date); if (!d) return null; const [h, m] = t.split(":").map(Number); d.setHours(h, m, 0, 0); if (after && d < after) d.setDate(d.getDate() + 1); return d; };
+const connTimes = (e, c, k, C) => { let after = e.time ? atOf(c.date, e.time) : null; for (let i = 0; i < k; i++) { const p = C[i]; after = atOf(p.ddate || p.date, p.dep, atOf(p.date, p.arr, after)); }
+  const a = atOf(c.date, c.arr, c.ddate ? null : after), d = atOf(c.ddate || c.date, c.dep, a); return [a, d]; };
 function connWatch(e, date, base, W) {
-  connOf(e, date).forEach((c, k) => { const a = atOf(c.date, c.arr), d = atOf(c.date, c.dep, a); if (!a || !d || d.getTime() < Date.now() - 30 * 60e3 || d > addDays(TODAY, 3)) return;
+  const C = connOf(e, date); C.forEach((c, k) => { const [a, d] = connTimes(e, c, k, C); if (!a || !d || d.getTime() < Date.now() - 30 * 60e3 || d > addDays(TODAY, 3)) return;
     const idA = `${base}-c${k}a`, idD = `${base}-c${k}d`;
-    W.push({ id: idA, train: c.prev, st: c.st, at: a.toISOString(), title: evName(e), prefer: "arr" });
-    W.push({ id: idD, train: c.train, st: c.st, at: d.toISOString(), title: evName(e), prefer: "dep", conn: { a: idA, prev: c.prev, min: 4 } }); });
+    if (c.prevFlight && !flightAllowed()) return;
+    W.push({ id: idA, train: c.prev, st: c.prevFlight ? (e.legs || []).find(l => l.no === c.prev)?.nach || c.st : c.st, at: a.toISOString(), prefer: "arr", ...(c.prevFlight ? { mode: "flug" } : {}) });
+    W.push({ id: idD, train: c.train, st: c.st, at: d.toISOString(), prefer: "dep", conn: { a: idA, prev: c.prev, min: c.min || 5 } }); });
 }
 function trainWatch() {
   const W = [], seen = new Set();
@@ -3029,25 +3041,28 @@ function trainWatch() {
     L.forEach((l, i) => { const d = parseIso(l.date); if (d < lo || d > hi) return; const [h, m] = l.time.split(":").map(Number), at = new Date(d); at.setHours(h, m, 0, 0);
       if (at.getTime() < Date.now() - 30 * 60e3) return; const id = legKey(e, l, i); seen.add("ev:" + e.id);
       if (l.mode === "flug" && !flightAllowed()) return;
-      W.push({ id, train: l.train, st: l.st, at: at.toISOString(), title: evName(e), prefer: l.prefer, ...(l.mode ? { mode: "flug" } : {}) }); });
+      W.push({ id, train: l.train, st: l.st, at: at.toISOString(), title: evName(e).slice(0, 30), prefer: l.prefer, ...(l.mode ? { mode: "flug" } : {}) }); });
     if (L.length) seen.add("ev:" + e.id); }
-  OCC.filter(o => !o.part && !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
+  OCC.filter(o => !seen.has("ev:" + o.ev.id) && o.ev.time && o.a >= addDays(TODAY, -1) && o.a <= addDays(TODAY, 3)).forEach(o => {
     const rt = !flightOf(o.ev) && (o.ev.flight || o.ev.mode === "flug" || o.ev.pick?.mode === "flug" || FLIGHT_RE.test([o.ev.title, o.ev.note].join(" "))) ? flightRoute(o.ev) : null;
-    const fl = flightOf(o.ev) || (rt ? `${rt.al ? rt.al + " " : ""}${rt.dep}→${rt.arr}` : ""), train = fl || trainOf(o.ev); if (!train) return; const st = fl ? (rt ? rt.dep : (o.ev.place || "").split(",")[0].trim()) : stationOf(o.ev); if (!st && !fl) return;
+    const CC = !flightOf(o.ev) && o.ev.pick?.dir === "arr" ? connOf(o.ev, iso(o.a)) : [];
+    const fl = flightOf(o.ev) || (rt ? `${rt.al ? rt.al + " " : ""}${rt.dep}→${rt.arr}` : ""), train = fl || (CC.length ? CC[CC.length - 1].train : trainOf(o.ev)); /* Abholen mit Umstiegen: der letzte Zug kommt am Abholbahnhof an */ if (!train) return; const st = fl ? (rt ? rt.dep : (o.ev.place || "").split(",")[0].trim()) : stationOf(o.ev); if (!st && !fl) return;
     const [h, m] = o.ev.time.split(":").map(Number), at = new Date(o.a); at.setHours(h || 0, m || 0, 0, 0);
     const id = `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-${iso(o.a)}`; if (seen.has(id)) return; seen.add(id);
     if (at.getTime() < Date.now() - 30 * 60e3) return;   // abgefahrene Züge nicht mehr beobachten
     const tx = [o.ev.title, o.ev.note].join(" "), prefer = /abhol|ankunft|ankommen|kommt an|empfang/i.test(tx) ? "arr" : /abfahrt|losfahren|fahre |hinfahrt|abreise|zug nach/i.test(tx) ? "dep" : "";
     if (fl && !flightAllowed()) return;
-    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}), ...(rt ? { route: rt } : {}) });
+    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev).slice(0, 30), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}), ...(rt ? { route: rt } : {}) });
     if (!fl) connWatch(o.ev, iso(o.a), id, W); });
   // Reisen mit Reiseplan: Umstiege zwischen aufeinanderfolgenden Zügen
   for (const e of EV) if ((e.legs || []).length > 1) connWatch(e, e.from, `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-p`, W);
-  return W.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 10);
+  const ck = w => `${w.train}|${w.at}|${w.prefer}`, hasConn = new Set(W.filter(w => w.conn).map(ck));
+  return W.filter(w => w.conn || !hasConn.has(ck(w))).sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 10);   // gleiche Fahrt nicht doppelt beobachten
 }
 // Teilstrecken im Termin anzeigen
 function legsDetail(o) {
-  const e = o.ev, L = tripLegs(e); if (L.length < (e.type === "trip" || e.type === "urlaub" ? 1 : 2)) return "";
+  const e = o.ev; if ((e.legs || []).length) return "";   // Status steht direkt im Reiseplan
+  const L = tripLegs(e); if (L.length < (e.type === "trip" || e.type === "urlaub" ? 1 : 2)) return "";
   const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   return `<div class="trd">${L.map((l, i) => { const s = TRST[legKey(e, l, i)], d = parseIso(l.date), at = new Date(d), F = l.mode === "flug"; const [h, m] = l.time.split(":").map(Number); at.setHours(h, m, 0, 0);
     const ic = F ? "✈️" : "🚆", when = `${fmt(d)} ${l.time}`, kind = l.prefer === "arr" ? "an" : "ab";
@@ -3119,7 +3134,11 @@ document.addEventListener("focusin", ev => {
   setTimeout(() => { fitSheet(); t.scrollIntoView({ block: "center", behavior: "smooth" }); }, 350);
 });
 let POP_CLOSING = false, DRAFT_SAVED = false;
+// Google-Termin erst beim Speichern übernehmen: wird das Formular ohne Speichern geschlossen, die vorläufige Kopie wieder entfernen
+let PEND_ADOPT = null;
+function dropPendAdopt() { const id = PEND_ADOPT; PEND_ADOPT = null; if (!id) return; EV = EV.filter(x => x.id !== id); try { COLL("events").doc(id).delete(); } catch {} expand(); setTimeout(renderAll, 0); }
 function closeSheet() { try { if (MIC) micStop(); } catch {}
+  if (PEND_ADOPT && !DRAFT_SAVED) dropPendAdopt(); else if (DRAFT_SAVED) PEND_ADOPT = null;
   if (!DRAFT_SAVED && !sheet.hidden && sheetMode === "tap" && TAP?.ty && (TAP.title || TAP.date || TAP.fk !== undefined) && tapDirty()) { const keep = TAP; setTimeout(() => toast("Eingabe verworfen", () => { TAP = keep; renderTap(); }, "Wiederherstellen"), 0); }
   if (!DRAFT_SAVED && !sheet.hidden && (formDirty() || asstDirty())) { const isF = sheetMode === "form", ed = isF ? editing : null, dv = isF ? { ...formVals(), place: ($("f-place")?.value || "").trim() } : null, at = { txt: $("a-in")?.value || "", html: $("a-out")?.innerHTML || "", day: ASST_DAY, to: ASST_TO };
     setTimeout(() => toast(isF ? (ed ? "Änderungen nicht gespeichert" : "Eingabe verworfen") : "Text verworfen", () => { if (isF) { showForm(ed ? { ...ed, ...dv, id: ed.id, gcal: ed.gcal, gEventId: ed.gEventId, files: ed.files } : { ...dv, id: undefined }); fTimeOpen = !!dv.time; syncFormFields(); qMark(); } else { ASST_DAY = at.day; ASST_TO = at.to; showAssistant(true); $("a-in").value = at.txt; $("a-out").innerHTML = at.html; } }, "Wiederherstellen"), 0); }
@@ -3172,20 +3191,23 @@ const legWhen = l => { const a = parseIso(l.ab.slice(0, 10)); return `${fmt(a)},
 // Übersicht einer Reise: Fahrten/Flüge und Unterkünfte nach Tagen, statt alles in der Notiz
 function tripPlan(o) {
   const e = o.ev, rows = [];
-  (e.legs || []).forEach(l => { const d = l.ab.slice(0, 10), an = l.an ? (l.an.slice(0, 10) !== d ? `an ${fmt(parseIso(l.an.slice(0, 10)))} ${l.an.slice(11)}` : `an ${l.an.slice(11)}`) : "";
-    rows.push({ d, t: l.ab.slice(11), i: LEG_ICON[l.m], b: legTitle(l), s: [an, l.info, l.ref ? "Buchung " + l.ref : ""].filter(Boolean).join(" · ") }); });
+  const TL = tripLegs(e);
+  (e.legs || []).forEach(l => { const ti = TL.findIndex(x => x.train === l.no && x.date === l.ab.slice(0, 10) && x.time === l.ab.slice(11, 16)), S = (ti >= 0 ? TRST[legKey(e, TL[ti], ti)] : null) || (() => { const k = connOf(e, e.from).findIndex(c => c.train === l.no); return k >= 0 ? TRST[`${String(e.id).replace(/[^\w]/g, "").slice(-24)}-p-c${k}d`] : null; })();
+    const live = S?.seen ? (S.c ? "❌ fällt aus" : S.d >= 5 ? `🔴 +${S.d} Min.` : S.d >= 2 ? `🟡 +${S.d} Min.` : "✅ pünktlich") + (S.pl ? ` · Gl. ${S.pl}` : "") : "";
+    const d = l.ab.slice(0, 10), an = l.an ? (l.an.slice(0, 10) !== d ? `an ${fmt(parseIso(l.an.slice(0, 10)))} ${l.an.slice(11)}` : `an ${l.an.slice(11)}`) : "";
+    rows.push({ d, t: l.ab.slice(11), i: LEG_ICON[l.m], b: legTitle(l), live, s: [an, l.info, l.ref ? "Buchung " + l.ref : ""].filter(Boolean).join(" · ") }); });
   const U = e.stays || [], same = (a, b) => { const A = tkWords(a), B = tkWords(b); let n = 0; A.forEach(w => { if (B.has(w)) n++; }); return n >= 1 && n / Math.min(A.size || 1, B.size || 1) >= 0.5; };
   const parts = tripParts(o), used = new Set();
   U.forEach(u => { const pt = parts.find(x => !used.has(x) && same(shortName(x.ev), u.name)); if (pt) used.add(pt);
     const ciT = (u.ci.match(/\b(\d{1,2}:\d{2})\b/) || [])[1] || "";
     rows.push({ d: u.von, t: ciT, i: "🏨", b: u.name, s: [u.bis ? `bis ${fmt(parseIso(u.bis))}` : "", u.adr, u.room, u.ci ? `Check-in: ${u.ci}` : "", u.ref ? `Buchung ${u.ref}` : "", u.info].filter(Boolean).join(" · "), occ: pt ? `${pt.ev.id}|${iso(pt.a)}` : "" });
     if (u.bis && u.bis !== u.von) rows.push({ d: u.bis, t: (u.co.match(/\b(\d{1,2}:\d{2})\b/) || [])[1] || "", i: "🔑", b: `Check-out ${u.name}`, s: u.co }); });
-  parts.filter(x => !used.has(x)).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: "🏨", b: shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, ""), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
+  parts.filter(x => !used.has(x)).forEach(x => rows.push({ d: iso(x.a), t: x.ev.time || "", i: STAY_RE.test(`${x.ev.title} ${shortName(x.ev)}`) ? "🏨" : /✈|\bflug|flight/i.test(x.ev.title) ? "✈️" : TRANS_RE.test(x.ev.title) ? "🚆" : "📌", b: shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, ""), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean).join(" · "), occ: `${x.ev.id}|${iso(x.a)}` }));
   if (!rows.length) return "";
   rows.sort((a, b) => (a.d + (a.i === "🔑" ? "00" : a.t || "99")).localeCompare(b.d + (b.i === "🔑" ? "00" : b.t || "99")));
   let h = "", last = "";
   rows.forEach(r => { if (r.d !== last) { h += `<div class="tp-d">${esc(fmt(parseIso(r.d)))}</div>`; last = r.d; }
-    const inner = `<span class="tp-t">${esc(r.t)}</span><span class="tp-i">${r.i}</span><span class="tp-x"><b>${esc(r.b)}</b>${r.s ? `<small>${esc(r.s)}</small>` : ""}</span>`;
+    const inner = `<span class="tp-t">${esc(r.t)}</span><span class="tp-i">${r.i}</span><span class="tp-x"><b>${esc(r.b)}</b>${r.live ? `<em class="tp-live">${esc(r.live)}</em>` : ""}${r.s ? `<small>${esc(r.s)}</small>` : ""}</span>`;
     h += r.occ ? `<button type="button" class="tp-r" data-occ="${esc(r.occ)}">${inner}</button>` : `<div class="tp-r">${inner}</div>`; });
   return `<div class="tplan"><div class="tp-h">Reiseplan</div>${h}</div>`;
 }
@@ -3202,8 +3224,11 @@ unterkuenfte: jedes Hotel/jede Wohnung genau einmal mit An- und Abreisedatum und
 eckdaten: nur, was weder zu einer Verbindung noch zu einer Unterkunft gehört, z. B. Reisende, Tarif/Storno, Gesamtpreis, Gepäck – höchstens 6, je Bezeichnung einmal. Nichts erfinden.`, { modelTier: "default" });
     const L = legsClean(r?.verbindungen), F = factsClean(r?.eckdaten), U = staysClean(r?.unterkuenfte);
     if (!L.length && !F.length && !U.length) { toast("In der Notiz habe ich nichts Ordnbares gefunden"); if (b) b.remove(); return; }
-    await COLL("events").doc(e.id).update({ legs: L, facts: F, stays: U }); e.legs = L; e.facts = F; e.stays = U;
-    toast(`Übersicht erstellt: ${L.length} Verbindung${L.length === 1 ? "" : "en"}, ${U.length} Unterkunft${U.length === 1 ? "" : "e"}, ${F.length} Eckdaten`);
+    const old = { legs: e.legs || [], facts: e.facts || [], stays: e.stays || [] };
+    const nw = { legs: L.length ? L : old.legs, stays: U.length ? staysClean([...U, ...old.stays.filter(x => !U.some(u => u.von === x.von))]) : old.stays, facts: F.length ? F : old.facts };   // nichts geht verloren: was die KI nicht (neu) liefert, bleibt
+    await COLL("events").doc(e.id).update(nw); Object.assign(e, nw);
+    const n = (k, one, many) => `${nw[k].length} ${nw[k].length === 1 ? one : many}`;
+    toast(`Übersicht: ${n("legs", "Verbindung", "Verbindungen")}, ${n("stays", "Unterkunft", "Unterkünfte")}, ${n("facts", "Angabe", "Angaben")}`, async () => { await COLL("events").doc(e.id).update(old); Object.assign(e, old); const o2 = findOcc(e.id, iso(e.a)); if (o2) showEvent(o2); toast("Vorherige Übersicht wiederhergestellt"); });
     const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
   } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
 }
@@ -3614,6 +3639,7 @@ const plain = e => ({ type: e.type, title: e.title, from: e.from, to: e.to, time
 let gWarn = 0, gGone = 0;
 let LAST_ADDED = [];
 async function applyChanges(changes) {
+  if (PEND_ADOPT && changes.some(c => c.id === PEND_ADOPT)) PEND_ADOPT = null;   // gespeichert/gelöscht → keine vorläufige Kopie mehr
   const col = COLL("events"), undo = []; LAST_ADDED = [];
   gWarn = 0; gGone = 0;
   for (const c of changes) {
@@ -3750,6 +3776,9 @@ async function finishMove(target) {
   const e = moving; stopMove();
   const delta = dayDiff(e.a, target); if (!delta) return;
   const v = plain(e); v.from = iso(target); v.to = iso(addDays(e.b, delta));
+  const sh = x => { if (!x) return x; const d = parseIso(x.slice(0, 10)); return d ? iso(addDays(d, delta)) + x.slice(10) : x; };   // Reiseplan wandert mit
+  if ((v.legs || []).length) v.legs = v.legs.map(l => ({ ...l, ab: sh(l.ab), an: sh(l.an) }));
+  if ((v.stays || []).length) v.stays = v.stays.map(u => ({ ...u, von: sh(u.von), bis: sh(u.bis) }));
   try { const undo = await applyChanges([{ op: "update", id: e.id, event: v }]); toast(`Verschoben auf ${rngTxt(target, addDays(e.b, delta))}`, undo); }
   catch (err) { toast(writeErr(err)); }
 }
@@ -4667,7 +4696,7 @@ function showGoogleSheet() {
       ${gGroup(cals, c => sel.has(c.id), c => `<label class="tog setrow"><input type="checkbox" data-gcal="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}${gShow ? "" : " disabled"}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "cal")}
       ${canWrite ? `<div class="lbl" style="margin-top:16px">Hinweis, wenn andere hier etwas eintragen</div>
       ${gGroup(cals, c => notifyCals().includes(c.id), c => `<label class="tog setrow"><input type="checkbox" data-notify="${esc(c.id)}"${notifyCals().includes(c.id) ? " checked" : ""}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "not")}` : ""}
-      <p class="note" style="margin-top:10px">Google-Termine erscheinen in der Farbe ihres Kalenders. Bearbeiten kannst du sie weiter in der Google-App.</p>
+      <p class="note" style="margin-top:10px">Google-Termine erscheinen in der Farbe ihres Kalenders. Ändern, verschieben und löschen kannst du sie direkt hier – die Änderung landet sofort in Google.</p>
       ${APP ? `<button type="button" class="link" id="g-forget" style="margin-top:14px;color:var(--muted)">Google-Verbindung trennen</button>` : ""}` : ""}`, "google");
 }
 function showGoogleEvent(o) {
@@ -4862,7 +4891,7 @@ document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-
 const G_UNVERIFIED = true;   // bis Google PlanFlink geprüft hat: Hinweis auf die Warnseite
 const G_WARN = "Google zeigt gleich noch den Hinweis „Google hat diese App nicht überprüft“ – das liegt an der laufenden Prüfung durch Google, nicht an einem Problem. Tippe auf „Erweitert“ und „Weiter zu planflink.de“ – und erlaube beide Kalender-Häkchen.";
 async function gConnect(go) {
-  if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Kalenderliste sehen sowie Termine lesen und eintragen darf. Damit zeigt PlanFlink deine Google-Termine an und trägt neue Termine dort ein – nur in den Kalendern, die du auswählst. <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a></p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
+  if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Kalenderliste sehen sowie Termine lesen, eintragen, ändern und löschen darf. Damit zeigt PlanFlink deine Google-Termine an und trägt neue Termine dort ein – nur in den Kalendern, die du auswählst. <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a></p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
   const r = await window.mkConnectGoogle?.();
   if (r?.error) { const c = r.error.code || "";
     toast(c === "identity_already_exists" ? "Dieses Google-Konto gehört schon zu einem anderen PlanFlink-Konto." : c === "manual_linking_disabled" ? "Google verbinden ist für E-Mail-Konten noch nicht freigeschaltet." : "Google-Verbindung hat nicht geklappt: " + (r.error.message || c)); }
@@ -5440,7 +5469,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-copy]"))) { copyField(el.dataset.copy, el); return; }
   if ((el = q("[data-gseen]"))) { const o = gSeen.get(el.dataset.gseen) || OCC_ALL.find(x => x.ev.id === el.dataset.gseen); if (o) showGoogleEvent(o); return; }
   if ((el = q("[data-gedit]"))) { const [id, a] = el.dataset.gedit.split("|"); const o = findOcc(id, a); if (!o) return; if (!gAdoptable(o)) return showGForm(o);
-    el.disabled = true; adoptG(o).then(e => e ? editEv(e) : showGForm(o)); return; }
+    el.disabled = true; const had = EV.some(x => x.gEventId === o.ev.gid) || !!merkOf(o);
+    adoptG(o).then(e => { if (e && !had) PEND_ADOPT = e.id; e ? editEv(e) : showGForm(o); }); return; }
   if ((el = q("[data-gmove]"))) { const [id, a] = el.dataset.gmove.split("|"); const o = findOcc(id, a); if (o) startMove({ gocc: o }); return; }
   if ((el = q("[data-gdel]"))) { const [id, a] = el.dataset.gdel.split("|"); const o = findOcc(id, a); if (o) gDeleteOcc(el, o); return; }
   if ((el = q("[data-gshift]"))) { gShiftForm(+el.dataset.gshift); return; }

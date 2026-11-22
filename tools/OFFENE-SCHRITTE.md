@@ -26,23 +26,23 @@ Danach: Erika, Max und Dr. Daten prüfen nach.
 4. **Verification Center:** Begründung je Berechtigung (unten) + YouTube-Link (nicht gelistet) zum Demovideo → „Submit for verification“. Dauer bis ca. 10 Tage, Rückfragen per Mail beantworten.
 5. Nach Freigabe in `src/app.js` `G_UNVERIFIED = false` setzen (Hinweis „nicht überprüft“ entfällt).
 
-### Begründung (englisch)
-**calendar.events:** PlanFlink is a family calendar assistant. After the user explicitly connects Google Calendar (separate step after sign-in), PlanFlink reads events from the calendars the user selects and shows them alongside PlanFlink entries in month/week/list views. When the user creates an entry (typed, from a pasted message or a ticket), PlanFlink inserts it into the chosen Google calendar, and lets the user edit or delete Google events from within the app. calendar.events.readonly is insufficient because writing is a core feature; calendar.events.owned would hide events in shared family calendars the user subscribes to. Event data stays in Google and the user's browser; it is only sent to our AI provider transiently when the user invokes the assistant, never sold, used for ads or model training.
+### Begründung (englisch, Stand 22.11.2026)
+**calendar.events:** PlanFlink is a family calendar assistant. After the user explicitly connects Google Calendar (a separate step after sign-in), PlanFlink reads events from the calendars the user selects and shows them alongside PlanFlink entries. When the user creates an entry (typed, from a pasted message or a ticket), PlanFlink inserts it into the chosen Google calendar. Users can edit, move (tap another day) and delete Google events directly from the event's detail view. calendar.events.readonly is insufficient because writing is a core feature; calendar.events.owned would hide events in shared family calendars. Event data is processed in the user's browser. It is stored in PlanFlink's database (EU) only for features the user invokes: when the user edits and saves an event, attaches a document or checklist, imports birthdays/trips during setup, or enables reminders (title/time/place of upcoming events for push notifications). It is sent transiently to our AI provider (Anthropic) only when the user invokes an AI feature. It is never sold, used for advertising or for model training, and it is deleted with the entry or the account.
 
 **calendar.calendarlist.readonly:** Used solely to call calendarList.list so the user can pick which of their calendars to display and which one to write to. No event data is read with this scope.
 
-### Drehbuch Demovideo (ca. 2:30, Google-Seiten auf Englisch, nur Testtermine)
-1. 0:00 Startseite planflink.de, zur Google-Kachel scrollen, Datenschutz §6 öffnen.
+### Drehbuch Demovideo (ca. 2:40, Google-Seiten auf Englisch, nur Testtermine)
+1. 0:00 planflink.de, zur Kachel „Mit Google Kalender“ scrollen, Datenschutz §6 öffnen.
 2. 0:20 planflink.de/app/ → „Mit Google anmelden“.
-3. 0:30 Im Google-Fenster Adresszeile bis `client_id=…apps.googleusercontent.com` zeigen; Sprache English; Zustimmungsseite: Name „PlanFlink“, nur Name/E-Mail.
-4. 0:50 ☰ → Google Kalender verbinden: Hinweis-Sheet → „Weiter zu Google“.
-5. 1:00 Wieder Adresszeile mit Client-ID; Zustimmungsseite mit beiden Kalender-Berechtigungen, Häkchen setzen.
-6. 1:20 Kalenderauswahl zeigen (Einblendung: calendarList → calendar.calendarlist.readonly).
-7. 1:35 Google-Termine in der Monatsansicht (Einblendung: calendar.events).
-8. 1:50 Per Assistent „Zahnarzt Fr 10 Uhr“ eintragen, Google-Kalender wählen, in calendar.google.com zeigen.
-9. 2:10 Termin in PlanFlink ändern und löschen, jeweils in Google gegenprüfen.
-10. 2:25 „Google-Verbindung trennen“ zeigen und dass PlanFlink unter myaccount.google.com/permissions verschwunden ist.
-Hochladen auf YouTube als „Nicht gelistet“.
+3. 0:30 Adresszeile mit `client_id=…apps.googleusercontent.com` zeigen; Zustimmungsseite: „PlanFlink“, nur Name/E-Mail.
+4. 0:50 ☰ → **Google Kalender** → **Mit Google verbinden** → Hinweis „Google Kalender verbinden“ → **Weiter zu Google** (neues Konto alternativ: Einrichtungsschritt „Ja, Google verbinden“).
+5. 1:00 Adresszeile mit Client-ID; Zustimmung mit beiden Kalender-Berechtigungen, Häkchen setzen (Warnseite „nicht überprüft“ → Erweitert ist im Video ok).
+6. 1:20 ☰ → Google Kalender → Abschnitt **Kalender**: Häkchen zeigen (Einblendung: calendar.calendarlist.readonly).
+7. 1:35 Monatsansicht mit Google-Terminen → Termin antippen → Detail „Google · Mein Kalender“ → **⋯ Weitere Aktionen** → **↗ In Google öffnen** (Einblendung: calendar.events, lesen).
+8. 1:50 **+ Eintragen** → Freitext „Zahnarzt Fr 10 Uhr“ → Zielkalender prüfen → speichern → in calendar.google.com zeigen.
+9. 2:05 Google-Termin antippen → **✏️ Ändern** → Titel ändern → **Speichern** → in Google prüfen. Dann **📅 Verschieben** → anderen Tag antippen → „Verschoben auf …“ → in Google prüfen. Dann **⋯ Weitere Aktionen → 🗑 Löschen** → „In Google löschen?“ bestätigen → in Google prüfen.
+10. 2:30 ☰ → Google Kalender → **Google-Verbindung trennen** → **Trennen**; myaccount.google.com/permissions zeigen.
+Hochladen auf YouTube als „Nicht gelistet“. Erst einreichen, wenn Datenschutzerklärung (Stand 22.11.2026) online ist.
 
 ## Play Store (später)
 Google-Play-Console-Konto (25 $), PWA als Trusted Web Activity verpacken (z. B. PWABuilder), Digital-Asset-Links-Datei auf planflink.de, geschlossener Test mit 12 Testern über 14 Tage, Store-Eintrag (Symbol, Screenshots, Beschreibung, Datenschutzangaben).
