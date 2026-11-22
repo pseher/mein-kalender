@@ -169,6 +169,11 @@ button { font: inherit; color: inherit; }
 details.qcol > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 32px; } details.qcol > summary::-webkit-details-marker { display: none; }
 details.qcol > summary::after { content: "▾"; margin-left: auto; color: var(--muted); } details.qcol[open] > summary::after { content: "▴"; } details.qcol[open] > summary { margin-bottom: 6px; }
 .qcol-cur { width: 16px; height: 16px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.trc .trl { margin-top: 4px; font-size: 14px; } .trc > .note { display: block; margin-top: 4px; }
+.evr .n small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+details.more-det { margin: 12px 0 6px; border-top: 1px solid var(--line); } details.more-det > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 2px; min-height: 44px; }
+details.more-det > summary::-webkit-details-marker { display: none; } details.more-det > summary > span { display: grid; gap: 1px; flex: 1; min-width: 0; } details.more-det > summary small { color: var(--muted); font-size: 13px; }
+details.more-det > summary::after { content: "▾"; color: var(--muted); font-size: 18px; } details.more-det[open] > summary::after { content: "▴"; } details.more-det[open] > summary b::after { content: ""; }
 .tcard { margin: 10px 0 6px; padding: 10px 12px; border-radius: 12px; background: var(--soft); }
 .tcard .tp-h, .tplan .tp-h { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .tfacts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 8px 0 2px; } .tfacts dt { color: var(--muted); font-size: 14px; } .tfacts dd { margin: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }

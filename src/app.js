@@ -1388,8 +1388,18 @@ function dayChips(d) {
   const br = SHOW.br && BRIDGES.get(d.k); if (br) c.push(`<span class="chip br">${esc(br.name.startsWith("Brückentag") ? "Brückentag" : br.name)}</span>`);
   return c.join("");
 }
+// Kurzfassung für Listen: „🚆 2× Zug · Berlin Hbf → London St Pancras · 🏨 Kula London Bridge“ statt der ganzen Notiz
+function evBrief(o) {
+  const e = o.ev, L = e.legs || [], P = (() => { try { return tripParts(o); } catch { return []; } })(), out = [];
+  if (L.length) { const n = {}; L.forEach(l => n[l.m] = (n[l.m] || 0) + 1); const nm = { zug: "Zug", flug: "Flug", bus: "Bus", faehre: "Fähre", auto: "Auto" };
+    out.push(`${Object.entries(n).map(([m, k]) => `${LEG_ICON[m]} ${k > 1 ? k + "× " : ""}${nm[m]}`).join(", ")} · ${L[0].von} → ${L[L.length - 1].nach || "…"}`); }
+  if (P.length) out.push(`🏨 ${P.slice(0, 2).map(x => shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, "")).join(", ")}${P.length > 2 ? ` +${P.length - 2}` : ""}`);
+  if (out.length) return out.join(" · ");
+  const first = String(e.note || "").replace(/📎\s*/g, "").replace(/https?:\/\/\S+/g, "🔗").split(/\n| · /)[0].trim();
+  return [e.place && !/^https?:/.test(e.place) ? e.place.split(",")[0] : "", first.length > 70 ? first.slice(0, 68).replace(/\s\S*$/, "") + " …" : first].filter(Boolean).join(" · ");
+}
 const occBtn = (o, showRange) => {
-  const e = o.ev, age = ageTxt(o), sub = [showRange && !sameDay(o.a, o.b) ? rngTxt(o.a, o.b) : "", age, e.note].filter(Boolean).join(" · ");
+  const e = o.ev, age = ageTxt(o), sub = [showRange && !sameDay(o.a, o.b) ? rngTxt(o.a, o.b) : "", age, evBrief(o)].filter(Boolean).join(" · ");
   return `<button type="button" class="evr" data-occ="${esc(e.id)}|${iso(o.a)}"><span class="t">${esc(timeTxt(e)) || ""}</span><span class="ev-dot ${e.type}"${dotSt(e)}></span><span class="n">${esc(evName(e))}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
 };
 // Woche: dieselbe feste Zeile wie in „Heute“ – [Uhrzeit] [Punkt] [Titel + eine Zeile Zusatz]
@@ -2913,12 +2923,15 @@ function trainDetail(o) { const P = (o.ev.legs || []).length > 1;
 function connDetail(e, date, base, main) {
   const C = connOf(e, date); if (!C.length) return "";
   const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const line = (tr, kind, st, plan, S, plFallback, estD) => { const p = S?.seen ? new Date(S.pt) : plan, d = S?.seen ? (S.d || 0) : (estD || 0), real = new Date(p.getTime() + d * 60e3), pl = S?.pl || plFallback;
+    const stt = S?.c ? "❌ fällt aus" : !S?.seen ? (estD ? `🟡 voraussichtlich +${estD} Min. (ca. ${hm(real)})` : "⏳ noch keine Live-Daten") : d >= 5 ? `🔴 +${d} Min. (ca. ${hm(real)})` : d >= 2 ? `🟡 +${d} Min.` : "✅ pünktlich";
+    return `<div class="trl">🚆 <b>${esc(tr)}</b> ${kind} ${esc(st)} ${hm(p)} – <b>${stt}</b>${pl ? ` · Gl. <b>${esc(pl)}</b>${S?.pp && S.pp !== pl ? ` (statt ${esc(S.pp)})` : ""}` : ""}</div>`; };
   return C.map((c, k) => { const A = TRST[`${base}-c${k}a`], D = TRST[`${base}-c${k}d`], pa = atOf(c.date, c.arr), pd = atOf(c.date, c.dep, pa); if (!pa || !pd) return "";
-    const ar = A?.seen ? new Date(Date.parse(A.pt) + (A.d || 0) * 60e3) : new Date(pa.getTime() + ((main?.seen && main.d) || 0) * 60e3);
-    const dp = D?.seen ? new Date(Date.parse(D.pt) + (D.d || 0) * 60e3) : pd, gap = Math.round((dp - ar) / 60e3), est = !A?.seen && main?.seen && main.d;
-    const head = D?.c ? `❌ ${esc(c.train)} fällt aus` : est && gap < 4 ? `⚠️ Anschluss gefährdet${gap < 0 ? "" : ` – nur ${gap} Min.`}, wenn ${esc(c.prev)} die Verspätung behält` : gap < 0 ? `❌ Anschluss nicht zu schaffen` : gap < 4 ? `⚠️ Anschluss gefährdet – nur ${gap} Min.` : `✅ Anschluss erreichbar · ${gap} Min. zum Umsteigen`;
-    const pl = D?.pl || c.pl, apl = A?.pl;
-    return `<div class="trd trc"><b>${head}</b><br>🔁 Umstieg in ${esc((A?.sn || D?.sn || c.st).replace(/\s*\[\d+\]$/, ""))}: ${esc(c.prev)} an ${A?.seen && A.d ? `ca. <b>${hm(ar)}</b> statt ${c.arr}` : est ? `ca. <b>${hm(ar)}</b> (mit Verspätung) statt ${c.arr}` : c.arr}${apl ? ` · Gl. ${esc(apl)}` : ""}<br>→ <b>${esc(c.train)}</b> ab ${D?.seen && D.d ? `ca. <b>${hm(dp)}</b> statt ${c.dep}` : c.dep}${pl ? ` · Gl. <b>${esc(pl)}</b>` : ""}${D?.seen ? "" : `<br><span class="note">${pd > new Date() ? (Date.now() >= pd - 150 * 60e3 ? "wird live beobachtet – Daten folgen in Kürze" : `wird ab ${hm(new Date(pd - 150 * 60e3))} Uhr live beobachtet`) : ""}</span>`}</div>`; }).join("");
+    const estD = !A?.seen && main?.seen ? (main.d || 0) : 0;
+    const ar = A?.seen ? new Date(Date.parse(A.pt) + (A.d || 0) * 60e3) : new Date(pa.getTime() + estD * 60e3);
+    const dp = D?.seen ? new Date(Date.parse(D.pt) + (D.d || 0) * 60e3) : pd, gap = Math.round((dp - ar) / 60e3), st = (A?.sn || D?.sn || c.st).replace(/\s*\[\d+\]$/, "");
+    const head = D?.c ? `❌ Anschluss ${esc(c.train)} fällt aus` : estD && gap < 4 ? `⚠️ Umstieg gefährdet${gap < 0 ? "" : ` – nur ${gap} Min.`}, wenn ${esc(c.prev)} die Verspätung behält` : gap < 0 ? `❌ Umstieg nicht zu schaffen` : gap < 4 ? `⚠️ Umstieg knapp – nur ${gap} Min.` : `✅ Umstieg in ${esc(st)} klappt · ${gap} Min.`;
+    return `<div class="trd trc"><b>${head}</b>${line(c.prev, "an", st, pa, A, "", estD)}${line(c.train, "ab", st, pd, D, c.pl, 0)}${!D?.seen && pd > new Date() && Date.now() < pd - 150 * 60e3 ? `<span class="note">live ab ${hm(new Date(pd - 150 * 60e3))} Uhr</span>` : ""}</div>`; }).join("");
 }
 function trainDetail0(o) {
   const lg = legsDetail(o); if (lg) return lg;
@@ -3170,6 +3183,12 @@ eckdaten: alles Weitere Wichtige aus der Notiz, das NICHT schon in den Verbindun
     const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
   } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
 }
+// Detailseite: das Wichtigste oben, der Rest hinter „Mehr anzeigen“ (Zustand bleibt gemerkt)
+let MORE_OPEN = false; document.addEventListener("toggle", e => { if (e.target?.classList?.contains("more-det")) MORE_OPEN = e.target.open; }, true);
+function moreBox(e, inner, extra) {
+  const nf = (e.files || []).length, what = [...extra.filter(Boolean), nf ? `${nf} Dokument${nf > 1 ? "e" : ""}` : "Dokumente", "Erinnerung", e.gEventId ? "Google" : "", "Farbe"].filter(Boolean);
+  return `<details class="more-det"${MORE_OPEN ? " open" : ""}><summary><span><b>Mehr anzeigen</b><small>${esc(what.join(" · "))}</small></span></summary>${inner}</details>`;
+}
 function showEvent(o) {
   if (o.ev.type === "google") return showGoogleEvent(o);
   const e = o.ev, cf = conflicts(o), items = [];
@@ -3179,7 +3198,7 @@ function showEvent(o) {
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
     return; }
   const isT = ["trip", "urlaub"].includes(e.type) && !o.part, meta = [];
-  const item = (title, sub, m) => (m && isT ? meta : items).push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
+  const item = (title, sub, m) => (m ? meta : items).push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
   item(TYPES[e.type].label + (e.repeat !== "none" ? ` · ${repLabel(e.repeat)}` : ""), ageTxt(o), 1);
   if (e.who) item(`👤 für ${e.who}`, "");
   const plan = tripPlan(o);
@@ -3218,9 +3237,9 @@ function showEvent(o) {
     const metaHtml = meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "";
     const noteFirst = !(e.legs || []).length && !(e.facts || []).length;
     const tasks = items.length ? `<ul class="sheet-list">${items.join("")}</ul>` : "";
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${hintsHtml}${noteFirst ? noteHtml : ""}${tasks}<div id="place-sug" hidden></div>${docsBox(e)}${noteFirst ? "" : noteHtml}${metaHtml}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
     if (canWrite && placeCand(o)) fillPlaceSug(o); return; }
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${docsBox(e)}${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${moreBox(e, docsBox(e) + (meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "") + qcol, [])}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
