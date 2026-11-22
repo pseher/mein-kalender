@@ -2908,7 +2908,19 @@ function trainBadge(o) { const k0 = trainKey(o), s = TRST[k0] || Object.entries(
   const extra = F ? (s.bag ? ` · Band ${esc(s.bag)}` : s.kind === "dep" && s.pl ? ` · Gate ${esc(s.pl)}` : s.term ? ` · T${esc(s.term)}` : "") : s.pl ? ` · Gl. ${esc(s.pl)}` : "";
   return ` <span class="trb ${cls}" title="${esc(s.c ? "fällt aus" : s.d ? `+${s.d} Min.` : "pünktlich")}">${c}${t ? " " + esc(t) : ""}${extra}</span>`; }
 // ausführlich im Termin
-function trainDetail(o) {
+function trainDetail(o) { const P = (o.ev.legs || []).length > 1;
+  return trainDetail0(o) + connDetail(o.ev, P ? o.ev.from : iso(o.a), P ? `${String(o.ev.id).replace(/[^\w]/g, "").slice(-24)}-p` : trainKey(o), P ? null : TRST[trainKey(o)]); }
+function connDetail(e, date, base, main) {
+  const C = connOf(e, date); if (!C.length) return "";
+  const hm = d => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return C.map((c, k) => { const A = TRST[`${base}-c${k}a`], D = TRST[`${base}-c${k}d`], pa = atOf(c.date, c.arr), pd = atOf(c.date, c.dep, pa); if (!pa || !pd) return "";
+    const ar = A?.seen ? new Date(Date.parse(A.pt) + (A.d || 0) * 60e3) : new Date(pa.getTime() + ((main?.seen && main.d) || 0) * 60e3);
+    const dp = D?.seen ? new Date(Date.parse(D.pt) + (D.d || 0) * 60e3) : pd, gap = Math.round((dp - ar) / 60e3), est = !A?.seen && main?.seen && main.d;
+    const head = D?.c ? `❌ ${esc(c.train)} fällt aus` : est && gap < 4 ? `⚠️ Anschluss gefährdet${gap < 0 ? "" : ` – nur ${gap} Min.`}, wenn ${esc(c.prev)} die Verspätung behält` : gap < 0 ? `❌ Anschluss nicht zu schaffen` : gap < 4 ? `⚠️ Anschluss gefährdet – nur ${gap} Min.` : `✅ Anschluss erreichbar · ${gap} Min. zum Umsteigen`;
+    const pl = D?.pl || c.pl, apl = A?.pl;
+    return `<div class="trd trc"><b>${head}</b><br>🔁 Umstieg in ${esc((A?.sn || D?.sn || c.st).replace(/\s*\[\d+\]$/, ""))}: ${esc(c.prev)} an ${A?.seen && A.d ? `ca. <b>${hm(ar)}</b> statt ${c.arr}` : est ? `ca. <b>${hm(ar)}</b> (mit Verspätung) statt ${c.arr}` : c.arr}${apl ? ` · Gl. ${esc(apl)}` : ""}<br>→ <b>${esc(c.train)}</b> ab ${D?.seen && D.d ? `ca. <b>${hm(dp)}</b> statt ${c.dep}` : c.dep}${pl ? ` · Gl. <b>${esc(pl)}</b>` : ""}${D?.seen ? "" : `<br><span class="note">${pd > new Date() ? (Date.now() >= pd - 150 * 60e3 ? "wird live beobachtet – Daten folgen in Kürze" : `wird ab ${hm(new Date(pd - 150 * 60e3))} Uhr live beobachtet`) : ""}</span>`}</div>`; }).join("");
+}
+function trainDetail0(o) {
   const lg = legsDetail(o); if (lg) return lg;
   const rt0 = !flightOf(o.ev) && (o.ev.flight || o.ev.mode === "flug" || o.ev.pick?.mode === "flug") ? flightRoute(o.ev) : null;
   const fl = flightOf(o.ev) || (rt0 ? `${rt0.al ? rt0.al + " " : ""}${rt0.dep}→${rt0.arr}` : ""), tr = (TRST[trainKey(o)]?.code ? TRST[trainKey(o)].code.replace(/^([A-Z0-9]{2})(\d)/, "$1 $2") : "") || fl || trainOf(o.ev); if (!tr || !o.ev.time) return ""; const s = TRST[trainKey(o)], st = fl ? (o.ev.place || "").split(",")[0] : stationOf(o.ev), ic = fl ? "✈️" : "🚆";
@@ -2960,6 +2972,26 @@ function tripLegs(e) {
   const u = new Set(); return legs.filter(l => { const k = l.train + l.date + l.time; if (u.has(k)) return false; u.add(k); return parseIso(l.date); }).slice(0, 6);
 }
 const legKey = (e, l, i) => `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-${l.date}-L${i}`;
+// Anschlüsse: „an Berlin Hbf 16:29 (Gl. 6), Umstieg 16:38 Gl. 7 in ICE 844“ in der Notiz oder aufeinanderfolgende Verbindungen im Reiseplan
+const hm5 = t => String(t).replace(".", ":").padStart(5, "0");
+const stNorm = t => String(t || "").toLowerCase().replace(/hauptbahnhof/g, "hbf").replace(/[^a-zäöüß]/g, "");
+function connOf(e, date) {
+  const out = [], main = trainOf(e);
+  if (main) for (const m of String(e.note || "").matchAll(/\ban\s+([\p{L}.\- ]+?)\s+(\d{1,2}[:.]\d{2})[^·;\n]*?umstieg\s+(?:um\s+)?(\d{1,2}[:.]\d{2})(?:\s*\(?\s*gl(?:eis)?\.?\s*(\w+)\)?)?\s*(?:in\s+(?:den\s+|die\s+)?)?(ICE|ECE|IC|EC|RJX|RJ|NJ|EN|FLX|IRE|MEX|RE|RB|S)\s?(\d{1,5})/giu))
+    out.push({ st: m[1].trim(), date, arr: hm5(m[2]), dep: hm5(m[3]), pl: m[4] || "", prev: main, train: `${m[5].toUpperCase()} ${m[6]}` });
+  const L = (e.legs || []).filter(l => l.m === "zug");
+  for (let i = 0; i + 1 < L.length; i++) { const a = L[i], b = L[i + 1]; if (!a.an || !a.no || !b.no || a.an.slice(0, 10) !== b.ab.slice(0, 10) || stNorm(a.nach) !== stNorm(b.von)) continue;
+    if ((Date.parse(b.ab) - Date.parse(a.an)) / 60e3 > 180) continue;
+    out.push({ st: b.von, date: b.ab.slice(0, 10), arr: a.an.slice(11), dep: b.ab.slice(11), pl: "", prev: a.no, train: b.no }); }
+  return out.slice(0, 3);
+}
+const atOf = (date, t, after) => { const d = parseIso(date); if (!d) return null; const [h, m] = t.split(":").map(Number); d.setHours(h, m, 0, 0); if (after && d < after) d.setDate(d.getDate() + 1); return d; };
+function connWatch(e, date, base, W) {
+  connOf(e, date).forEach((c, k) => { const a = atOf(c.date, c.arr), d = atOf(c.date, c.dep, a); if (!a || !d || d.getTime() < Date.now() - 30 * 60e3 || d > addDays(TODAY, 3)) return;
+    const idA = `${base}-c${k}a`, idD = `${base}-c${k}d`;
+    W.push({ id: idA, train: c.prev, st: c.st, at: a.toISOString(), title: evName(e), prefer: "arr" });
+    W.push({ id: idD, train: c.train, st: c.st, at: d.toISOString(), title: evName(e), prefer: "dep", conn: { a: idA, prev: c.prev, min: 4 } }); });
+}
 function trainWatch() {
   const W = [], seen = new Set();
   const lo = addDays(TODAY, -1), hi = addDays(TODAY, 3);
@@ -2977,8 +3009,11 @@ function trainWatch() {
     if (at.getTime() < Date.now() - 30 * 60e3) return;   // abgefahrene Züge nicht mehr beobachten
     const tx = [o.ev.title, o.ev.note].join(" "), prefer = /abhol|ankunft|ankommen|kommt an|empfang/i.test(tx) ? "arr" : /abfahrt|losfahren|fahre |hinfahrt|abreise|zug nach/i.test(tx) ? "dep" : "";
     if (fl && !flightAllowed()) return;
-    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}), ...(rt ? { route: rt } : {}) }); });
-  return W.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 8);
+    W.push({ id, train, st, at: at.toISOString(), title: evName(o.ev), prefer: o.ev.pick?.dir || (fl && o.ev.type === "trip" ? "dep" : prefer), ...(fl ? { mode: "flug" } : {}), ...(rt ? { route: rt } : {}) });
+    if (!fl) connWatch(o.ev, iso(o.a), id, W); });
+  // Reisen mit Reiseplan: Umstiege zwischen aufeinanderfolgenden Zügen
+  for (const e of EV) if ((e.legs || []).length > 1) connWatch(e, e.from, `${String(e.id).replace(/[^\w]/g, "").slice(-24)}-p`, W);
+  return W.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 10);
 }
 // Teilstrecken im Termin anzeigen
 function legsDetail(o) {
