@@ -180,6 +180,8 @@ details.qcol > summary::after { content: "▾"; margin-left: auto; color: var(--
 details.actmore > summary { cursor: pointer; list-style: none; text-align: center; padding: 10px; color: var(--accent); font-weight: 600; font-size: 15px; } details.actmore > summary::-webkit-details-marker { display: none; }
 .actlist { display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
 .actlist > * { display: block; text-align: left; padding: 13px 14px; background: var(--surface); border: 0; border-top: 1px solid var(--line); color: var(--fg); font: inherit; font-size: 15px; text-decoration: none; } .actlist > *:first-child { border-top: 0; }
+.actbar .act.off { opacity: .35; } .actlist label { cursor: pointer; }
+.tpack { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; } .tpack span:last-child { color: var(--accent); font-weight: 600; }
 .actlist .del { color: var(--danger, #c62828); }
 details.more-det { margin: 12px 0 6px; border-top: 1px solid var(--line); } details.more-det > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 2px; min-height: 44px; }
 details.more-det > summary::-webkit-details-marker { display: none; } details.more-det > summary > span { display: grid; gap: 1px; flex: 1; min-width: 0; } details.more-det > summary small { color: var(--muted); font-size: 13px; }

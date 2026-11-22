@@ -3218,13 +3218,21 @@ function noteList(t) {
   const P = String(t || "").split(/\n+|\s·\s|(?=📎)|,\s(?=Umstieg\b)/i).map(x => x.replace(/^[-•·\s]+/, "").trim()).filter(Boolean);
   return P.length < 2 ? `<div class="note">${linkify(t)}</div>` : `<ul class="note nlist">${P.map(x => `<li>${linkify(x)}</li>`).join("")}</ul>`;
 }
+// Einheitliche Aktionsleiste in JEDEM Eintrag: immer dieselben vier Kacheln an derselben Stelle (nicht verfügbar = ausgegraut), Rest unter „Weitere Aktionen“
+function actionBar({ edit, move, share, shareLbl, route, more = [], del }) {
+  const tile = (attr, ic, lbl, cls = "") => attr ? `<button type="button" class="act ${cls}" ${attr}><span aria-hidden="true">${ic}</span>${esc(lbl)}</button>` : `<button type="button" class="act off" disabled aria-disabled="true"><span aria-hidden="true">${ic}</span>${esc(lbl)}</button>`;
+  const q = route ? encodeURIComponent(route) : "";
+  const rt = route ? `<a class="act" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener"><span aria-hidden="true">🧭</span>Route</a>` : tile("", "🧭", "Route");
+  const list = [...more.filter(Boolean), route ? `<a href="https://maps.apple.com/?daddr=${q}" target="_blank" rel="noopener">🗺 Route mit Apple Karten</a>` : "", del ? `<button type="button" class="del" ${del}>🗑 Löschen</button>` : ""].filter(Boolean);
+  return `<div class="actbar">${tile(edit, "✏️", "Ändern", "pri")}${tile(move, "📅", "Verschieben")}${tile(share, "👥", shareLbl || "Teilen")}${rt}</div>${list.length ? `<details class="actmore"><summary>⋯ Weitere Aktionen</summary><div class="actlist">${list.join("")}</div></details>` : ""}`;
+}
 function showEvent(o) {
   if (o.ev.type === "google") return showGoogleEvent(o);
   const e = o.ev, cf = conflicts(o), items = [];
   if (e.shared) { const it = [`<li><i style="background:var(--both)"></i><div><b>Geteilt von ${esc(e.shared.from || "jemandem")}</b><div class="note">Änderungen sieht ihr beide</div></div></li>`];
     if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b>${noteList(e.note)}</div></li>`);
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul><div class="btnrow">${canWrite ? `<button type="button" class="btn small" data-edit="${esc(e.id)}">Bearbeiten</button>` : ""}${routeLinks(e.place)}<button type="button" class="btn danger small push" data-shdel="${esc(e.id)}">Löschen</button></div>`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul>${actionBar({ edit: canWrite && `data-edit="${esc(e.id)}"`, share: `data-share="${esc(e.id)}|${iso(o.a)}"`, route: e.place, del: `data-shdel="${esc(e.id)}"` })}`, "event", { id: e.id, a: iso(o.a) });
     return; }
   const isT = ["trip", "urlaub"].includes(e.type) && !o.part, meta = [];
   const item = (title, sub, m) => (m ? meta : items).push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
@@ -3255,19 +3263,18 @@ function showEvent(o) {
   for (let t = o.a; t <= o.b && st.length < 1; t = addDays(t, 1)) { const d = dayOf(t); if (d && winOf(t)) st.push(`schulfrei in ${JOINT.join(", ")}`); }
   if (st.length) item("Schule", st[0], 1);
   const id = esc(e.id);
-  // Aktionen: eine ruhige Leiste mit den häufigsten, der Rest unter „Mehr“
-  const rq = placeOf(e) || (e.type === "trip" ? e.title : ""), qq = encodeURIComponent(rq || "");
-  const tile = (attr, ic, lbl, cls = "") => `<button type="button" class="act ${cls}" ${attr}><span aria-hidden="true">${ic}</span>${esc(lbl)}</button>`;
-  const shared = effTo(e).length;
-  const acts = `<div class="actbar">${canWrite ? tile(`data-edit="${id}"`, "✏️", "Ändern", "pri") + (isT ? "" : tile(`data-move="${id}"`, "📅", "Verschieben")) + tile(`data-shev="${id}|${iso(o.a)}"`, "👥", shared ? "Geteilt" : "Teilen") + (isT ? tile(`data-pack="${id}"`, "🎒", e.packlist.length ? `${e.packlist.filter(x => x.d).length}/${e.packlist.length}` : packLabel(e)) : "") : tile(`data-share="${id}|${iso(o.a)}"`, "📤", "Als Bild/Text")}${rq ? `<a class="act" href="https://www.google.com/maps/dir/?api=1&destination=${qq}" target="_blank" rel="noopener"><span aria-hidden="true">🧭</span>Route</a>` : ""}</div>
-    <details class="actmore"><summary>⋯ Weitere Aktionen</summary><div class="actlist">${canWrite && isT ? `<button type="button" data-move="${id}">📅 Verschieben</button>` : ""}${canWrite ? `<button type="button" data-share="${id}|${iso(o.a)}">📤 Als Bild/Text teilen</button>` : ""}${gResend.replace('class="btn ghost small"', "")}${["trip", "termin", "urlaub"].includes(e.type) && !(isT && canWrite) ? `<button type="button" data-pack="${id}">🎒 ${packLabel(e)}${e.packlist.length ? ` · ${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : ""}</button>` : ""}${["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" data-ideas="${id}|${iso(o.a)}">💡 Geschenk-Ideen</button>` : ""}${rq ? `<a href="https://maps.apple.com/?daddr=${qq}" target="_blank" rel="noopener">🗺 Route mit Apple Karten</a>` : ""}${canWrite ? `<button type="button" class="del" data-del="${id}|${iso(o.a)}">🗑 Löschen</button>` : ""}</div></details>`;
+  const rq = placeOf(e) || (e.type === "trip" ? e.title : ""), shared = effTo(e).length;
+  const acts = actionBar({ edit: canWrite && `data-edit="${id}"`, move: canWrite && `data-move="${id}"`, share: canWrite ? `data-shev="${id}|${iso(o.a)}"` : `data-share="${id}|${iso(o.a)}"`, shareLbl: shared ? "Geteilt" : "Teilen", route: rq,
+    more: [`<button type="button" data-share="${id}|${iso(o.a)}">📤 Als Bild/Text teilen</button>`, gResend.replace('class="btn ghost small"', ""), ["trip", "termin", "urlaub"].includes(e.type) && !isT ? `<button type="button" data-pack="${id}">🎒 ${packLabel(e)}${e.packlist.length ? ` · ${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : ""}</button>` : "",
+      ["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" data-ideas="${id}|${iso(o.a)}">💡 Geschenk-Ideen</button>` : ""], del: canWrite && `data-del="${id}|${iso(o.a)}"` });
+  const packRow = isT ? `<button type="button" class="tcard tpack" data-pack="${id}"><span>🎒 <b>${esc(packLabel(e))}</b></span><span>${e.packlist.length ? `${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : "anlegen"} ›</span></button>` : "";
   const qcol = canWrite && !e.gReadOnly ? qcolBox(id, e.color, catColor(catOf(e) || e.type), "Farbe dieses Eintrags", `Farbe für alle „${TYPES[e.type]?.label || "Einträge"}“ ändern`) : "";
   if (isT) {
     const cta = planable(e) ? `<div class="tcard tcta"><b>Notiz übersichtlich machen?</b><span class="note">Ich ziehe Verbindungen und Eckdaten aus der Notiz heraus – das Original bleibt erhalten.</span><button type="button" class="btn small" data-tplan="${esc(e.id)}">✨ Übersicht aus der Notiz erstellen</button></div>` : "";
     const metaHtml = meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "";
     const noteFirst = !(e.legs || []).length && !(e.facts || []).length;
     const tasks = items.length ? `<ul class="sheet-list">${items.join("")}</ul>` : "";
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}${acts}`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}${packRow}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}${acts}`, "event", { id: e.id, a: iso(o.a) });
     if (canWrite && placeCand(o)) fillPlaceSug(o); return; }
   openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${moreBox(e, docsBox(e) + (meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "") + qcol, [])}${acts}`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
@@ -4672,16 +4679,12 @@ function showGoogleEvent(o) {
   const id = esc(e.id), w = canWrite && gWritable() && gCalW(e);
   const gcal = gCals.find(c => c.id === e.calId || (e.calId === "primary" && c.primary)), gw = w && !!mcp && gState === "ok" && (!gcal?.accessRole || ["owner", "writer"].includes(gcal.accessRole));
   const qcol = gw ? qcolBox(e.id, e.ecol ? e.colorId : "", gColor(e.calId)[0], "Farbe dieses Google-Termins", "") : "";
-  const acts = (w ? `<button type="button" class="btn small" data-gedit="${id}|${iso(o.a)}">Bearbeiten</button><button type="button" class="btn ghost small" data-gmove="${id}|${iso(o.a)}">Verschieben</button>` : "") +
-    `<button type="button" class="btn ghost small" data-share="${id}|${iso(o.a)}">Teilen</button>` +
-    (gAdoptable(o) ? `<label class="btn ghost small">📎 Datei<input type="file" hidden multiple accept="application/pdf,image/*" data-gdoc="${id}|${iso(o.a)}"></label>` : "") +
-    (e.link ? `<a class="btn ghost small" href="${esc(e.link)}" target="_blank" rel="noopener">In Google öffnen</a>` : "") +
-    routeLinks(placeOf(e)) +
-    (canWrite && isTrip(o) ? `<button type="button" class="btn ghost small" data-adopt="${id}|${iso(o.a)}">Als Reise übernehmen</button>` : "") +
-    (merkable(o) ? `<button type="button" class="btn ghost small" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "") +
-    (!isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) && (isUmg(o) || umgSet().size || EV.some(e => e.type === "mina")) ? `<button type="button" class="btn ghost small" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : "") +
-    (w ? `<button type="button" class="btn danger small push" data-gdel="${id}|${iso(o.a)}">Löschen</button>` : "");
-  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${qcol}<div class="btnrow">${acts}</div>`, "event", { id: e.id, a: iso(o.a) });
+  const acts = actionBar({ edit: w && `data-gedit="${id}|${iso(o.a)}"`, move: w && `data-gmove="${id}|${iso(o.a)}"`, share: `data-share="${id}|${iso(o.a)}"`, route: placeOf(e),
+    more: [gAdoptable(o) ? `<label>📎 Datei hinzufügen<input type="file" hidden multiple accept="application/pdf,image/*" data-gdoc="${id}|${iso(o.a)}"></label>` : "", e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">↗ In Google öffnen</a>` : "",
+      canWrite && isTrip(o) ? `<button type="button" data-adopt="${id}|${iso(o.a)}">🧳 Als Reise übernehmen</button>` : "", merkable(o) ? `<button type="button" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "",
+      !isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) && (isUmg(o) || umgSet().size || EV.some(e => e.type === "mina")) ? `<button type="button" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : ""],
+    del: w && `data-gdel="${id}|${iso(o.a)}"` });
+  openSheet(e.title, `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${qcol ? moreBox({}, qcol, []).replace("Dokumente · Erinnerung · ", "") : ""}${acts}`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 // ---- Google-Termine direkt ändern ----
