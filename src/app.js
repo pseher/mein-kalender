@@ -403,7 +403,7 @@ function weekBars(wdays, two) {
       if (o.part) return;
       const e = o.ev, timed = !!e.time && sameDay(o.a, o.b), stops = o.parts ? tripStops(o) : [];
       const name = shortName(e) + (stops.length ? " · " + stops.join(" → ") : o.parts ? ` · ${o.parts.length} Details` : ""), key = name + "|" + colorOf(e) + "|" + (timed ? e.time : "");
-      its.push({ c, key, name, ev: e, timed, past: o.b < TODAY });
+      its.push({ c, key, name, ev: e, o, timed, past: o.b < TODAY });
     });
     const d = dayOf(dt);
     if (two && d && d.h && SHOW.hol) its.push({ c, key: "hol|" + d.h.name, name: d.h.name, hol: true });
@@ -422,7 +422,7 @@ function weekBars(wdays, two) {
     const span = b.e - b.s + 1, cls = `ch${b.past ? " past" : ""}${span > 1 ? " span" : ""}${b.hol ? " hl" : ""}`;
     const st = `grid-column:${b.s + 1} / span ${span};` + (b.hol ? "" : `background:${colorOf(b.ev)};color:${inkOf(b.ev)}`);
     const t = b.timed && showTime ? `<b>${esc(b.ev.time)}</b> ` : "";
-    return `<span class="${cls}" data-s="${b.s}" data-e="${b.e}" style="${st}">${t}${esc(b.name)}</span>`;
+    return `<span class="${cls}" data-s="${b.s}" data-e="${b.e}"${b.o ? ` data-occ="${esc(b.o.ev.id)}|${iso(b.o.a)}"` : ""} style="${st}">${t}${esc(b.name)}</span>`;
   }).join("");
 }
 function renderBigMonth() {
@@ -1408,8 +1408,8 @@ function evBrief(o, lines) {
   const hn = x => shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}\uFE0F?\s*/u, "");
   if (P.length) { if (lines) P.slice(0, 4).forEach(x => out.push(`🏨 ${hn(x)}`)); else out.push(`🏨 ${P.slice(0, 2).map(hn).join(", ")}${P.length > 2 ? ` +${P.length - 2}` : ""}`); }
   if (out.length) return lines ? out : out.join(" · ");
-  const first = String(e.note || "").replace(/📎\s*/g, "").replace(/https?:\/\/\S+/g, "🔗").split(/\n| · /)[0].trim();
-  const r = [e.place && !/^https?:/.test(e.place) ? `📍 ${e.place.split(",")[0]}` : "", first.length > 70 ? first.slice(0, 68).replace(/\s\S*$/, "") + " …" : first].filter(Boolean);
+  const segs = String(e.note || "").replace(/📎\s*/g, "").replace(/https?:\/\/\S+/g, "🔗").split(/\n| · /).map(x => x.trim()).filter(Boolean), cut = x => x.length > 70 ? x.slice(0, 68).replace(/\s\S*$/, "") + " …" : x, first = segs[0] || "";
+  const r = [e.place && !/^https?:/.test(e.place) ? `📍 ${e.place.split(",")[0]}` : "", ...(lines ? segs.slice(0, 3).map(cut) : [cut(first)]), lines && segs.length > 3 ? `+ ${segs.length - 3} weitere` : ""].filter(Boolean);
   return lines ? r : r.join(" · ").replace(/^📍 /, "");
 }
 const occBtn = (o, showRange) => {
@@ -3151,8 +3151,7 @@ function closeSheet() { try { if (MIC) micStop(); } catch {}
 // Tipp auf einen Tag im Monat: leerer Tag → gleich eintragen, genau ein Termin (sonst nichts Besonderes) → gleich öffnen, sonst Tagesblatt
 function dayTap(dt) { const d = dayOf(dt), oc = occOn(dt), plain = !d.h && !BRIDGES.get(d.k) && !d.fBE && !d.fST && !XST.some(s => !XHIDE.includes(s) && FXM[s].get(d.k)) && !(JOINT.length >= 2 && winOf(dt)) && !tkForDay(dt).length;
   if (plain && !oc.length && canWrite) { selDay = dt; return newEntry(d.k); }
-  if (plain && oc.length === 1) return showEvent(oc[0]);
-  showDay(dt); }
+  showDay(dt); }   // Tag mit Einträgen: immer die Tagesübersicht (dort „+ Termin“) – ein Termin selbst öffnet sich über seinen Balken (Desktop) bzw. in der Übersicht
 function showDay(dt) {
   selDay = dt;
   const d = dayOf(dt), items = [];
@@ -3233,9 +3232,9 @@ eckdaten: nur, was weder zu einer Verbindung noch zu einer Unterkunft gehört, z
   } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
 }
 // Detailseite: das Wichtigste oben, der Rest hinter „Mehr anzeigen“ (Zustand bleibt gemerkt)
-let MORE_OPEN = false; document.addEventListener("toggle", e => { if (e.target?.classList?.contains("more-det")) MORE_OPEN = e.target.open; }, true);
+let MORE_OPEN = false, ACT_OPEN = false; document.addEventListener("toggle", e => { if (e.target?.classList?.contains("more-det")) MORE_OPEN = e.target.open; if (e.target?.classList?.contains("actmore")) ACT_OPEN = e.target.open; }, true);
 function moreBox(e, inner, extra) {
-  const nf = (e.files || []).length, what = [...extra.filter(Boolean), nf ? `${nf} Dokument${nf > 1 ? "e" : ""}` : "Dokumente", "Erinnerung", e.gEventId ? "Google" : "", "Farbe"].filter(Boolean);
+  const nf = (e.files || []).length, what = [...extra.filter(Boolean), nf ? `${nf} Dokument${nf > 1 ? "e" : ""}` : "Dokumente", /<b>Erinnerung<\/b>/.test(inner) ? "Erinnerung" : "", e.gEventId ? "Google" : "", "Farbe"].filter(Boolean);
   return `<details class="more-det"${MORE_OPEN ? " open" : ""}><summary><span><b>Mehr anzeigen</b><small>${esc(what.join(" · "))}</small></span></summary>${inner}</details>`;
 }
 // Notiz als kurze Stichpunkte: an Zeilenumbrüchen, „ · “ und 📎-Abschnitten trennen
@@ -3248,16 +3247,17 @@ function actionBar({ edit, move, share, shareLbl, route, more = [], del }) {
   const tile = (attr, ic, lbl, cls = "") => attr ? `<button type="button" class="act ${cls}" ${attr}><span aria-hidden="true">${ic}</span>${esc(lbl)}</button>` : `<button type="button" class="act off" disabled aria-disabled="true"><span aria-hidden="true">${ic}</span>${esc(lbl)}</button>`;
   const q = route ? encodeURIComponent(route) : "";
   const rt = route ? `<a class="act" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener"><span aria-hidden="true">🧭</span>Route</a>` : tile("", "🧭", "Route");
-  const list = [...more.filter(Boolean), route ? `<a href="https://maps.apple.com/?daddr=${q}" target="_blank" rel="noopener">🗺 Route mit Apple Karten</a>` : "", del ? `<button type="button" class="del" ${del}>🗑 Löschen</button>` : ""].filter(Boolean);
-  return `<div class="actbar">${tile(edit, "✏️", "Ändern", "pri")}${tile(move, "📅", "Verschieben")}${tile(share, "👥", shareLbl || "Teilen")}${rt}</div>${list.length ? `<details class="actmore"><summary>⋯ Weitere Aktionen</summary><div class="actlist">${list.join("")}</div></details>` : ""}`;
+  const list = [...more.filter(Boolean), route && /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? `<a href="https://maps.apple.com/?daddr=${q}" target="_blank" rel="noopener">🗺 Route mit Apple Karten</a>` : "", del ? `<button type="button" class="del" ${del}>🗑 Löschen</button>` : ""].filter(Boolean);
+  return `<div class="actbar">${tile(edit, "✏️", "Ändern", "pri")}${tile(move, "📅", "Ver\u00ADschieben")}${tile(share, "👥", shareLbl || "Teilen")}${rt}</div>${list.length ? `<details class="actmore"${ACT_OPEN ? " open" : ""}><summary>⋯ Weitere Aktionen</summary><div class="actlist">${list.join("")}</div></details>` : ""}`;
 }
 function showEvent(o) {
+  if (sheetCtx?.id !== o.ev.id) ACT_OPEN = false;
   if (o.ev.type === "google") return showGoogleEvent(o);
   const e = o.ev, cf = conflicts(o), items = [];
   if (e.shared) { const it = [`<li><i style="background:var(--both)"></i><div><b>Geteilt von ${esc(e.shared.from || "jemandem")}</b><div class="note">Änderungen sieht ihr beide</div></div></li>`];
     if (e.note) it.push(`<li><i style="background:var(--muted)"></i><div><b>Notiz</b>${noteList(e.note)}</div></li>`);
     if (e.place) it.push(`<li><i style="background:var(--muted)"></i><div><b>Ort</b><div class="note">${esc(e.place)}</div></div></li>`);
-    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul>${actionBar({ edit: canWrite && `data-edit="${esc(e.id)}"`, share: `data-share="${esc(e.id)}|${iso(o.a)}"`, route: e.place, del: `data-shdel="${esc(e.id)}"` })}`, "event", { id: e.id, a: iso(o.a) });
+    openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `<ul class="sheet-list">${it.join("")}</ul>${actionBar({ edit: canWrite && `data-edit="${esc(e.id)}"`, share: `data-sharepick="${esc(e.id)}|${iso(o.a)}|g"`, route: e.place, del: `data-shdel="${esc(e.id)}"` })}`, "event", { id: e.id, a: iso(o.a) });
     return; }
   const isT = ["trip", "urlaub"].includes(e.type) && !o.part, meta = [];
   const item = (title, sub, m) => (m ? meta : items).push(`<li><i style="background:${colorOf(e)}"></i><div><b>${esc(title)}</b>${sub ? `<div class="note">${esc(sub)}</div>` : ""}</div></li>`);
@@ -3288,10 +3288,10 @@ function showEvent(o) {
   for (let t = o.a; t <= o.b && st.length < 1; t = addDays(t, 1)) { const d = dayOf(t); if (d && winOf(t)) st.push(`schulfrei in ${JOINT.join(", ")}`); }
   if (st.length) item("Schule", st[0], 1);
   const id = esc(e.id);
-  const rq = placeOf(e) || (e.type === "trip" ? e.title : ""), shared = effTo(e).length;
-  const acts = actionBar({ edit: canWrite && `data-edit="${id}"`, move: canWrite && `data-move="${id}"`, share: canWrite ? `data-shev="${id}|${iso(o.a)}"` : `data-share="${id}|${iso(o.a)}"`, shareLbl: shared ? "Geteilt" : "Teilen", route: rq,
-    more: [`<button type="button" data-share="${id}|${iso(o.a)}">📤 Als Bild/Text teilen</button>`, gResend.replace('class="btn ghost small"', ""), ["trip", "termin", "urlaub"].includes(e.type) && !isT ? `<button type="button" data-pack="${id}">🎒 ${packLabel(e)}${e.packlist.length ? ` · ${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : ""}</button>` : "",
-      ["birthday", "anniversary"].includes(e.type) && sample ? `<button type="button" data-ideas="${id}|${iso(o.a)}">💡 Geschenk-Ideen</button>` : ""], del: canWrite && `data-del="${id}|${iso(o.a)}"` });
+  const rq = placeOf(e) || (e.stays || [])[0]?.adr || "", shared = effTo(e).length;
+  const acts = actionBar({ edit: canWrite && `data-edit="${id}"`, move: canWrite && !["birthday", "anniversary"].includes(e.type) && `data-move="${id}"`, share: `data-sharepick="${id}|${iso(o.a)}"`, shareLbl: shared ? "Geteilt" : "Teilen", route: rq,
+    more: [gResend.replace('class="btn ghost small"', ""), ["trip", "termin", "urlaub"].includes(e.type) && !isT ? `<button type="button" data-pack="${id}">🎒 ${packLabel(e)}${e.packlist.length ? ` · ${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : ""}</button>` : "",
+      ""], del: canWrite && `data-del="${id}|${iso(o.a)}"` });
   const packRow = isT ? `<button type="button" class="tcard tpack" data-pack="${id}"><span>🎒 <b>${esc(packLabel(e))}</b></span><span>${e.packlist.length ? `${e.packlist.filter(x => x.d).length}/${e.packlist.length} erledigt` : "anlegen"} ›</span></button>` : "";
   const qcol = canWrite && !e.gReadOnly ? qcolBox(id, e.color, catColor(catOf(e) || e.type), "Farbe dieses Eintrags", `Farbe für alle „${TYPES[e.type]?.label || "Einträge"}“ ändern`) : "";
   if (isT) {
@@ -3301,7 +3301,13 @@ function showEvent(o) {
     const tasks = items.length ? `<ul class="sheet-list">${items.join("")}</ul>` : "";
     openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${cta}${plan}${factsHtml}${noteFirst ? noteHtml : ""}${tasks}${packRow}<div id="place-sug" hidden></div>${moreBox(e, hintsHtml + (noteFirst ? "" : noteHtml) + docsBox(e) + metaHtml + qcol, [hintsHtml && "Gut zu wissen", !noteFirst && noteHtml && "Notiz"])}${acts}`, "event", { id: e.id, a: iso(o.a) });
     if (canWrite && placeCand(o)) fillPlaceSug(o); return; }
-  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${moreBox(e, docsBox(e) + (meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "") + qcol, [])}${acts}`, "event", { id: e.id, a: iso(o.a) });
+  // Das Wichtigste je Art ganz oben
+  const rel = n => n === 0 ? "heute" : n === 1 ? "morgen" : n > 0 ? `in ${n} Tagen` : `vor ${-n} Tagen`, dn = dayDiff(TODAY, o.a), wdt = `${WDL[o.a.getDay()]}, ${fmt(o.a)}`;
+  let headHtml = "";
+  if (["birthday", "anniversary"].includes(e.type)) headHtml = `<div class="tcard thead"><b>${e.type === "birthday" ? "🎂" : "💍"} ${esc(e.type === "birthday" && e.birthYear ? `${dn < 0 ? "Wurde" : "Wird"} ${o.a.getFullYear() - e.birthYear}` : ageTxt(o) || TYPES[e.type]?.label || "")}</b><span>${esc(wdt)} · ${rel(dn)}</span>${sample ? `<button type="button" class="btn small" data-ideas="${id}|${iso(o.a)}">💡 Geschenk-Ideen</button>` : ""}</div>`;
+  else if (e.type === "deadline") headHtml = `<div class="tcard thead"><b>⏰ Frist · fällig ${esc(wdt)}</b><span>${rel(dn)}</span></div>`;
+  else if (e.type === "abholen" && !trainDetail(o)) { const no = e.pick?.no || trainOf(e) || flightOf(e); if (no || e.time) headHtml = `<div class="tcard thead"><b>${e.pick?.mode === "flug" ? "✈️" : "🚆"} ${esc([no, `${e.pick?.dir === "dep" ? "Abfahrt" : "Ankunft"} ${e.time || ""}`.trim(), (e.place || "").split(",")[0]].filter(Boolean).join(" · "))}</b><span>${esc(wdt)} · ${rel(dn)}</span></div>`; }
+  openSheet(evName(e), `${rngTxt(o.a, o.b, true)}${timeTxt(e) ? " · " + timeTxt(e) + " Uhr" : ""}`, `${trainDetail(o)}${headHtml}${plan}<ul class="sheet-list">${items.join("")}</ul><div id="place-sug" hidden></div>${moreBox(e, docsBox(e) + (meta.length ? `<div class="tcard tmeta">${meta.join("").replace(/<li>/g, "<div class=\"tm\">").replace(/<\/li>/g, "</div>")}</div>` : "") + qcol, [])}${acts}`, "event", { id: e.id, a: iso(o.a) });
   if (canWrite && placeCand(o)) fillPlaceSug(o);
 }
 
@@ -3488,8 +3494,8 @@ const repVal = () => { const r = $("f-rep")?.value || "none"; if (r !== "custom"
 const TYPE_SHORT = { termin: "Termin", trip: "Reise", urlaub: "Urlaub", dienst: "Dienst", abholen: "Abholen", info: "Hinweis", birthday: "Geburtstag", mina: "Umgang", anniversary: "Jahrestag", deadline: "Frist", contact: "Kontakt" };
 const TYPE_ICON = { termin: "📅", trip: "🧳", urlaub: "🏖️", dienst: "🕘", abholen: "🚉", info: "💡", birthday: "🎂", mina: "👨‍👧", anniversary: "💞", deadline: "⏰", contact: "📞" };
 // Pflicht = sofort sichtbar; alles andere unter „Mehr Optionen“
-const F_MAIN = { termin: ["att", "title", "dates", "time", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["att", "title", "dates"], dienst: ["title", "dates", "time", "rep"],
-  abholen: ["att", "pick", "dates", "time"], info: ["att", "title", "dates", "time"], birthday: ["title", "bd"], mina: ["att", "title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["att", "title", "dates", "extra"], contact: ["title", "dates", "extra"] };
+const F_MAIN = { termin: ["att", "title", "dates", "time", "rep", "place"], trip: ["att", "title", "dates", "trip", "place"], urlaub: ["att", "title", "dates"], dienst: ["title", "dates", "time", "rep"],
+  abholen: ["att", "pick", "dates", "time"], info: ["att", "title", "dates", "time", "rep"], birthday: ["title", "bd"], mina: ["att", "title", "dates"], anniversary: ["title", "dates", "extra"], deadline: ["att", "title", "dates", "extra"], contact: ["title", "dates", "extra"] };
 const F_GRP = { att: "f-att", title: "f-title-grp", rep: "f-rep-wrap", col: "f-col-wrap", share: "f-sh-wrap", vis: "f-vis", shift: "f-shift", thx: "f-thx-wrap", trip: "f-trip-wrap", place: "f-place-grp", note: "f-note-grp", gcal: "f-gcal-wrap", pick: "f-pick-wrap" };
 let fMore = false;
 const DIENST_SUG = ["Früh", "Spät", "Nacht", "Bereitschaft", "Homeoffice"];
@@ -3512,10 +3518,11 @@ function formLayout(ty) {
     sug.innerHTML = ty === "deadline" ? FK_CHIP.map(([k, l]) => `<button type="button" class="tkq" data-ffk="${k}"${$("f-fk")?.value === k ? ' aria-pressed="true"' : ""}>${FK[k].i} ${esc(l)}</button>`).join("")
       : L.map(t => `<button type="button" class="tkq" data-ftitle="${esc(t)}">${esc(t)}</button>`).join(""); sug.hidden = (ty !== "deadline" && !L.length) || (!!editing && !!($("f-title")?.value || "").trim()); sug.classList.toggle("fk2", ty === "deadline"); sugClamp(sug, ty === "deadline" ? 2 : 1); }
   if ($("f-renew-wrap")) $("f-renew-wrap").hidden = ty !== "deadline";
+  { const rw = $("f-rep-wrap"), tw = $("f-time-wrap"); if (rw && tw && main.has("rep") && tw.nextElementSibling !== rw) tw.after(rw); }   // Wiederholung direkt unter der Uhrzeit
   const tt = $("f-att-t"); if (tt) tt.textContent = "Datei";
   if (!$("f-title").value && TITLE_PH[ty]) $("f-title").placeholder = TITLE_PH[ty];
   const hasMore = Object.keys(F_GRP).some(k => !main.has(k) && $(F_GRP[k]) && k !== "pick"), b = $("f-more");
-  if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : "Mehr Optionen (Wiederholung, Farbe, Notiz, Google …) ▾"; }
+  if (b) { b.hidden = !hasMore; b.textContent = fMore ? "Weniger Optionen ▴" : `Mehr Optionen (${main.has("rep") ? "" : "Wiederholung, "}Farbe, Notiz, Google …) ▾`; }
   document.querySelectorAll("[data-ftype]").forEach(x => x.setAttribute("aria-checked", String(x.dataset.ftype === ty)));
 }
 function syncFormFields() {
@@ -3760,7 +3767,7 @@ function gCalOptions(cur) {
 function startMove(e) {
   moving = e; closeSheet();
   if (e.gocc) { e.a = e.gocc.a; e.title = e.gocc.ev.title; e.type = "google"; }
-  $("move-txt").textContent = `Neuen Starttag für „${evName(e)}“ antippen`;
+  $("move-txt").textContent = `Tippe auf den neuen Tag – „${evName(e)}“`; try { goPage?.("p1", false); } catch {}
   $("movebar").hidden = false; $("add-btn").hidden = true;
   if (view === "two") setTwo(e.a);
   else { if (view !== "month") setView("month");
@@ -3805,7 +3812,7 @@ async function delSeries(btn, m, id, a) {
 async function delEvent(btn, id, a) {
   const e0 = EV.find(x => x.id === id);
   if (e0 && e0.repeat && e0.repeat !== "none" && a) { delChoice(btn, id, a, false); return; }
-  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Wirklich löschen? (auch in Google)" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 9000); return; }
+  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = EV.find(x => x.id === id)?.gEventId ? "Wirklich löschen? (auch in Google)" : "Wirklich löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "🗑 Löschen"; } }, 9000); return; }
   btn.disabled = true;
   const hadDocs = (EV.find(x => x.id === id)?.files || []).length;
   const tkL = e0 ? tkOfEv(e0) : [];
@@ -3993,7 +4000,8 @@ function renderTap() {
     ${own(ty === "birthday" || ty === "contact" || ty === "abholen" ? "✎ Name eintippen" : ty === "trip" ? "✎ Ort eintippen" : "✎ Etwas anderes eintippen", T.includes(t.title) ? "" : t.title)}`; }
   else if (s === "wann" || s === "fdat" || s === "tdue") { const days = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
     const eom = k => new Date(TODAY.getFullYear(), TODAY.getMonth() + 1 + k, 0);
-    const opts = s === "fdat" ? [[eom(0), "Ende dieses Monats"], [eom(1), "Ende nächsten Monats"], [addDays(TODAY, 91), "In 3 Monaten"], [new Date(TODAY.getFullYear(), 11, 31), "Jahresende"]] : days.map((d, i) => [d, i === 0 ? "Heute" : i === 1 ? "Morgen" : `${WD[d.getDay()]} ${d.getDate()}.`]);
+    const am = n => { const d = new Date(TODAY); d.setMonth(d.getMonth() + n); return d; };
+    const opts = s === "fdat" ? [[eom(0), "Ende dieses Monats"], [eom(1), "Ende nächsten Monats"], [am(3), "In 3 Monaten"], [am(6), "In 6 Monaten"], [new Date(TODAY.getFullYear(), 11, 31), "Jahresende"]].filter((x, i, A) => A.findIndex(y => sameDay(y[0], x[0])) === i) : days.map((d, i) => [d, i === 0 ? "Heute" : i === 1 ? "Morgen" : `${WD[d.getDay()]} ${d.getDate()}.`]);
     const hw = s === "wann" && t.title ? habFor(t.ty, t.title)?.wd : null;
     if (hw != null) { const i = opts.findIndex(([d]) => d.getDay() === hw); if (i > 0) { const [o] = opts.splice(i, 1); opts.unshift([o[0], o[1] + '<small class="tp-sug">wie meist</small>']); } else if (i === 0) opts[0][1] += '<small class="tp-sug">wie meist</small>'; }
     body = `<h3 class="tp-q">${s === "fdat" ? "Bis wann?" : s === "tdue" ? "Bis wann erledigen?" : "Wann?"}</h3>${s === "tdue" ? `<div class="tp-g tp-wide">${chip("data-tpnodue", "1", "Ohne Datum – steht nur in der Aufgabenliste", !!t.nodue)}</div>` : ""}<div class="tp-g${s === "fdat" ? " tp-wide" : ""}">${opts.map(([d, l]) => chip("data-tpd", iso(d), l + (s === "fdat" ? `<small class="tp-sug">${fmt(d)}</small>` : ""), t.date && sameDay(t.date, d))).join("")}</div>
@@ -4700,6 +4708,7 @@ function showGoogleSheet() {
       ${APP ? `<button type="button" class="link" id="g-forget" style="margin-top:14px;color:var(--muted)">Google-Verbindung trennen</button>` : ""}` : ""}`, "google");
 }
 function showGoogleEvent(o) {
+  if (sheetCtx?.id !== o.ev.id) ACT_OPEN = false;
   const e = o.ev, items = [];
   items.push(`<li><i style="background:${e.color}"></i><div><b>Google · ${esc(e.cal)}</b>${e.creator ? `<div class="note">eingetragen von ${esc(e.creator)}</div>` : ""}${e.recurring ? `<div class="note">Teil einer Serie</div>` : ""}</div></li>`);
   if (e.note) items.push(`<li><i style="background:${e.color}"></i><div><b>Ort</b><div class="note">${esc(e.note)}</div></div></li>`);
@@ -4708,7 +4717,7 @@ function showGoogleEvent(o) {
   const id = esc(e.id), w = canWrite && gWritable() && gCalW(e);
   const gcal = gCals.find(c => c.id === e.calId || (e.calId === "primary" && c.primary)), gw = w && !!mcp && gState === "ok" && (!gcal?.accessRole || ["owner", "writer"].includes(gcal.accessRole));
   const qcol = gw ? qcolBox(e.id, e.ecol ? e.colorId : "", gColor(e.calId)[0], "Farbe dieses Google-Termins", "") : "";
-  const acts = actionBar({ edit: w && `data-gedit="${id}|${iso(o.a)}"`, move: w && `data-gmove="${id}|${iso(o.a)}"`, share: `data-share="${id}|${iso(o.a)}"`, route: placeOf(e),
+  const acts = actionBar({ edit: w && `data-gedit="${id}|${iso(o.a)}"`, move: w && `data-gmove="${id}|${iso(o.a)}"`, share: `data-sharepick="${id}|${iso(o.a)}|g"`, route: placeOf(e),
     more: [gAdoptable(o) ? `<label>📎 Datei hinzufügen<input type="file" hidden multiple accept="application/pdf,image/*" data-gdoc="${id}|${iso(o.a)}"></label>` : "", e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">↗ In Google öffnen</a>` : "",
       canWrite && isTrip(o) ? `<button type="button" data-adopt="${id}|${iso(o.a)}">🧳 Als Reise übernehmen</button>` : "", merkable(o) ? `<button type="button" data-gmerk="${id}|${iso(o.a)}">${merkBtn(o)}</button>` : "",
       !isTrip(o) && !/geburtstag|birthday/i.test(o.ev.title) && !/\bumgang\b/i.test(o.ev.title) && (isUmg(o) || umgSet().size || EV.some(e => e.type === "mina")) ? `<button type="button" data-umg="${id}|${iso(o.a)}">${isUmg(o) ? "👨‍👧 Umgang ✓" : "👨‍👧 Ist Umgang"}</button>` : ""],
@@ -4766,7 +4775,7 @@ async function gDeleteOcc(btn, o, series) {
     try { await mcp.callTool(GSERVER, "delete_event", inp); mcp.invalidate(GSERVER, "list_events").catch(() => {}); closeSheet(); gDropLocal(o.ev.rid, o.ev.calId); gResync(); toast("Ganze Serie in Google gelöscht"); }
     catch (e) { toast(gErr(e)); gSync(true); } return; }
   if (!btn) btn = { dataset: { confirm: "1" }, isConnected: false };
-  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = o.ev.recurring ? "Nur diesen Termin löschen?" : "In Google löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "Löschen"; } }, 9000); return; }
+  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = o.ev.recurring ? "Nur diesen Termin löschen?" : "In Google löschen?"; setTimeout(() => { if (btn.isConnected) { btn.dataset.confirm = ""; btn.textContent = "🗑 Löschen"; } }, 9000); return; }
   btn.disabled = true;
   const snap = gSnap(o), cal = o.ev.calId;
   try {
@@ -4777,7 +4786,7 @@ async function gDeleteOcc(btn, o, series) {
       await mcp.callTool(GSERVER, "create_event", c); mcp.invalidate(GSERVER, "list_events").catch(() => {}); gResync(300); toast("Wiederhergestellt"); });
   } catch (e) {
     if (e?.code === "tool_error" && /not.?found|404|410|deleted|gone|gelöscht/i.test(String(e?.message || ""))) { closeSheet(); toast("Der Termin war in Google schon gelöscht – Ansicht aktualisiert."); }
-    else { toast(gErr(e) + " Ich gleiche die Ansicht mit Google ab."); btn.disabled = false; btn.textContent = "Löschen"; }
+    else { toast(gErr(e) + " Ich gleiche die Ansicht mit Google ab."); btn.disabled = false; btn.textContent = "🗑 Löschen"; }
     gSync(true);
   }
 }
@@ -4938,7 +4947,7 @@ function showA2hs() {
     <div class="btnrow" style="margin-top:12px"><button type="button" class="btn accent" id="a2hs-done">Erledigt</button><button type="button" class="btn ghost" id="a2hs-later">Später</button></div>`, "a2hs");
 }
 function renderFirst() { const f = $("first-card"); if (!f) return;
-  const n0 = store.get("ft-first"); f.hidden = !n0 || dbState !== "ready" || !canWrite || EV.length > +n0; }
+  f.hidden = true; }   // kein extra „Los geht's“-Kasten – „+ Eintragen“ ist ohnehin sichtbar
 function renderHints() { renderHints0(); let one = false; document.querySelectorAll(".hint-card").forEach(c => { if (!c.hidden) { if (one) c.hidden = true; one = true; } }); }
 let relInstalled = false;
 if (APP && !IS_STANDALONE && navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(a => { relInstalled = !!a?.length; try { renderHints(); } catch {} }).catch(() => {});
@@ -4973,7 +4982,7 @@ function renderHints0() {
   const st = store.get("ft-a2hs") || "";   // "", "later:<ts>", "no", "done"
   const later = st.startsWith("later:") && Date.now() - +st.slice(6) < 7 * 864e5;
   if (APP) { a2.querySelector("b").textContent = "Als App installieren?"; a2.querySelector("span").textContent = "Eigenes Symbol, ohne Browserleiste – und der Kalender startet auch ohne Netz."; $("a2hs-yes").textContent = installEvt ? "Jetzt installieren" : "Ja, zeig mir wie"; }
-  a2.hidden = IS_STANDALONE || !(IS_MOBILE || (APP && installEvt)) || dbState !== "ready" || !$("first-card")?.hidden || st === "no" || st === "done" || later || (dbState === "ready" && !PROFILE.setupDone) || !$("sheet").hidden && sheetMode === "setup";
+  a2.hidden = EV.filter(e => !e.shared && !e.gAdopt).length < 3 /* Installieren erst ab ein paar eigenen Terminen */ || IS_STANDALONE || !(IS_MOBILE || (APP && installEvt)) || dbState !== "ready" || !$("first-card")?.hidden || st === "no" || st === "done" || later || (dbState === "ready" && !PROFILE.setupDone) || !$("sheet").hidden && sheetMode === "setup";
 }
 
 // =================== Profil & Einrichtung (Vollbild) ===================
@@ -5037,7 +5046,7 @@ function startGoogleSetup() {
 }
 const wzDots = keys => { const i = keys.indexOf(WZ.step); return `<div class="wz-dots">${keys.map((k, j) => `<i class="${j === i ? "on" : j < i ? "done" : ""}"></i>`).join("")}</div>`; };
 const wzNt = () => APP && ntSupported() && !ntWaitInstall() && !(ntSub && Notification.permission === "granted");
-const STEPS = () => { const n = wzNt() ? ["notify"] : []; return WZ.later ? ["cals", "family", "state", "pages", ...n, "import", "done"] : WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", "pages", ...n, "import", "done"] : ["google", "manual", "state", "pages", ...n, "import", "done"]; };
+const STEPS = () => { const n = wzNt() ? ["notify"] : []; return WZ.later ? ["cals", "family", "state", ...n, "import", "done"] : WZ.editing ? ["state", "manual", "done"] : gState === "ok" && WZ.useG ? ["google", "cals", "family", "state", ...n, "import", "done"] : ["google", "manual", "state", ...n, "import", "done"]; };
 function renderWz() {
   const W = WZ, el = wzEl(); if (!el) return;
   const top = `<div class="wz-top">${wzDots(STEPS())}</div>`;
@@ -5276,7 +5285,7 @@ function wzClick(id, el) {
     case "wz-man-next": if (W.editing) wzSaveEdit(); else wzGo("state"); return true;
     case "wz-man-skip": if (W.editing) { wzSaveEdit(); } else wzGo("state"); return true;
     case "wz-state-next": case "wz-state-skip": wzReadState(); if (id === "wz-state-skip" && !W.editing) { W.state = PA; W.state2 = ""; }
-      if (W.editing) wzGo("manual"); else { W.pages ??= { ...PAGES }; wzGo("pages"); } return true;
+      if (W.editing) wzGo("manual"); else if (wzNt()) wzGo("notify"); else wzImport(); return true;   // Schritt „Was möchtest du sehen?“ entfällt – alle Seiten bleiben an (☰ → Anzeigen)
     case "wz-pages-next": { const pg = W.pages || PAGES; if (!pg.p0 && !pg.p1 && !pg.p2) { toast("Wähl mindestens eine Seite"); return true; }
       PAGES = { ...pg }; store.set("ft-pages", JSON.stringify(PAGES)); applyPages(); if (wzNt()) wzGo("notify"); else wzImport(); return true; }
     case "wz-finish": wzClose(); store.set("ft-first", String(EV.length)); renderHints(); if (pendingInvite()) { takeInvite(); return true; } setTimeout(() => { goPage("p0"); $("p0")?.scrollTo?.({ top: 0 }); scrollTo({ top: 0, behavior: "smooth" }); }, 50); return true;
@@ -5341,6 +5350,8 @@ document.addEventListener("click", ev => {
   if ((el = q("[data-occ]"))) { const [id, a] = el.dataset.occ.split("|"); const o = findOcc(id, a); if (o) showEvent(o); return; }
   if ((el = q("[data-edit]"))) { const e = EV.find(x => x.id === el.dataset.edit) || RECV.find(x => x.id === el.dataset.edit); if (!e) return;
     if (entryMode() === "tap" && TAP_FLOW[e.type] && !e.shared && EV.includes(e) && parseIso(e.from)) return showTapEdit(e); showForm(e); return; }
+  if ((el = q("[data-sharepick]"))) { const [id, a, g] = el.dataset.sharepick.split("|"), e = EV.find(x => x.id === id), o = findOcc(id, a); const t = o ? evName(o.ev) : "";
+    openSheet("Teilen", t, `<div class="actlist" style="margin-top:8px"><button type="button" data-share="${esc(id)}|${esc(a)}">📤 Per WhatsApp, Mail oder als Bild senden<br><small class="muted">Einmalig – die anderen bekommen den Termin als Nachricht</small></button>${e && !e.shared && canWrite && g !== "g" ? `<button type="button" data-shev="${esc(id)}|${esc(a)}">👥 Gemeinsam im Kalender${effTo(e).length ? ` · geteilt mit ${esc(shareNames(effTo(e)).join(", "))}` : ""}<br><small class="muted">Steht bei den anderen im Kalender und bleibt aktuell</small></button>` : `<p class="note" style="padding:10px 14px;margin:0">„Gemeinsam im Kalender“ gibt es für deine eigenen PlanFlink-Termine.</p>`}</div>`, "sharepick"); return; }
   if ((el = q("[data-shev]"))) { const [id, d] = el.dataset.shev.split("|"), e = EV.find(x => x.id === id); if (e) showShareEv(e, d); return; }
   if ((el = q("[data-shunhide]"))) { SHR.hidden = SHR.hidden.filter(s => s !== el.dataset.shunhide); saveShr(); shrMerge(); showShareMgr(); toast("Wieder eingeblendet"); return; }
   if ((el = q("[data-shdel]"))) { const e = RECV.find(x => x.id === el.dataset.shdel); if (e) showSharedDelete(e); return; }
@@ -5532,7 +5543,8 @@ document.addEventListener("click", ev => {
     case "fam-pick-go": (async () => { const ppl = bdPeople(); let n = 0; for (const [k, pk] of FPICK) { const c = ppl.find(x => x.key === k); if (c && pk.name.trim()) { await famAdd(c, pk.role, pk, true); n++; } }
       FPICK = new Map(); famQ = ""; famSave(); showFamily(); toast(`${n} ${n === 1 ? "Person" : "Personen"} übernommen`); })(); break;
     case "tk-later": tkLaterOpen = !tkLaterOpen; renderTasks(); break;
-    case "tk-go": { const i = $("tk-in"), v = i.value.trim(); if (v) { addTask({ title: v[0].toUpperCase() + v.slice(1), due: $("tk-due").value || "" }); tkReset(); i.focus(); toast("Aufgabe eingetragen"); } break; }
+    case "tk-go": { const i = $("tk-in"), v0 = i.value.trim(), pt = v0 && !$("tk-due").dataset.man ? parseTask(v0) : null, v = pt?.due && (pt.title || "").trim() ? pt.title.trim() : v0;   // erkanntes Datum („bis Freitag“) nicht im Titel lassen
+      if (v) { addTask({ title: v[0].toUpperCase() + v.slice(1), due: $("tk-due").value || "" }); tkReset(); i.focus(); toast("Aufgabe eingetragen"); } break; }
     case "tk-all": tkAll = !tkAll; renderTasks(); break;
     case "tk-showdone": tkShowDone = !tkShowDone; tkSelMode = false; TKSEL.clear(); renderTasks(); break;
     case "tk-sel": tkSelMode = true; TKSEL.clear(); renderTasks(); break;
@@ -5625,7 +5637,9 @@ document.addEventListener("click", ev => {
     case "open-google": showGoogleSheet(); break;
     case "g-sync": closeSheet(); gSync(); break;
     case "next-more": goPage?.("p1"); setView("list"); break;
-    case "search-btn": { if ($("p1")?.hidden) { toast("Die Suche steckt in der Kalender-Seite – einschalten unter ☰ → Anzeigen"); break; } goPage?.("p1"); setView("list"); setTimeout(() => { const q = $("q"); if (q) { q.scrollIntoView({ block: "center" }); try { q.focus(); } catch {} } }, 350); break; }
+    case "q-end": endSearch(); break;
+    case "search-btn": { if (SEARCH_ON) { endSearch(); break; } if ($("p1")?.hidden) { toast("Die Suche steckt in der Kalender-Seite – einschalten unter ☰ → Anzeigen"); break; }
+      SEARCH_PREV = { view, page: curPage() }; SEARCH_ON = true; $("search-btn").classList.add("on"); $("q-end").hidden = false; goPage?.("p1"); setView("list"); setTimeout(() => { const q = $("q"); if (q) { q.scrollIntoView({ block: "center" }); try { q.focus(); } catch {} } }, 350); break; }
     case "g-forget": openSheet("Google trennen?", "Deine PlanFlink-Termine bleiben", `<p>PlanFlink zeigt dann keine Google-Termine mehr und trägt nichts mehr in Google ein. Die Freigabe wird bei Google zurückgenommen. Du kannst Google jederzeit wieder verbinden.</p><div class="btnrow"><button type="button" class="btn ghost" id="g-forget-no">Abbrechen</button><button type="button" class="btn accent" id="g-forget-yes">Trennen</button></div>`); break;
     case "g-forget-no": showGoogleSheet(); break;
     case "g-forget-yes": { el.disabled = true; window.mkGoogleForget?.().then(() => { closeSheet(); gTry = 0; initGoogle().then(() => renderAll?.()); toast("Google ist getrennt."); }); break; }
@@ -5787,6 +5801,12 @@ function attachRange(root) {
 // ---- Handy-Seiten: seitlich wischen ----
 const PAGER = matchMedia("(max-width: 640px)");
 const wrapEl = document.querySelector(".wrap");
+// Suche: Lupe schaltet ein und aus; beim Beenden alte Ansicht und Seite zurück
+let SEARCH_ON = false, SEARCH_PREV = null;
+function curPage() { const P = [...wrapEl.querySelectorAll(":scope > .page")].filter(p => !p.hidden && !p.classList.contains("pg-off")); return PAGER.matches ? P[Math.round(wrapEl.scrollLeft / Math.max(1, wrapEl.clientWidth))]?.id || "p0" : "p0"; }
+function endSearch() { SEARCH_ON = false; const q = $("q"); if (q) { q.value = ""; q.blur(); } const pv = SEARCH_PREV; SEARCH_PREV = null; $("search-btn")?.classList.remove("on"); if ($("q-end")) $("q-end").hidden = true;
+  if (pv?.view && pv.view !== "list") setView(pv.view); else if (view === "list") renderList(); if (pv?.page) setTimeout(() => goPage(pv.page), 50);
+  $("add-btn").hidden = (!canWrite && dbState !== "off") || !!moving || !$("sheet").hidden; }
 function goPage(id, smooth = true) { const p = $(id); if (!p || p.hidden) return;
   if (PAGER.matches) wrapEl.scrollTo({ left: p.offsetLeft, behavior: smooth ? "smooth" : "auto" }); else p.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }); }
 function pagerDots() { const P = [...wrapEl.querySelectorAll(":scope > .page")].filter(p => !p.hidden && !p.classList.contains("pg-off")), d = $("pgdots"); if (!d) return;
