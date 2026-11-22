@@ -192,7 +192,7 @@
   .hero h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.1; } .hero h1 em { color: var(--acc); font-style: normal; }
   .claimline { margin: 10px 0 16px; font-size: 17px; color: var(--acc); font-weight: 500; }
   .kick .kb { color: var(--acc); font-weight: 600; }
-  .brand { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 22px; letter-spacing: -.2px; } .brand span, .foot-brand b span { color: var(--acc); }
+  .brand { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 22px; letter-spacing: -.2px; }
   .foot-brand { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; color: var(--soft); } .foot-brand img { width: 22px; height: 22px; border-radius: 5px; } .foot-brand b { font-family: Fraunces, Georgia, serif; font-weight: 600; color: var(--ink); font-size: 16px; } .foot-brand a { color: var(--acc); }
   .cta-logo { width: 56px; height: 56px; border-radius: 13px; display: block; margin: 0 auto 10px; }
   .h2, .sk h2, .cta h2 { font-size: clamp(26px, 3.6vw, 36px); line-height: 1.2; }
@@ -241,7 +241,7 @@
 <script>if (/[?&]geloescht=1/.test(location.search)) document.addEventListener("DOMContentLoaded", function () { var d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "background:#0f6e73;color:#fff;padding:12px 16px;text-align:center;font-weight:600"; d.textContent = "Dein Konto und alle Daten wurden gelöscht. Danke, dass du PlanFlink ausprobiert hast."; document.body.prepend(d); try { history.replaceState(null, "", "/?info"); } catch (e) {} });</script>
 <div id="backhint" hidden style="position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:60;max-width:520px;margin:0 auto;background:#111317;color:#fff;border-radius:16px;padding:14px 16px;font-size:15px;line-height:1.5;box-shadow:0 12px 30px rgba(0,0,0,.25)">Tippe oben links auf <b>✕</b> bzw. „Zurück“ – dann bist du wieder in deinem Kalender.</div>
 
-<nav class="nav" id="nav"><div class="wrap"><img src="favicon.svg" alt=""> <span class="brand">Plan<span>Flink</span></span><a class="nb" href="/app/" onclick="return openCal()">Öffnen</a></div></nav>
+<nav class="nav" id="nav"><div class="wrap"><img src="favicon.svg" alt=""> <span class="brand">PlanFlink</span><a class="nb" href="/app/" onclick="return openCal()">Öffnen</a></div></nav>
 
 <header class="hero">
   <div class="wrap">
@@ -358,7 +358,7 @@
 <div class="cta"><img class="cta-logo" src="favicon.svg" alt=""><h2>PlanFlink ausprobieren.</h2><p>Schreib einfach deinen ersten Termin – den Rest erledigt PlanFlink.</p><a class="btn" href="/app/" onclick="return openCal()">PlanFlink kostenlos starten <span aria-hidden="true">→</span></a></div>
 <footer>Hinweise zu Visum, Einreise, Maut und Vignette sind Erinnerungen – bitte die aktuellen Regeln vor der Reise prüfen. Live-Daten: Deutsche Bahn und AirLabs, ohne Gewähr.<br>
   PlanFlink ist ein privates Projekt und nutzt Claude von Anthropic für KI-Funktionen.
-  <div class="foot-brand"><img src="favicon.svg" alt=""> <b>Plan<span>Flink</span></b> · Der Kalender, der an das denkt, was du vergisst. · <a href="mailto:kontakt@planflink.de">kontakt@planflink.de</a></div>
+  <div class="foot-brand"><img src="favicon.svg" alt=""> <b>PlanFlink</b> · Der Kalender, der an das denkt, was du vergisst. · <a href="mailto:kontakt@planflink.de">kontakt@planflink.de</a></div>
   <div class="foot-links"><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="/ki-hinweise.html">KI-Hinweise</a><a href="#" onclick="document.getElementById('consent').hidden=false;return false">Speicher-Einstellungen</a></div></footer>
 <div class="consent" id="consent" hidden role="dialog" aria-label="Speicher-Einstellungen">
   <b>Nächstes Mal direkt zum Kalender?</b> Dein Browser merkt sich nur, dass du ihn schon geöffnet hast – keine Cookies, kein Tracking. <a href="/datenschutz.html">Mehr dazu</a>

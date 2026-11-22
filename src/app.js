@@ -4810,7 +4810,7 @@ function showGate() {
   WZ = { step: "gate" }; wzOpen();
   if (APP) { wzEl().innerHTML = `<div class="wz-card wz-center">
     <div class="wz-logo" aria-hidden="true"><img src="/favicon.svg" width="76" height="76" alt="" style="display:block;border-radius:18px"></div>
-    <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
+    <h1>PlanFlink</h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
     <p class="note" style="text-align:center;margin:6px 0 0">Mit der Anmeldung gelten unsere <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutzhinweise</a>.</p>
@@ -4819,7 +4819,7 @@ function showGate() {
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
     <div class="wz-logo" aria-hidden="true"><img src="/favicon.svg" width="76" height="76" alt="" style="display:block;border-radius:18px"></div>
-    <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
+    <h1>PlanFlink</h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Du brauchst ein kostenloses Claude-Konto.</b><span>Damit sind deine Termine privat gespeichert – nur du siehst sie. Die Anmeldung dauert eine Minute, mit E-Mail oder Google.</span></div>
     <a class="wz-big accent" href="${loginUrl()}" target="_blank" rel="noopener">Anmelden oder kostenlos registrieren</a>

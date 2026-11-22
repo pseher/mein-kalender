@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261121200141";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261122121325";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -831,7 +831,7 @@ label.tp-c { display: flex; align-items: center; justify-content: center; text-a
 .tk-day { margin: 6px 0 10px; } .fr.tk-dn .fr-btn { text-decoration: line-through; color: var(--muted); }
 .day-add { margin-top: 10px; } .day-add .btn { flex: 1; } .day-add2 { display: flex; gap: 14px; }
 .lr .lr-ck { margin-right: 6px; color: var(--muted); } .tk-addev { margin-top: 4px; }
-.hd-logo { width: 28px; height: 28px; border-radius: 7px; vertical-align: -5px; margin-right: 8px; } .hd-f { color: var(--accent); }
+.hd-logo { width: 28px; height: 28px; border-radius: 7px; vertical-align: -5px; margin-right: 8px; }
 .wz-big.gbtn { background: #fff; color: #1f1f1f; border: 1px solid #747775; font-weight: 600; } .wz-big.gbtn:hover { background: #f8faf9; }
 .tp-more { margin: 14px 0 0; padding: 8px 0; font-size: 14px; color: var(--muted); }
 .tp-save { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; } .tp-save .btn { min-height: 52px; font-size: 18px; }
@@ -1379,7 +1379,7 @@ html.typing.snap { scroll-snap-type: none; } .mi-legal a:hover { text-decoration
 <div class="wrap" lang="de">
   <section class="page p0" id="p0">
   <header class="top">
-    <h1><img class="hd-logo" src="/favicon.svg" alt="">Plan<span class="hd-f">Flink</span><small id="hdr-states"></small></h1>
+    <h1><img class="hd-logo" src="/favicon.svg" alt="">PlanFlink<small id="hdr-states"></small></h1>
     <div class="tb">
     <button type="button" class="tb-b" id="search-btn" aria-label="Termine suchen"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
     <button type="button" class="tb-b tb-g" id="g-btn" hidden aria-label="Google Kalender: Status und abgleichen"><span id="g-lbl">G</span><i id="g-dot"></i><span class="badge" id="g-badge" hidden></span></button>
@@ -6339,7 +6339,7 @@ function showGate() {
   WZ = { step: "gate" }; wzOpen();
   if (APP) { wzEl().innerHTML = `<div class="wz-card wz-center">
     <div class="wz-logo" aria-hidden="true"><img src="/favicon.svg" width="76" height="76" alt="" style="display:block;border-radius:18px"></div>
-    <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
+    <h1>PlanFlink</h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Kostenlos anmelden – mit Google oder E-Mail.</b><span>Deine Termine sind privat gespeichert – nur du siehst sie. Danach geht die Einrichtung direkt weiter.</span></div>
     <p class="note" style="text-align:center;margin:6px 0 0">Mit der Anmeldung gelten unsere <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutzhinweise</a>.</p>
@@ -6348,7 +6348,7 @@ function showGate() {
     <a class="link" href="/?info" style="margin-top:4px">Was kann der Kalender? Zur Vorstellung</a></div>`; return; }
   wzEl().innerHTML = `<div class="wz-card wz-center">
     <div class="wz-logo" aria-hidden="true"><img src="/favicon.svg" width="76" height="76" alt="" style="display:block;border-radius:18px"></div>
-    <h1>Plan<span style="color:var(--accent)">Flink</span></h1>
+    <h1>PlanFlink</h1>
     <p class="wz-lead">Der Kalender, der an das denkt, was du vergisst.</p>
     <div class="wz-box"><b>Du brauchst ein kostenloses Claude-Konto.</b><span>Damit sind deine Termine privat gespeichert – nur du siehst sie. Die Anmeldung dauert eine Minute, mit E-Mail oder Google.</span></div>
     <a class="wz-big accent" href="${loginUrl()}" target="_blank" rel="noopener">Anmelden oder kostenlos registrieren</a>
