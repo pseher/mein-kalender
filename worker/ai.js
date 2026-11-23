@@ -36,7 +36,7 @@ export default {
     if (req.method === "GET" && route === "/push/key") { const v = await vapid(env).catch(() => null); return out(v ? 200 : 503, v ? { key: v.pub } : { code: "no_vapid" }); }
     if (req.method === "GET" && route === "/status") return out(200, { ok: true, version: VERSION, model: env.MODEL_DEFAULT, quick: env.MODEL_QUICK, keys: { r2: !!env.DOCS, admin: !!env.ADMIN_EMAIL, airlabs: !!env.AIRLABS_KEY, db: !!(env.DB_CLIENT_ID && env.DB_API_KEY), vapid: !!env.VAPID_JWK, anthropic: !!env.ANTHROPIC_KEY, supabase: !!env.SUPABASE_SERVICE_KEY, google: !!env.GOOGLE_CLIENT_SECRET }, routes: ["/ai", "/google/token", "/account/delete", "/page", "/push/key", "/push/test"] });
     if (route === "/files" || route.startsWith("/files/")) return await filesRoute(req, env, route, cors, allowed, origin);   // Dokumente in R2
-    if (req.method !== "POST" || !["/ai", "/google/token", "/google/exchange", "/google/store", "/google/forget", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train", "/admin/plan", "/billing/status", "/billing/simulate", "/billing/play/verify", "/billing/family/invite", "/billing/family/peek", "/billing/family/join", "/billing/family/remove", "/billing/family/leave"].includes(route)) return out(404, { code: "not_found" });
+    if (req.method !== "POST" || !["/ai", "/google/token", "/google/exchange", "/google/store", "/google/forget", "/google/accounts", "/account/delete", "/page", "/push/test", "/admin/me", "/admin/stats", "/admin/train", "/admin/plan", "/billing/status", "/billing/simulate", "/billing/play/verify", "/billing/family/invite", "/billing/family/peek", "/billing/family/join", "/billing/family/remove", "/billing/family/leave"].includes(route)) return out(404, { code: "not_found" });
     if (allowed.length && !allowed.includes(origin)) return out(403, { code: "origin" });
 
     // Google-Anmeldung direkt auf der eigenen Adresse: Code gegen Schlüssel tauschen (vor der Anmeldung, daher ohne Supabase-Prüfung)
@@ -131,30 +131,37 @@ export default {
       if (!d.ok) return out(502, { code: "delete_failed", detail: `Supabase ${d.status}` });
       await deleteUserFiles(env, user.id).catch(() => {});   // Dokumente in R2 mitlöschen
       await rtForget(env, user.id).catch(() => {});
+      for (const a of await accIdx(env, user.id)) { const r2 = await rtLoad(env, user.id, a.slot); if (r2) await fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: r2 }) }).catch(() => {}); await rtForget(env, user.id, a.slot).catch(() => {}); }
+      await accIdxSet(env, user.id, []).catch(() => {});
       return out(200, { ok: true });
     }
 
     // Google-Zugriffsschlüssel erneuern (der Clientschlüssel bleibt hier; nichts wird gespeichert)
     // Google-Verbindung pro Konto merken (verschlüsselt), damit sie Abmelden und Gerätewechsel übersteht
     if (route === "/google/store") {
-      let rt = ""; try { rt = String((await req.json()).refresh_token || ""); } catch {}
+      let b = {}; try { b = await req.json(); } catch {} const rt = String(b.refresh_token || ""), slot = slotOf(b);
       if (!rt || !env.DOCS) return out(400, { code: "bad_request" });
-      await env.DOCS.put(rtKey(user.id), await rtCrypt(env, rt, true)); return out(200, { ok: true });
+      await env.DOCS.put(rtKey(user.id, slot), await rtCrypt(env, rt, true));
+      if (slot) { const L = (await accIdx(env, user.id)).filter(x => x.slot !== slot); L.push({ slot, email: String(b.email || "").slice(0, 120) }); await accIdxSet(env, user.id, L); }
+      return out(200, { ok: true });
     }
+    if (route === "/google/accounts") return out(200, { accounts: await accIdx(env, user.id) });
     if (route === "/google/forget") {
-      const rt = await rtLoad(env, user.id);
+      let b = {}; try { b = await req.json(); } catch {} const slot = slotOf(b);
+      const rt = await rtLoad(env, user.id, slot);
       if (rt) await fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
-      await rtForget(env, user.id); return out(200, { ok: true });
+      await rtForget(env, user.id, slot); if (slot) await accIdxSet(env, user.id, (await accIdx(env, user.id)).filter(x => x.slot !== slot));
+      return out(200, { ok: true });
     }
     if (route === "/google/token") {
-      let rt = ""; try { rt = String((await req.json()).refresh_token || ""); } catch {}
-      const stored = !rt; if (!rt) rt = await rtLoad(env, user.id);
+      let b = {}; try { b = await req.json(); } catch {} let rt = String(b.refresh_token || ""); const slot = slotOf(b);
+      const stored = !rt; if (!rt) rt = await rtLoad(env, user.id, slot);
       if (!rt) return out(400, { code: "no_token" });
       const g = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: rt, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET }) });
       const gb = await g.json().catch(() => ({}));
       if (!env.GOOGLE_CLIENT_SECRET) return out(500, { code: "google_error", detail: "GOOGLE_CLIENT_SECRET fehlt im Worker" });
-      if (!g.ok) { if (gb.error === "invalid_grant" && stored) await rtForget(env, user.id).catch(() => {});
+      if (!g.ok) { if (gb.error === "invalid_grant" && stored) await rtForget(env, user.id, slot).catch(() => {});
         return out(gb.error === "invalid_grant" ? 401 : 502, { code: gb.error === "invalid_grant" ? "invalid_grant" : "google_error", detail: `Google ${g.status} ${gb.error || ""}`.trim() }); }
       return out(200, { access_token: gb.access_token, expires_in: gb.expires_in || 3600 });
     }
@@ -214,12 +221,16 @@ export default {
 };
 
 // ---- Google-Erneuerungsschlüssel je Konto (R2, AES-GCM; Schlüssel aus dem Clientgeheimnis abgeleitet) ----
-const rtKey = uid => `_gtok/${uid}`;
+// Slot 0 = Hauptverbindung, 1–5 = weitere Google-Konten (nur Kalender)
+const rtKey = (uid, slot = 0) => slot ? `_gtok/${uid}.${slot}` : `_gtok/${uid}`;
+const slotOf = b => { const n = Math.floor(+b?.slot || 0); return n >= 1 && n <= 5 ? n : 0; };
+async function accIdx(env, uid) { try { const o = await env.DOCS.get(`_gtok/${uid}.idx`); return o ? JSON.parse(await o.text()) : []; } catch { return []; } }
+async function accIdxSet(env, uid, L) { if (L.length) await env.DOCS.put(`_gtok/${uid}.idx`, JSON.stringify(L)); else await env.DOCS.delete(`_gtok/${uid}.idx`); }
 async function rtAesKey(env) { const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("planflink-rt|" + (env.GOOGLE_CLIENT_SECRET || ""))); return crypto.subtle.importKey("raw", h, "AES-GCM", false, ["encrypt", "decrypt"]); }
 async function rtCrypt(env, rt, enc) {
   const k = await rtAesKey(env);
   if (enc) { const iv = crypto.getRandomValues(new Uint8Array(12)); const c = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, new TextEncoder().encode(rt))); const o = new Uint8Array(12 + c.length); o.set(iv); o.set(c, 12); return o; }
   const b = new Uint8Array(rt); return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(0, 12) }, k, b.slice(12)));
 }
-async function rtLoad(env, uid) { if (!env.DOCS) return ""; try { const o = await env.DOCS.get(rtKey(uid)); return o ? await rtCrypt(env, await o.arrayBuffer(), false) : ""; } catch { return ""; } }
-async function rtForget(env, uid) { if (env.DOCS) await env.DOCS.delete(rtKey(uid)); }
+async function rtLoad(env, uid, slot = 0) { if (!env.DOCS) return ""; try { const o = await env.DOCS.get(rtKey(uid, slot)); return o ? await rtCrypt(env, await o.arrayBuffer(), false) : ""; } catch { return ""; } }
+async function rtForget(env, uid, slot = 0) { if (env.DOCS) await env.DOCS.delete(rtKey(uid, slot)); }

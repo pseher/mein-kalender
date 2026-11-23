@@ -4663,16 +4663,21 @@ function gCacheGet(k) { try { const v = JSON.parse(store.get("ft-gc-" + k) || "n
 function gCachePut(k, events) { try {
   const slim = events.map(e => ({ id: e.id, status: e.status, summary: e.summary, description: e.description ? String(e.description).slice(0, 8000) : undefined, location: e.location, start: e.start, end: e.end, recurringEventId: e.recurringEventId, htmlLink: e.htmlLink, created: e.created, updated: e.updated, creator: e.creator, colorId: e.colorId }));
   store.set("ft-gc-" + k, JSON.stringify({ t: Date.now(), e: slim })); } catch {} }
+let gAccSynced = false;
 async function initGoogle() {
   clearTimeout(gRetryT);
+  if (APP && window.mkAuthErr && !gAccSynced && window.mkGAccounts) setTimeout(() => toast(window.mkAuthErr), 600);   // z. B. falsches Konto beim Verbinden gewählt
+  if (APP && window.mkGAccSync && !gAccSynced) { gAccSynced = true;   // weitere Google-Konten: Liste vom Server (z. B. neues Gerät)
+    try { const was = JSON.stringify(window.mkGAccounts()), now = JSON.stringify(await withTimeout(window.mkGAccSync(), 8000)); if (was !== now) await mcp.invalidate(GSERVER, "list_calendars"); } catch {} }
   let cached = null; try { cached = JSON.parse(store.get("ft-gcals") || "null"); } catch {}
   if (Array.isArray(cached) && cached.length && gState !== "ok") { gCals = cached; gState = "ok"; renderGPill(); renderAll(); }
   else if (gState !== "ok") { gState = "loading"; renderGPill(); }
   try {
     const r = await withTimeout(mcp.callTool(GSERVER, "list_calendars", {}, { cache: { staleTime: 10 * 60e3, gcTime: 24 * 3600e3 } }), 15000);
     const list = Array.isArray(r?.payload?.calendars) ? r.payload.calendars : [];
-    gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}), ...(c.accessRole ? { accessRole: String(c.accessRole) } : {}) }));
+    gCals = list.filter(c => c && c.id && !/#(holiday|weeknum|contacts)@/.test(c.id)).map(c => ({ id: String(c.id), summary: String(c.summary || c.id), ...(c.primary ? { primary: true } : {}), ...(c.accessRole ? { accessRole: String(c.accessRole) } : {}), ...(c.acc ? { acc: +c.acc, accEmail: String(c.accEmail || "") } : {}), ...(c.broken ? { broken: true } : {}) }));
     store.set("ft-gcals", JSON.stringify(gCals));
+    gAccNew();
     gState = "ok"; gTry = 0; gLiveAt = Date.now(); shrMirrorQueue(); setTimeout(() => gFixSpans().catch(() => {}), 4000);
     { let back = false; try { back = sessionStorage.getItem("mk-wz-g") === "1"; } catch {}
       const wzOff = () => !$("wz") || $("wz").hidden;
@@ -4732,7 +4737,9 @@ function showGoogleSheet() {
       <label class="tog" style="margin-top:12px;color:var(--fg);font-weight:600"><input type="checkbox" id="g-show"${gShow ? " checked" : ""}> Google-Termine anzeigen</label>
       <div class="lbl" style="margin-top:12px">Kalender</div>
       ${gGroup(cals, c => sel.has(c.id), c => `<label class="tog setrow"><input type="checkbox" data-gcal="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}${gShow ? "" : " disabled"}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "cal")}
-      <button type="button" class="link" id="g-addacc" style="margin-top:8px">+ Kalender einer anderen E-Mail-Adresse hinzufügen</button>
+      ${APP && window.mkAddGoogleAccount ? `${(window.mkGAccounts?.() || []).length ? `<div class="lbl" style="margin-top:14px">Weitere Google-Konten</div><div class="gcals">${window.mkGAccounts().map(a => `<div class="setrow gacc"><span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(a.email || "Weiteres Konto")}${gCals.some(c => c.acc === a.slot && c.broken) ? ` <small style="color:var(--holiday)">· bitte neu verbinden</small>` : ""}</span><button type="button" class="btn small ghost" data-gaccoff="${a.slot}">Trennen</button></div>`).join("")}</div>` : ""}
+      <button type="button" class="btn ghost wide" id="g-addgacc" style="margin-top:10px">+ Weiteres Google-Konto verbinden</button>
+      <button type="button" class="link" id="g-addacc" style="margin-top:6px;font-size:13px;color:var(--muted)">Ohne zweite Anmeldung: Kalender freigeben</button>` : `<button type="button" class="link" id="g-addacc" style="margin-top:8px">+ Kalender einer anderen E-Mail-Adresse hinzufügen</button>`}
       ${canWrite ? `<div class="lbl" style="margin-top:16px">Hinweis, wenn andere hier etwas eintragen</div>
       ${gGroup(cals, c => notifyCals().includes(c.id), c => `<label class="tog setrow"><input type="checkbox" data-notify="${esc(c.id)}"${notifyCals().includes(c.id) ? " checked" : ""}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "not")}` : ""}
       <p class="note" style="margin-top:10px">Google-Termine erscheinen in der Farbe ihres Kalenders. Ändern, verschieben und löschen kannst du sie direkt hier – die Änderung landet sofort in Google.</p>
@@ -4752,6 +4759,26 @@ function showGoogleAdd() {
     </ol>
     <button type="button" class="btn accent wide" id="g-addreload">✓ Erledigt – Kalender neu laden</button>
     <p class="note" style="margin-top:10px">Geht es nicht? Bei Firmen- oder Schulkonten erlaubt der Arbeitgeber das Freigeben nach außen manchmal nicht.</p>`, "gadd");
+}
+// Rückkehr von Google nach „Weiteres Google-Konto verbinden“: dessen Kalender gleich auswählen
+async function gAccNew() {
+  let slot = 0; try { slot = +sessionStorage.getItem("mk-g-accnew") || 0; } catch {} if (!slot) return;
+  const mine = gCals.filter(c => c.acc === slot && !c.broken);
+  if (!mine.length) { if (!gAccNew.tried) { gAccNew.tried = true; try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {} setTimeout(initGoogle, 50); } return; }
+  try { sessionStorage.removeItem("mk-g-accnew"); } catch {} gAccNew.tried = false;
+  const s = new Set(selectedCals()); mine.forEach(c => s.add(c.id)); gSel = s; saveGSel(s); resetGoogleWatches();
+  const em = mine[0].accEmail; toast(`${em ? em : "Weiteres Konto"} verbunden – ${mine.length} Kalender hinzugefügt`);
+  setTimeout(() => { if ($("wz")?.hidden !== false) showGoogleSheet(); }, 300);
+}
+window.addEventListener("mk-gacc", async () => { if (!mcp) return; try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {} initGoogle(); });
+async function gAccOff(slot) {
+  const a = (window.mkGAccounts?.() || []).find(x => x.slot === slot);
+  const ids = gCals.filter(c => c.acc === slot).map(c => c.id);
+  await window.mkGoogleForgetAcc(slot);
+  const s = new Set(selectedCals()); ids.forEach(i => s.delete(i)); if (!s.size) s.add("primary"); gSel = s; saveGSel(s); resetGoogleWatches();
+  try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {}
+  gCals = gCals.filter(c => c.acc !== slot); store.set("ft-gcals", JSON.stringify(gCals)); renderAll(); showGoogleSheet();
+  toast(`${a?.email || "Konto"} getrennt`); initGoogle();
 }
 async function gAddReload() {
   const before = new Set(gCals.map(c => c.id)); const b = $("g-addreload"); if (b) { b.disabled = true; b.textContent = "Lade Kalender …"; }
@@ -5453,6 +5480,7 @@ document.addEventListener("click", ev => {
   if ((el = q("#menu [data-mi]"))) { closeMenu(); }
   if (!q("#menu") && !q("#menu-btn")) closeMenu();
   if ((el = q("[data-wzdel]"))) { WZ.manual.splice(+el.dataset.wzdel, 1); renderWz(); return; }
+  if ((el = q("[data-gaccoff]"))) { const n = +el.dataset.gaccoff; if (el.dataset.sure !== "1") { el.dataset.sure = "1"; el.textContent = "Wirklich trennen?"; el.classList.add("danger"); setTimeout(() => { if (el.isConnected) { el.dataset.sure = ""; el.textContent = "Trennen"; el.classList.remove("danger"); } }, 4000); return; } el.disabled = true; el.textContent = "Trenne …"; gAccOff(n); return; }
   if ((el = q("[data-wzcal]"))) { const s2 = new Set(selectedCals()), c = el.dataset.wzcal; s2.has(c) ? s2.delete(c) : s2.add(c); if (!s2.size) s2.add("primary"); gSel = s2; saveGSel(s2); resetGoogleWatches(); if (sheetMode === "gpick" && !$("sheet").hidden) { showGCalPick(); return; } renderWz(); return; }
   if ((el = q("[data-wzpick]"))) { const k = el.dataset.wzpick; WZ.picked[k] = !WZ.picked[k]; renderWz(); return; }
   if (WZ && ev.target.closest?.("#wz [id]") && wzClick(ev.target.closest("#wz [id]").id)) return;
@@ -5693,6 +5721,7 @@ document.addEventListener("click", ev => {
     case "open-google": showGoogleSheet(); break;
     case "g-sync": closeSheet(); gSync(); break;
     case "g-addacc": showGoogleAdd(); break;
+    case "g-addgacc": window.mkAddGoogleAccount?.(); break;
     case "g-addreload": gAddReload(); break;
     case "g-addcopy": try { navigator.clipboard.writeText(myMail()); toast("Adresse kopiert"); } catch { toast(myMail()); } break;
     case "next-more": goPage?.("p1"); setView("list"); break;

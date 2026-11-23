@@ -8,7 +8,7 @@ window.MK_APP = true;
   // Google-Anmeldung direkt (ohne Umweg über die Supabase-Adresse): Rückkehr mit ?code=&state= hier abholen
   let G_PEND = null;
   try { const P = new URLSearchParams(location.search), st = P.get("state") || "", want = sessionStorage.getItem("mk-g-state") || "";
-    const ours = /^(login|cal)\.[\w-]{8,}$/.test(st);
+    const ours = /^(login|cal|acc)\.[\w-]{8,}$/.test(st);
     const used = (P.get("code") || "") && sessionStorage.getItem("mk-g-used") === P.get("code");
     if (ours && !used && (!want || st === want) && (P.get("code") || P.get("error"))) {
       if (P.get("code")) sessionStorage.setItem("mk-g-used", P.get("code"));
@@ -31,6 +31,16 @@ window.MK_APP = true;
     let b = {}; try { const r = await fetch(CFG.workerUrl + "/google/exchange", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: G_PEND.code, redirect_uri: location.origin + "/app/" }) });
       b = await r.json().catch(() => ({})); if (!r.ok) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte tippe noch einmal auf „Mit Google anmelden“."); }
     catch { return fail("Keine Verbindung – bitte noch einmal versuchen."); }
+    if (G_PEND.purpose === "acc") {   // weiteres Google-Konto: nur Kalender, keine Anmeldung, Hauptverbindung bleibt unberührt
+      if (!b.access_token || !/calendar/.test(b.scope || "")) return fail("Für das weitere Konto fehlt die Kalender-Freigabe – bitte noch einmal verbinden und beide Häkchen setzen.");
+      let email = ""; try { email = JSON.parse(atob(String(b.id_token || "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).email || ""; } catch {}
+      const me = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session; if (!me) return fail("Bitte zuerst anmelden, dann das weitere Google-Konto verbinden.");
+      if (email && (me.user?.email || "").toLowerCase() === email.toLowerCase()) return fail("Das ist schon dein Hauptkonto – bitte beim Verbinden das andere Google-Konto auswählen.");
+      const L = accList(), ex = L.find(a => a.email && a.email === email), slot = ex ? ex.slot : [1, 2, 3, 4, 5].find(n => !L.some(a => a.slot === n));
+      if (!slot) return fail("Es können höchstens 5 weitere Google-Konten verbunden werden.");
+      const k = KS(slot); lsSet(k.at, b.access_token); lsSet(k.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(k.rt, b.refresh_token);
+      accSave([...L.filter(a => a.slot !== slot), { slot, email }]); try { sessionStorage.setItem("mk-g-accnew", String(slot)); } catch {} try { window.dispatchEvent(new Event("mk-gacc")); } catch {}
+      if (b.refresh_token) setTimeout(() => gStore(b.refresh_token, slot, email), 0); return; }
     if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
     const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
     if (G_PEND.purpose === "login" || !cur) { if (!b.id_token) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.");
@@ -58,6 +68,8 @@ window.MK_APP = true;
     try { sessionStorage.setItem("mk-g-state", st); } catch {}
     const q = new URLSearchParams({ client_id: CFG.googleClientId, redirect_uri: location.origin + "/app/", response_type: "code", scope, state: st, include_granted_scopes: "true", ...extra });
     location.assign("https://accounts.google.com/o/oauth2/v2/auth?" + q); return new Promise(() => {}); };
+  // Weiteres Google-Konto (andere E-Mail-Adresse) nur für den Kalender verbinden
+  window.mkAddGoogleAccount = () => gGo("acc", G_LOGIN + " " + G_SCOPES, { access_type: "offline", prompt: "consent select_account" });
   // Anmelden mit Google: nur Name und E-Mail – der Kalenderzugriff wird erst beim „Google Kalender verbinden“ erfragt
   window.mkSignIn = () => gGo("login", G_LOGIN, { prompt: "select_account" });
   window.mkSignInOld = (force) => sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + "/app/", scopes: G_SCOPES, queryParams: { access_type: "offline", include_granted_scopes: "true", prompt: force || !lsGet(GK.rt) ? "consent" : "select_account" } } });
@@ -92,6 +104,10 @@ window.MK_APP = true;
   window.mkAuthInfo = () => { const u = session?.user; return u ? { email: u.email || "", google: u.app_metadata?.provider === "google" || (u.identities || []).some(i => i.provider === "google"), pw: (u.identities || []).some(i => i.provider === "email") } : null; };
   // Google-Schlüssel aus der Anmeldung merken (nur in diesem Browser)
   const GK = { at: "mk-g-at", exp: "mk-g-exp", rt: "mk-g-rt" };
+  const KS = n => n ? { at: `mk-g${n}-at`, exp: `mk-g${n}-exp`, rt: `mk-g${n}-rt` } : GK;
+  const accList = () => { try { return JSON.parse(localStorage.getItem("mk-g-accs") || "[]").filter(a => a && a.slot); } catch { return []; } };
+  const accSave = L => { try { L.length ? localStorage.setItem("mk-g-accs", JSON.stringify(L)) : localStorage.removeItem("mk-g-accs"); } catch {} };
+  window.mkGAccounts = () => accList();
   const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
   const lsSet = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
   const keepGoogle = s => { if (!s?.provider_token) return; lsSet(GK.at, s.provider_token); lsSet(GK.exp, String(Date.now() + 50 * 60e3)); if (s.provider_refresh_token) lsSet(GK.rt, s.provider_refresh_token); };
@@ -101,6 +117,7 @@ window.MK_APP = true;
     try { const r = await Promise.race([sb.auth.signOut(), new Promise(res => setTimeout(() => res({ error: "timeout" }), 4000))]); if (r?.error) await sb.auth.signOut({ scope: "local" }); } catch { try { await sb.auth.signOut({ scope: "local" }); } catch {} }
     try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); } catch {}
     Object.values(GK).forEach(k => lsSet(k, "")); lsSet("mk-g-srv", ""); session = null;   // die Google-Verbindung bleibt fürs Konto beim Worker gemerkt
+    accList().forEach(a => Object.values(KS(a.slot)).forEach(k => lsSet(k, ""))); accSave([]);
     try { ["mk-wz-g", "mk-newpw", "mk-auth-err", "mk-g-none"].forEach(k => sessionStorage.removeItem(k)); } catch {}
     location.replace(location.origin + "/app/");
   };
@@ -245,7 +262,7 @@ window.MK_APP = true;
   const GAPI = "https://www.googleapis.com/calendar/v3";
   const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Berlin";
   const gErr = (code, message) => Object.assign(new Error(message || code), { code });
-  let refreshing = null;
+  const refreshing = {};
   // Supabase-Anmeldung frisch halten: nach dem Aufwachen des Handys ist der alte Schlüssel oft schon abgelaufen
   async function freshSession(force) {
     try {
@@ -255,37 +272,44 @@ window.MK_APP = true;
       if (s) session = s; return session || await ready;
     } catch { return session || await ready; }
   }
-  const gStore = async rt => { try { const s = await freshSession(); if (!s) return; const r = await fetch(CFG.workerUrl + "/google/store", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ refresh_token: rt }) }); if (r.ok) lsSet("mk-g-srv", "1"); } catch {} };
+  const gStore = async (rt, slot = 0, email = "") => { try { const s = await freshSession(); if (!s) return; const r = await fetch(CFG.workerUrl + "/google/store", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ refresh_token: rt, ...(slot ? { slot, email } : {}) }) }); if (r.ok && !slot) lsSet("mk-g-srv", "1"); } catch {} };
+  // weitere Konten: Liste vom Worker holen (anderes Gerät / nach dem Abmelden) und einzeln trennen
+  window.mkGAccSync = async () => { try { const s = await freshSession(); if (!s) return accList(); const r = await fetch(CFG.workerUrl + "/google/accounts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" });
+    const b = await r.json().catch(() => ({})); if (r.ok && Array.isArray(b.accounts)) { const L = b.accounts.filter(a => a && a.slot).map(a => ({ slot: +a.slot, email: String(a.email || "") })); accList().filter(a => !L.some(x => x.slot === a.slot)).forEach(a => Object.values(KS(a.slot)).forEach(k => lsSet(k, ""))); accSave(L); } } catch {} return accList(); };
+  window.mkGoogleForgetAcc = async slot => { try { const s = await freshSession(); if (s) await fetch(CFG.workerUrl + "/google/forget", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ slot }) }); } catch {}
+    const rt = lsGet(KS(slot).rt); if (rt) fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
+    Object.values(KS(slot)).forEach(k => lsSet(k, "")); accSave(accList().filter(a => a.slot !== slot)); [...CACHE.keys()].forEach(k => CACHE.delete(k)); };
   // Google-Verbindung trennen: beim Worker vergessen und bei Google widerrufen, lokal löschen
   window.mkGoogleForget = async () => { try { const s = await freshSession(); if (s) await fetch(CFG.workerUrl + "/google/forget", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" }); } catch {}
     const rt = lsGet(GK.rt); if (rt) fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
     Object.values(GK).forEach(k => lsSet(k, "")); lsSet("mk-g-srv", ""); try { sessionStorage.setItem("mk-g-none", session?.user?.id || "-"); } catch {} };
-  async function gToken(force) {
-    if (!force && lsGet(GK.at) && +lsGet(GK.exp) > Date.now()) return lsGet(GK.at);
-    const rt = lsGet(GK.rt); let none = false; try { none = !rt && sessionStorage.getItem("mk-g-none") === (session?.user?.id || "-"); } catch {}
-    if (!rt && (!session || none)) { window.mkGLast = lsGet(GK.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Google Kalender ist auf diesem Gerät nicht verbunden – bitte „Mit Google verbinden“ tippen"; throw gErr("needs_reauth"); }
-    refreshing ??= (async () => {
-      const call = async s => { try { return await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); }
-        catch { await new Promise(r => setTimeout(r, 1200)); return fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt }) }); } };
+  async function gToken(force, slot = 0) {
+    const K = KS(slot);
+    if (!force && lsGet(K.at) && +lsGet(K.exp) > Date.now()) return lsGet(K.at);
+    const rt = lsGet(K.rt); let none = false; try { none = !slot && !rt && sessionStorage.getItem("mk-g-none") === (session?.user?.id || "-"); } catch {}
+    if (!rt && (!session || none)) { window.mkGLast = lsGet(K.at) ? "Google-Schlüssel abgelaufen, kein Erneuerungsschlüssel – bitte ab- und wieder anmelden" : "Google Kalender ist auf diesem Gerät nicht verbunden – bitte „Mit Google verbinden“ tippen"; throw gErr("needs_reauth"); }
+    refreshing[slot] ??= (async () => {
+      const call = async s => { try { return await fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt, ...(slot ? { slot } : {}) }) }); }
+        catch { await new Promise(r => setTimeout(r, 1200)); return fetch(CFG.workerUrl + "/google/token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s?.access_token }, body: JSON.stringify({ refresh_token: rt, ...(slot ? { slot } : {}) }) }); } };
       let r = await call(await freshSession()).catch(() => null);
       if (r && r.status === 401) { const nb = await r.clone().json().catch(() => ({})); if (nb.code === "not_signed_in") r = await call(await freshSession(true)).catch(() => null); }   // Anmeldung über Nacht abgelaufen → einmal erneuern
       if (!r) { window.mkGLast = "Worker nicht erreichbar (kein Netz?)"; throw gErr("upstream_error"); }
       const b = await r.json().catch(() => ({}));
-      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") { lsSet(GK.rt, ""); lsSet(GK.at, ""); } if (b.code === "no_token") { window.mkGLast = "Google Kalender ist noch nicht verbunden – bitte „Mit Google verbinden“ tippen"; try { sessionStorage.setItem("mk-g-none", session?.user?.id || "-"); } catch {} }
+      if (!r.ok || !b.access_token) { window.mkGLast = `Erneuern über den Worker: ${r.status} ${b.code || ""}${b.detail ? " – " + b.detail : ""}`; if (b.code === "invalid_grant") { lsSet(K.rt, ""); lsSet(K.at, ""); } if (b.code === "no_token") { window.mkGLast = "Google Kalender ist noch nicht verbunden – bitte „Mit Google verbinden“ tippen"; try { sessionStorage.setItem("mk-g-none", session?.user?.id || "-"); } catch {} }
         throw gErr(b.code === "invalid_grant" || b.code === "no_token" ? "needs_reauth" : "upstream_error"); }
-      if (rt && !lsGet("mk-g-srv")) gStore(rt);   // ältere Verbindung einmalig fürs Konto merken
-      lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
-    })().finally(() => { refreshing = null; });
-    return refreshing;
+      if (!slot && rt && !lsGet("mk-g-srv")) gStore(rt);   // ältere Verbindung einmalig fürs Konto merken
+      lsSet(K.at, b.access_token); lsSet(K.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); return b.access_token;
+    })().finally(() => { refreshing[slot] = null; });
+    return refreshing[slot];
   }
-  async function gFetch(path, { method = "GET", body, signal } = {}, retry = true) {
+  async function gFetch(path, { method = "GET", body, signal, slot = 0 } = {}, retry = true) {
     let r;
-    const go = async () => fetch(GAPI + path, { method, signal, headers: { Authorization: "Bearer " + await gToken(), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const go = async () => fetch(GAPI + path, { method, signal, headers: { Authorization: "Bearer " + await gToken(false, slot), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
     try { r = await go(); }
     catch (e) { if (e?.code) throw e; if (signal?.aborted) throw gErr("upstream_error");
       await new Promise(res => setTimeout(res, 1200));                         // Netz nach dem Aufwachen noch nicht da → einmal nachfassen
       try { r = await go(); } catch (e2) { if (e2?.code) throw e2; window.mkGLast = "Google nicht erreichbar (Netz?)"; throw gErr("upstream_error"); } }
-    if (r.status === 401 && retry) { lsSet(GK.exp, "0"); await gToken(true); return gFetch(path, { method, body, signal }, false); }
+    if (r.status === 401 && retry) { lsSet(KS(slot).exp, "0"); await gToken(true, slot); return gFetch(path, { method, body, signal, slot }, false); }
     if (r.status === 204) return {};
     const b = await r.json().catch(() => ({}));
     if (!r.ok) window.mkGLast = `Google ${r.status}: ${b?.error?.message || b?.error?.status || ""}`.slice(0, 300);
@@ -296,7 +320,8 @@ window.MK_APP = true;
     return b;
   }
   const rfc = local => new Date(local).toISOString();                       // "2026-11-20T00:00:00" (Ortszeit) → UTC
-  const cal = i => encodeURIComponent(i?.calendarId || "primary");
+  const sp = i => { const m = String(i?.calendarId || "").match(/^acc(\d)~(.+)$/); return m ? [+m[1], m[2]] : [0, i?.calendarId || "primary"]; };   // „acc2~xyz“ = Kalender xyz im weiteren Konto 2
+  const cal = i => encodeURIComponent(sp(i)[1]), sl = i => sp(i)[0];
   const when = (i, k, partial) => i.allDay ? { date: String(i[k]).slice(0, 10), ...(partial ? { dateTime: null, timeZone: null } : {}) } : { dateTime: i[k], timeZone: TZ, ...(partial ? { date: null } : {}) };   // PATCH mischt Felder: das jeweils andere ausdrücklich leeren
   const evBody = (i, partial) => { const b = {};
     if (i.summary != null) b.summary = i.summary; if (i.description != null) b.description = i.description; if (i.location != null) b.location = i.location;
@@ -305,19 +330,24 @@ window.MK_APP = true;
     if (i.recurrenceData) b.recurrence = i.recurrenceData; if (i.id && !partial) b.id = i.id; if (i.status) b.status = i.status; return b; };
   const TOOLS = {
     async list_calendars() { const b = await gFetch("/users/me/calendarList?maxResults=250");
-      return { calendars: (b.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, accessRole: c.accessRole, backgroundColor: c.backgroundColor })) }; },
+      const out = (b.items || []).map(c => ({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, accessRole: c.accessRole, backgroundColor: c.backgroundColor }));
+      for (const a of accList()) { try { const x = await gFetch("/users/me/calendarList?maxResults=250", { slot: a.slot });
+        (x.items || []).forEach(c => { if (out.some(o => o.id === c.id)) return;   // schon über das Hauptkonto sichtbar (freigegeben)
+          out.push({ id: `acc${a.slot}~${c.id}`, summary: c.primary ? (a.email || c.summary || c.id) : `${c.summaryOverride || c.summary || c.id} (${a.email || "weiteres Konto"})`, accessRole: c.accessRole, backgroundColor: c.backgroundColor, acc: a.slot, accEmail: a.email }); }); }
+        catch (e) { out.push({ id: `acc${a.slot}~primary`, summary: `${a.email || "Weiteres Konto"} – bitte neu verbinden`, accessRole: "reader", acc: a.slot, accEmail: a.email, broken: true }); } }
+      return { calendars: out }; },
     async list_events(i, signal) { const q = new URLSearchParams({ singleEvents: "true", maxResults: String(Math.min(2500, i.pageSize || 250)) });
       if (i.startTime) q.set("timeMin", rfc(i.startTime)); if (i.endTime) q.set("timeMax", rfc(i.endTime));
       if (i.orderBy === "startTime") q.set("orderBy", "startTime"); if (i.pageToken) q.set("pageToken", i.pageToken); if (i.query) q.set("q", i.query);
       (i.eventType || []).forEach(t => q.append("eventTypes", String(t).toLowerCase()));
       // Alle Seiten holen (Google liefert höchstens 2500 je Seite) – sonst fehlen bei vollen Kalendern die letzten Wochen eines Abschnitts
       if ((i.pageSize || 250) >= 250 && !i.pageToken) q.set("maxResults", "2500");
-      let b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal }), items = b.items || [], summary = b.summary || "";
-      for (let n = 0; b.nextPageToken && !i.pageToken && (i.pageSize || 250) >= 250 && n < 8; n++) { q.set("pageToken", b.nextPageToken); b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal }); items = items.concat(b.items || []); }
+      let b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal, slot: sl(i) }), items = b.items || [], summary = b.summary || "";
+      for (let n = 0; b.nextPageToken && !i.pageToken && (i.pageSize || 250) >= 250 && n < 8; n++) { q.set("pageToken", b.nextPageToken); b = await gFetch(`/calendars/${cal(i)}/events?${q}`, { signal, slot: sl(i) }); items = items.concat(b.items || []); }
       return { events: items, nextPageToken: i.pageToken ? b.nextPageToken || "" : "", summary }; },
-    async create_event(i) { return gFetch(`/calendars/${cal(i)}/events?sendUpdates=none`, { method: "POST", body: evBody(i) }); },
-    async update_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "PATCH", body: evBody(i, true) }); },
-    async delete_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "DELETE" }); },
+    async create_event(i) { return gFetch(`/calendars/${cal(i)}/events?sendUpdates=none`, { method: "POST", body: evBody(i), slot: sl(i) }); },
+    async update_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "PATCH", body: evBody(i, true), slot: sl(i) }); },
+    async delete_event(i) { return gFetch(`/calendars/${cal(i)}/events/${encodeURIComponent(i.eventId)}?sendUpdates=none`, { method: "DELETE", slot: sl(i) }); },
   };
   const CACHE = new Map();                                                   // tool|input → { t, v }
   async function callTool(_server, tool, input = {}, opts = {}) {
