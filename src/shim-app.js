@@ -40,7 +40,7 @@ window.MK_APP = true;
       if (!slot) return fail("Es können höchstens 5 weitere Google-Konten verbunden werden.");
       const k = KS(slot); lsSet(k.at, b.access_token); lsSet(k.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(k.rt, b.refresh_token);
       accSave([...L.filter(a => a.slot !== slot), { slot, email }]); try { localStorage.setItem("mk-g-accnew", String(slot)); } catch {} try { window.dispatchEvent(new Event("mk-gacc")); } catch {}
-      if (b.refresh_token) setTimeout(() => gStore(b.refresh_token, slot, email), 0); return; }
+      if (b.refresh_token) await Promise.race([gStore(b.refresh_token, slot, email), new Promise(r => setTimeout(r, 6000))]); return; }   // abwarten: sonst überschreibt der Abgleich mit dem Worker das neue Konto
     if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
     const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
     if (G_PEND.purpose === "login" || !cur) { if (!b.id_token) return fail("Die Google-Anmeldung hat nicht geklappt. Bitte noch einmal versuchen.");
@@ -275,7 +275,9 @@ window.MK_APP = true;
   const gStore = async (rt, slot = 0, email = "") => { try { const s = await freshSession(); if (!s) return; const r = await fetch(CFG.workerUrl + "/google/store", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ refresh_token: rt, ...(slot ? { slot, email } : {}) }) }); if (r.ok && !slot) lsSet("mk-g-srv", "1"); } catch {} };
   // weitere Konten: Liste vom Worker holen (anderes Gerät / nach dem Abmelden) und einzeln trennen
   window.mkGAccSync = async () => { try { const s = await freshSession(); if (!s) return accList(); const r = await fetch(CFG.workerUrl + "/google/accounts", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: "{}" });
-    const b = await r.json().catch(() => ({})); if (r.ok && Array.isArray(b.accounts)) { const L = b.accounts.filter(a => a && a.slot).map(a => ({ slot: +a.slot, email: String(a.email || "") })); accList().filter(a => !L.some(x => x.slot === a.slot)).forEach(a => Object.values(KS(a.slot)).forEach(k => lsSet(k, ""))); accSave(L); } } catch {} return accList(); };
+    const b = await r.json().catch(() => ({})); if (r.ok && Array.isArray(b.accounts)) { const L = b.accounts.filter(a => a && a.slot).map(a => ({ slot: +a.slot, email: String(a.email || "") }));
+      const fresh = +(localStorage.getItem("mk-g-accnew") || 0); if (fresh && !L.some(a => a.slot === fresh)) { const x = accList().find(a => a.slot === fresh); if (x) L.push(x); }   /* gerade verbunden, beim Worker evtl. noch nicht da */
+      accList().filter(a => !L.some(x => x.slot === a.slot)).forEach(a => Object.values(KS(a.slot)).forEach(k => lsSet(k, ""))); accSave(L); } } catch {} return accList(); };
   window.mkGoogleForgetAcc = async slot => { try { const s = await freshSession(); if (s) await fetch(CFG.workerUrl + "/google/forget", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ slot }) }); } catch {}
     const rt = lsGet(KS(slot).rt); if (rt) fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token: rt }) }).catch(() => {});
     Object.values(KS(slot)).forEach(k => lsSet(k, "")); accSave(accList().filter(a => a.slot !== slot)); [...CACHE.keys()].forEach(k => CACHE.delete(k)); };
