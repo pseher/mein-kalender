@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261123141214";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261123142251";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -4847,7 +4847,7 @@ function tripPlan(o) {
   return `<div class="tplan"><div class="tp-h">Reiseplan</div>${h}</div>`;
 }
 const planable = e => ["trip", "urlaub"].includes(e.type) && !(e.legs || []).length && !(e.facts || []).length && String(e.note || "").length > 60 && !!sample && canWrite && EV.includes(e);
-async function planFromNote(e) {
+async function planFromNote(e, opt = {}) {
   const b = document.querySelector("[data-tplan]"); if (b) { b.disabled = true; b.textContent = "Ich ordne die Notiz …"; }
   try {
     const r = await (window.MK_TASK = "reiseplan", sample.json)(`Aus dieser Notiz zu einer Reise („${e.title}“, ${rngTxt(e.a, e.b, true)}) sollen die einzelnen Fahrten und Flüge herausgezogen werden. Heute ist ${fmtY(TODAY)}.
@@ -4858,14 +4858,14 @@ verbindungen: jede Fahrt/jeder Flug genau einmal (die Notiz enthält oft dasselb
 unterkuenfte: jedes Hotel/jede Wohnung genau einmal mit An- und Abreisedatum und allem, was dazu gehört (Adresse, Check-in, Zimmer, Buchung).
 eckdaten: nur, was weder zu einer Verbindung noch zu einer Unterkunft gehört, z. B. Reisende, Tarif/Storno, Gesamtpreis, Gepäck – höchstens 6, je Bezeichnung einmal. Nichts erfinden.`, { modelTier: "default" });
     const L = legsClean(r?.verbindungen), F = factsClean(r?.eckdaten), U = staysClean(r?.unterkuenfte);
-    if (!L.length && !F.length && !U.length) { toast("In der Notiz habe ich nichts Ordnbares gefunden"); if (b) b.remove(); return; }
+    if (!L.length && !F.length && !U.length) { if (!opt.quiet) toast("In der Notiz habe ich nichts Ordnbares gefunden"); if (b) b.remove(); return false; }
     const old = { legs: e.legs || [], facts: e.facts || [], stays: e.stays || [] };
     const nw = { legs: L.length ? L : old.legs, stays: U.length ? staysClean([...U, ...old.stays.filter(x => !U.some(u => u.von === x.von))]) : old.stays, facts: F.length ? F : old.facts };   // nichts geht verloren: was die KI nicht (neu) liefert, bleibt
     await COLL("events").doc(e.id).update(nw); Object.assign(e, nw);
     const n = (k, one, many) => `${nw[k].length} ${nw[k].length === 1 ? one : many}`;
     toast(`Übersicht: ${n("legs", "Verbindung", "Verbindungen")}, ${n("stays", "Unterkunft", "Unterkünfte")}, ${n("facts", "Angabe", "Angaben")}`, async () => { await COLL("events").doc(e.id).update(old); Object.assign(e, old); const o2 = findOcc(e.id, iso(e.a)); if (o2) showEvent(o2); toast("Vorherige Übersicht wiederhergestellt"); });
-    const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
-  } catch (err) { toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
+    if (opt.quiet) return true; const o = findOcc(e.id, iso(e.a)); if (o) showEvent(o);
+  } catch (err) { if (opt.quiet) return false; toast(err?.code === "rate_limited" ? RL(err) : "Das hat gerade nicht geklappt"); if (b) { b.disabled = false; b.textContent = "✨ Übersicht aus der Notiz erstellen"; } }
 }
 // Detailseite: das Wichtigste oben, der Rest hinter „Mehr anzeigen“ (Zustand bleibt gemerkt)
 let MORE_OPEN = false, ACT_OPEN = false; document.addEventListener("toggle", e => { if (e.target?.classList?.contains("more-det")) MORE_OPEN = e.target.open; if (e.target?.classList?.contains("actmore")) ACT_OPEN = e.target.open; }, true);
@@ -6071,15 +6071,16 @@ async function drawCard({ kicker, title, rows, footer }) {
   await fontsReady();
   const W = 1080, P = 72, c = document.createElement("canvas"), x = c.getContext("2d");
   x.font = '400 30px "IBM Plex Sans", sans-serif';
-  const prepared = rows.map(r => ({ ...r, notes: r.n ? wrapLines(x, r.n, W - 2 * P - 40) : [] }));
+  const prepared = rows.map(r => ({ ...r, notes: r.n ? String(r.n).split("\n").flatMap(t => { const sub = /^\s/.test(t) && r.n.includes("\n"), main = !sub && r.n.includes("\n"); return t.trim() ? wrapLines(x, t.trim(), W - 2 * P - (sub ? 84 : 40)).map(l => ({ l, sub, main })) : []; }) : [] }));
+  x.font = '600 66px "Fraunces", Georgia, serif'; const two = wrapLines(x, title, W - 2 * P).length > 1;
   const rowH = r => (r.big ? 86 : 70) + r.notes.length * 40 + 18;
-  const headH = 250, H = headH + 40 + prepared.reduce((s, r) => s + rowH(r), 0) + 110;
+  const headH = two ? 300 : 250, H = headH + 40 + prepared.reduce((s, r) => s + rowH(r), 0) + 110;
   c.width = W; c.height = H;
   x.fillStyle = CARD.bg; x.fillRect(0, 0, W, H);
   x.fillStyle = CARD.head; x.fillRect(0, 0, W, headH);
   x.fillStyle = "rgba(255,255,255,.75)"; x.font = '600 28px "IBM Plex Sans", sans-serif'; x.fillText(kicker.toUpperCase(), P, 96);
-  x.fillStyle = CARD.headInk; x.font = '600 66px "Fraunces", Georgia, serif';
-  const tl = wrapLines(x, title, W - 2 * P); x.fillText(tl[0] + (tl.length > 1 ? " …" : ""), P, 178);
+  x.fillStyle = CARD.headInk; x.font = two ? '600 54px "Fraunces", Georgia, serif' : '600 66px "Fraunces", Georgia, serif';
+  const tl = wrapLines(x, title, W - 2 * P); x.fillText(tl[0], P, two ? 166 : 178); if (two) x.fillText(tl[1] + (tl.length > 2 ? " …" : ""), P, 232);
   let y = headH + 40;
   prepared.forEach((r, i) => {
     if (i) { x.fillStyle = CARD.line; x.fillRect(P, y - 4, W - 2 * P, 2); }
@@ -6088,18 +6089,46 @@ async function drawCard({ kicker, title, rows, footer }) {
     x.fillText(r.l, P + 40, y + (r.big ? 58 : 54));
     if (r.r) { x.font = '400 30px "IBM Plex Sans", sans-serif'; x.fillStyle = CARD.muted; const w = x.measureText(r.r).width; x.fillText(r.r, W - P - w, y + 52); }
     x.font = '400 30px "IBM Plex Sans", sans-serif'; x.fillStyle = CARD.muted;
-    r.notes.forEach((ln, j) => x.fillText(ln, P + 40, y + (r.big ? 100 : 92) + j * 40));
+    r.notes.forEach((ln, j) => { x.font = ln.main ? '500 31px "IBM Plex Sans", sans-serif' : '400 29px "IBM Plex Sans", sans-serif'; x.fillStyle = ln.main ? CARD.ink : CARD.muted; x.fillText(ln.l, P + (ln.sub ? 84 : 40), y + (r.big ? 100 : 92) + j * 40); });
     y += rowH(r);
   });
   x.fillStyle = CARD.muted; x.font = '400 24px "IBM Plex Sans", sans-serif'; x.fillText(footer, P, H - 48);
   return c;
 }
+// Teilen per WhatsApp/Mail: Reisen als klarer Ablauf je Tag (Fahrten, Check-in/-out, Unterkunft) – ohne Preise und Buchungsnummern
+const NO_SHARE = /(?:^|[\s(,:]|gesamt|end|ticket|reise|zimmer|fahr)preis\b|kosten|betrag|gesamtsumme|bezahlt|zahlung|€|\beur\b|auftrags|bestell|buchungs?(?:nr|nummer|code)|\bpnr\b|rechnung/i;
+function shareItems(o) {
+  const e = o.ev, items = [], legs = (e.legs || []).length ? e.legs : dbLegs(e.note || "", e.from);
+  const tm = v => (String(v || "").match(/\b(\d{1,2}:\d{2})\b/) || [])[1] || "";
+  legs.forEach(l => { const d = l.ab.slice(0, 10), an = l.an ? (l.an.slice(0, 10) !== d ? `an ${fmt(parseIso(l.an.slice(0, 10)))} ${l.an.slice(11)}` : `an ${l.an.slice(11)}`) : "";
+    items.push({ d, t: l.ab.slice(11, 16), i: LEG_ICON[l.m] || "🚆", b: legTitle(l), s: [an, l.info && !NO_SHARE.test(l.info) ? l.info : ""].filter(Boolean) }); });
+  const same = (a, b) => { const A = tkWords(a), B = tkWords(b); let n = 0; A.forEach(w => { if (B.has(w)) n++; }); return n >= 1 && n / Math.min(A.size || 1, B.size || 1) >= 0.5; };
+  const parts = tripParts(o), used = new Set();
+  (e.stays || []).forEach(u => { const pt = parts.find(x => !used.has(x) && same(shortName(x.ev), u.name)); if (pt) used.add(pt);
+    items.push({ d: u.von, t: tm(u.ci), i: "🏨", b: `Check-in ${u.name}`, s: [u.adr, u.ci && u.ci.replace(/\b\d{1,2}:\d{2}\b\s*(uhr)?/i, "").replace(/^\s*(ab|um|bis)\s*$/i, "").trim() ? `Check-in ${u.ci}` : "", u.room, u.info && !NO_SHARE.test(u.info) ? u.info : ""].filter(Boolean) });
+    if (u.bis && u.bis !== u.von) items.push({ d: u.bis, t: tm(u.co), i: "🔑", b: `Check-out ${u.name}`, s: u.co && u.co.replace(/\b\d{1,2}:\d{2}\b\s*(uhr)?/i, "").replace(/^\s*(ab|um|bis)\s*$/i, "").trim() ? [u.co] : [] }); });
+  parts.filter(x => !used.has(x)).forEach(x => items.push({ d: iso(x.a), t: x.ev.time || "", i: STAY_RE.test(`${x.ev.title} ${shortName(x.ev)}`) ? "🏨" : /✈|\bflug|flight/i.test(x.ev.title) ? "✈️" : TRANS_RE.test(x.ev.title) ? "🚆" : "📌",
+    b: shortName(x.ev).replace(/^(?:👥\s*)?\p{Extended_Pictographic}️?\s*/u, ""), s: [sameDay(x.a, x.b) ? "" : `bis ${fmt(x.b)}`, x.ev.place].filter(Boolean) }));
+  items.sort((a, b) => (a.d + (a.i === "🔑" ? "00" : a.t || "99")).localeCompare(b.d + (b.i === "🔑" ? "00" : b.t || "99")));
+  const facts = (e.facts || []).filter(f => !NO_SHARE.test(f.k + " " + f.v));
+  return { items, facts };
+}
+const noteBullets = (txt, trip) => String(txt || "").replace(/📎\s*/g, "").split(/\n|\s·\s|(?:(?<=[a-zäöü)]{2})|(?<=:\d\d))\.\s+(?=[A-ZÄÖÜ])/).map(x => x.trim().replace(/[.;]$/, "")).filter(x => x && !(trip && NO_SHARE.test(x)));
 async function shareOcc(id, a) {
-  const o = findOcc(id, a); if (!o) return;
-  const e = o.ev, rows = [{ l: rngTxt(o.a, o.b, true), big: true, n: [timeTxt(e) ? timeTxt(e) + " Uhr" : "", ageTxt(o)].filter(Boolean).join(" · ") }];
-  if (e.note) rows.push({ l: "Notiz", n: e.note });
-  const text = [evName(e), rngTxt(o.a, o.b, true) + (timeTxt(e) ? `, ${timeTxt(e)} Uhr` : ""), ageTxt(o), e.note].filter(Boolean).join("\n");
-  showShare(evName(e), { kicker: TYPES[e.type].label, title: evName(e), rows, footer: `PlanFlink · ${[nameA(), nameB()].filter(Boolean).join(" & ")}` }, text, `${evName(e).replace(/[^\wäöüÄÖÜß-]+/g, "-")}-${iso(o.a)}`);
+  let o = findOcc(id, a); if (!o) return;
+  if (planable(o.ev)) { openSheet("Teilen", evName(o.ev), `<p class="note" style="margin-top:10px">✨ Ich ordne die Reisedaten für eine übersichtliche Nachricht …</p>`, "share");
+    await planFromNote(o.ev, { quiet: true }); o = findOcc(id, a) || o; if (sheetMode !== "share") return; }
+  const e = o.ev, trip = ["trip", "urlaub"].includes(e.type), when = rngTxt(o.a, o.b, true) + (timeTxt(e) ? `, ${timeTxt(e)} Uhr` : "");
+  const { items, facts } = trip || (e.legs || []).length || (e.stays || []).length ? shareItems(o) : { items: [], facts: [] };
+  const rows = [{ l: rngTxt(o.a, o.b, true), big: true, n: [timeTxt(e) ? timeTxt(e) + " Uhr" : "", ageTxt(o), e.place && !trip ? "📍 " + e.place : ""].filter(Boolean).join(" · ") }];
+  const T = [`${trip ? "🧳 " : ""}*${evName(e)}*`, `📅 ${when}`]; if (ageTxt(o)) T.push(ageTxt(o)); if (e.place) T.push(`📍 ${e.place}`);
+  if (items.length) { let last = "", day = null;
+    items.forEach(it => { if (it.d !== last) { last = it.d; T.push("", `*${fmt(parseIso(it.d))}*`); rows.push(day = { l: fmt(parseIso(it.d)), n: "" }); }
+      const line = `${it.i} ${it.t ? it.t + "  " : ""}${it.b}`; T.push(line); it.s.forEach(x => T.push(`      ${x}`));
+      day.n += (day.n ? "\n" : "") + line + it.s.map(x => "\n      " + x).join(""); }); }
+  if (facts.length) { T.push("", "ℹ️ *Gut zu wissen*", ...facts.map(f => `• ${f.k}: ${f.v}`)); rows.push({ l: "Gut zu wissen", n: facts.map(f => `${f.k}: ${f.v}`).join("\n") }); }
+  if (!items.length && e.note) { const B = noteBullets(e.note, trip); if (B.length) { T.push("", ...B.map(x => `• ${x}`)); rows.push({ l: "Notiz", n: B.map(x => "• " + x).join("\n") }); } }
+  showShare(evName(e), { kicker: TYPES[e.type].label, title: evName(e), rows, footer: `PlanFlink · ${[nameA(), nameB()].filter(Boolean).join(" & ")}` }, T.join("\n"), `${evName(e).replace(/[^\wäöüÄÖÜß-]+/g, "-")}-${iso(o.a)}`);
 }
 function shareCare(y) {
   const list = kidOcc(y);
