@@ -4732,10 +4732,34 @@ function showGoogleSheet() {
       <label class="tog" style="margin-top:12px;color:var(--fg);font-weight:600"><input type="checkbox" id="g-show"${gShow ? " checked" : ""}> Google-Termine anzeigen</label>
       <div class="lbl" style="margin-top:12px">Kalender</div>
       ${gGroup(cals, c => sel.has(c.id), c => `<label class="tog setrow"><input type="checkbox" data-gcal="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}${gShow ? "" : " disabled"}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "cal")}
+      <button type="button" class="link" id="g-addacc" style="margin-top:8px">+ Kalender einer anderen E-Mail-Adresse hinzufügen</button>
       ${canWrite ? `<div class="lbl" style="margin-top:16px">Hinweis, wenn andere hier etwas eintragen</div>
       ${gGroup(cals, c => notifyCals().includes(c.id), c => `<label class="tog setrow"><input type="checkbox" data-notify="${esc(c.id)}"${notifyCals().includes(c.id) ? " checked" : ""}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "not")}` : ""}
       <p class="note" style="margin-top:10px">Google-Termine erscheinen in der Farbe ihres Kalenders. Ändern, verschieben und löschen kannst du sie direkt hier – die Änderung landet sofort in Google.</p>
       ${APP ? `<button type="button" class="link" id="g-forget" style="margin-top:14px;color:var(--muted)">Google-Verbindung trennen</button>` : ""}` : ""}`, "google");
+}
+// Kalender eines anderen Google-Kontos: über Google-Freigabe an die verbundene Adresse – danach erscheint er hier wie jeder andere
+function showGoogleAdd() {
+  const me = myMail() || "deine PlanFlink-Google-Adresse";
+  openSheet("Weiteren Kalender hinzufügen", "Kalender einer anderen E-Mail-Adresse", `
+    <p class="note" style="margin-top:8px">Du gibst den Kalender in Google einmal für deine PlanFlink-Adresse frei. Danach erscheint er hier, und du kannst Termine darin sehen und eintragen.</p>
+    <div class="tcard" style="display:grid;gap:6px"><span class="tp-h">Deine PlanFlink-Adresse</span><b style="overflow-wrap:anywhere">${esc(me)}</b>${myMail() ? `<button type="button" class="btn small" id="g-addcopy" style="justify-self:start">📋 Adresse kopieren</button>` : ""}</div>
+    <ol class="gsteps">
+      <li><a href="https://calendar.google.com/calendar/u/0/r/settings" target="_blank" rel="noopener"><b>Google Kalender öffnen ↗</b></a> und oben rechts auf das Konto mit der <b>anderen</b> E-Mail-Adresse wechseln (am Handy geht es am einfachsten im Browser, nicht in der App).</li>
+      <li>Links unter „Einstellungen für meine Kalender“ den Kalender antippen → <b>„Für bestimmte Personen oder Gruppen freigeben“</b> → <b>„Personen hinzufügen“</b>.</li>
+      <li>Die PlanFlink-Adresse oben einfügen und <b>„Änderungen an Terminen vornehmen“</b> wählen → Senden.</li>
+      <li>Kommt an die PlanFlink-Adresse eine E-Mail „… hat einen Kalender für Sie freigegeben“: dort auf <b>„Diesen Kalender hinzufügen“</b> tippen.</li>
+    </ol>
+    <button type="button" class="btn accent wide" id="g-addreload">✓ Erledigt – Kalender neu laden</button>
+    <p class="note" style="margin-top:10px">Geht es nicht? Bei Firmen- oder Schulkonten erlaubt der Arbeitgeber das Freigeben nach außen manchmal nicht.</p>`, "gadd");
+}
+async function gAddReload() {
+  const before = new Set(gCals.map(c => c.id)); const b = $("g-addreload"); if (b) { b.disabled = true; b.textContent = "Lade Kalender …"; }
+  try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {}
+  await initGoogle();
+  const neu = gCals.filter(c => !before.has(c.id));
+  if (neu.length) { const s = new Set(selectedCals()); neu.forEach(c => s.add(c.id)); gSel = s; saveGSel(s); resetGoogleWatches(); toast(`${neu.map(c => `„${c.summary}“`).join(", ")} hinzugefügt`); showGoogleSheet(); }
+  else { toast("Noch kein neuer Kalender da – Freigabe oder E-Mail-Bestätigung prüfen, dann noch einmal tippen"); if (b) { b.disabled = false; b.textContent = "✓ Erledigt – Kalender neu laden"; } }
 }
 function showGoogleEvent(o) {
   if (sheetCtx?.id !== o.ev.id) ACT_OPEN = false;
@@ -5668,6 +5692,9 @@ document.addEventListener("click", ev => {
     case "l-share": shareTopic("custom", $("q").value.trim(), $("l-past").checked ? "year" : "future"); break;
     case "open-google": showGoogleSheet(); break;
     case "g-sync": closeSheet(); gSync(); break;
+    case "g-addacc": showGoogleAdd(); break;
+    case "g-addreload": gAddReload(); break;
+    case "g-addcopy": try { navigator.clipboard.writeText(myMail()); toast("Adresse kopiert"); } catch { toast(myMail()); } break;
     case "next-more": goPage?.("p1"); setView("list"); break;
     case "q-end": endSearch(); break;
     case "search-btn": { if (SEARCH_ON) { endSearch(); break; } if ($("p1")?.hidden) { toast("Die Suche steckt in der Kalender-Seite – einschalten unter ☰ → Anzeigen"); break; }
