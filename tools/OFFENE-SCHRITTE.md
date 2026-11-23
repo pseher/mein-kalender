@@ -4,6 +4,9 @@
 1. **Datenzugriff:** `calendar.readonly` entfernen, `calendar.calendarlist.readonly` hinzufügen; `calendar.events` bleibt. Speichern.
 2. **Clients → PlanFlink Web:** alte Supabase-Weiterleitungsadresse entfernen; nur `https://planflink.de/app/` behalten.
 
+- Solange die App ungeprüft ist: jedes **weitere Google-Konto**, das jemand über „+ Weiteres Google-Konto verbinden“ anbindet, muss unter „Zielgruppe → Testnutzer“ eingetragen sein. Live-Test mit einer zweiten eigenen Adresse steht noch aus.
+- Für die Google-Prüfung: im Demovideo kurz „Weiteres Google-Konto verbinden“ zeigen (gleiche Rechte wie das Hauptkonto).
+
 ## Nächste Runde (Vorschlag)
 1. **Datenbank-Absicherung beim Teilen** (Dr. Daten): Tabelle `outbox` ist für alle Angemeldeten lesbar (Metadaten: wer teilt mit wem, wann aktiv). Lösung: offene Leseregel entfernen, stattdessen Datenbankfunktion (security definer), die nur Zeilen zu einer angegebenen Link-ID liefert. Braucht eine SQL-Änderung, die Peter einmal in Supabase ausführt.
 2. **Google-Übertragung nachholen** (Max): Scheitert das Eintragen in Google (z. B. Fehler 500), wird es nie erneut versucht. Lösung: beim nächsten Abgleich Einträge mit Kalender, aber ohne Google-ID, nachtragen oder Knopf „Jetzt in Google eintragen“; Meldung bei Ablehnung (4xx) klarer.
