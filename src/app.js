@@ -4725,6 +4725,16 @@ function gGroup(cals, isOn, row, key) {
   return `<div class="gcals">${on.length ? on.map(row).join("") : `<p class="note">Noch keiner ausgewählt.</p>`}</div>` +
     (off.length ? `<details class="gmore" data-gmore="${key}"${gOpen[key] ? " open" : ""}><summary>${off.length} weitere${off.length === 1 ? "r" : ""}</summary><div class="gcals">${off.map(row).join("")}</div></details>` : "");
 }
+// Kalender nach Google-Konto gruppiert, jeweils mit der E-Mail-Adresse darüber
+function gAccBlocks(cals, sel) {
+  const row = c => `<label class="tog setrow"><input type="checkbox" data-gcal="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}${gShow ? "" : " disabled"}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.acc && c.accEmail && c.summary.endsWith(` (${c.accEmail})`) ? c.summary.slice(0, -c.accEmail.length - 3) : c.acc && c.summary === c.accEmail ? "Hauptkalender" : c.summary)}${c.broken ? ` <small style="color:var(--holiday)">· bitte neu verbinden</small>` : ""}</label>`;
+  const head = (mail, sub, btn = "") => `<div class="gacc-h"><span><b>${esc(mail)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${btn}</div>`;
+  const main = cals.filter(c => !c.acc), accs = APP ? (window.mkGAccounts?.() || []) : [];
+  let h = head(myMail() || "Dein Google-Konto", accs.length ? "Hauptkonto" : "") + gGroup(main, c => sel.has(c.id), row, "cal");
+  accs.forEach(a => { const mine = cals.filter(c => c.acc === a.slot);
+    h += head(a.email || "Weiteres Konto", "Weiteres Konto", `<button type="button" class="btn small ghost" data-gaccoff="${a.slot}">Trennen</button>`) + (mine.length ? gGroup(mine, c => sel.has(c.id), row, "acc" + a.slot) : `<p class="note">Kalender werden geladen …</p>`); });
+  return `<div class="lbl" style="margin-top:12px">Kalender</div>` + h;
+}
 function showGoogleSheet() {
   const st = gStatusText();
   const cals = gState === "ok" ? [{ id: "primary", summary: `Mein Kalender${gPrimarySummary ? "" : ""}` }, ...gCals.filter(c => c.summary !== gPrimarySummary && c.id !== gPrimarySummary)] : [];
@@ -4735,10 +4745,8 @@ function showGoogleSheet() {
     ${gState !== "ok" ? `<button type="button" class="btn accent wide" id="g-retry">${APP && FATAL.includes(gState) && gState !== "api_disabled" ? "Mit Google verbinden" : "Erneut verbinden"}</button>` : ""}
     ${gState === "ok" ? `<button type="button" class="btn accent wide" id="g-sync" style="margin-top:12px">↻ Jetzt mit Google abgleichen</button>
       <label class="tog" style="margin-top:12px;color:var(--fg);font-weight:600"><input type="checkbox" id="g-show"${gShow ? " checked" : ""}> Google-Termine anzeigen</label>
-      <div class="lbl" style="margin-top:12px">Kalender</div>
-      ${gGroup(cals, c => sel.has(c.id), c => `<label class="tog setrow"><input type="checkbox" data-gcal="${esc(c.id)}"${sel.has(c.id) ? " checked" : ""}${gShow ? "" : " disabled"}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "cal")}
-      ${APP && window.mkAddGoogleAccount ? `${(window.mkGAccounts?.() || []).length ? `<div class="lbl" style="margin-top:14px">Weitere Google-Konten</div><div class="gcals">${window.mkGAccounts().map(a => `<div class="setrow gacc"><span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(a.email || "Weiteres Konto")}${gCals.some(c => c.acc === a.slot && c.broken) ? ` <small style="color:var(--holiday)">· bitte neu verbinden</small>` : ""}</span><button type="button" class="btn small ghost" data-gaccoff="${a.slot}">Trennen</button></div>`).join("")}</div>` : ""}
-      <button type="button" class="btn ghost wide" id="g-addgacc" style="margin-top:10px">+ Weiteres Google-Konto verbinden</button>
+      ${gAccBlocks(cals, sel)}
+      ${APP && window.mkAddGoogleAccount ? `<button type="button" class="btn ghost wide" id="g-addgacc" style="margin-top:12px">+ Weiteres Google-Konto verbinden</button>
       <button type="button" class="link" id="g-addacc" style="margin-top:6px;font-size:13px;color:var(--muted)">Ohne zweite Anmeldung: Kalender freigeben</button>` : `<button type="button" class="link" id="g-addacc" style="margin-top:8px">+ Kalender einer anderen E-Mail-Adresse hinzufügen</button>`}
       ${canWrite ? `<div class="lbl" style="margin-top:16px">Hinweis, wenn andere hier etwas eintragen</div>
       ${gGroup(cals, c => notifyCals().includes(c.id), c => `<label class="tog setrow"><input type="checkbox" data-notify="${esc(c.id)}"${notifyCals().includes(c.id) ? " checked" : ""}><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(c.summary)}</label>`, "not")}` : ""}
@@ -4981,7 +4989,7 @@ document.addEventListener("click", ev => { const m = ev.target.closest?.("[data-
   const o = ev.target.closest?.("[data-auop]"); if (o) { ev.preventDefault(); auOp(o.dataset.auop); } });
 // Google-Kalender verbinden – bei E-Mail-Konten wird Google an dasselbe Konto gehängt
 const G_UNVERIFIED = true;   // bis Google PlanFlink geprüft hat: Hinweis auf die Warnseite
-const G_WARN = "Google zeigt gleich noch den Hinweis „Google hat diese App nicht überprüft“ – das liegt an der laufenden Prüfung durch Google, nicht an einem Problem. Tippe auf „Erweitert“ und „Weiter zu planflink.de“ – und erlaube beide Kalender-Häkchen.";
+const G_WARN = "Google zeigt gleich noch den Hinweis „Google hat diese App nicht überprüft“ – das liegt an der laufenden Prüfung durch Google, nicht an einem Problem. Tippe auf „Erweiterte Optionen“ und dann auf „planflink.de öffnen (unsicher)“ – und erlaube beide Kalender-Häkchen.";
 async function gConnect(go) {
   if (APP && !go && (!$("wz") || $("wz").hidden)) { openSheet("Google Kalender verbinden", "Gleich öffnet sich Google", `<p>Google fragt dich gleich, ob PlanFlink deine Kalenderliste sehen sowie Termine lesen, eintragen, ändern und löschen darf. Damit zeigt PlanFlink deine Google-Termine an und trägt neue Termine dort ein – nur in den Kalendern, die du auswählst. <a href="/datenschutz.html" target="_blank" rel="noopener">Datenschutz</a></p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-conn-go">Weiter zu Google</button></div>`); return; }
   const r = await window.mkConnectGoogle?.();
@@ -5721,7 +5729,8 @@ document.addEventListener("click", ev => {
     case "open-google": showGoogleSheet(); break;
     case "g-sync": closeSheet(); gSync(); break;
     case "g-addacc": showGoogleAdd(); break;
-    case "g-addgacc": window.mkAddGoogleAccount?.(); break;
+    case "g-addgacc": openSheet("Weiteres Google-Konto", "Kalender einer anderen E-Mail-Adresse", `<p>Gleich öffnet sich Google. Wähle dort das <b>andere</b> Konto aus (oder „Anderes Konto verwenden“) und erlaube beide Kalender-Häkchen. Bei PlanFlink bleibst du mit deinem bisherigen Konto angemeldet.</p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-acc-go">Weiter zu Google</button></div>`, "gadd"); break;
+    case "g-acc-go": window.mkAddGoogleAccount?.(); break;
     case "g-addreload": gAddReload(); break;
     case "g-addcopy": try { navigator.clipboard.writeText(myMail()); toast("Adresse kopiert"); } catch { toast(myMail()); } break;
     case "next-more": goPage?.("p1"); setView("list"); break;
