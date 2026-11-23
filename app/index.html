@@ -12,7 +12,7 @@
 @font-face{font-family:"IBM Plex Mono";font-weight:500;font-display:swap;src:url(/app/vendor/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
 </style>
 <script src="/app/supabase.js"></script>
-<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261123135921";</script>
+<script>window.MK_CFG = {"supabaseUrl":"https://vhwajjbrpibdurlovrrz.supabase.co","supabaseKey":"sb_publishable_wOU5-8_B56PuRY1vc0xORw_KN06k_45","workerUrl":"https://mein-kalender-ki.pseher.workers.dev","googleClientId":"566791454009-5a0uge7bp0841v6spfp4sipvhdn2t7vh.apps.googleusercontent.com"}; window.MK_BUILD = "20261123140520";</script>
 <script>
 // =================== Eigene App: Ersatz für die claude.ai-Schnittstellen ===================
 // Stellt window.claude.use(...) mit denselben Formen bereit, die der Kalender aus dem Artefakt kennt:
@@ -55,7 +55,7 @@ window.MK_APP = true;
       const L = accList(), ex = L.find(a => a.email && a.email === email), slot = ex ? ex.slot : [1, 2, 3, 4, 5].find(n => !L.some(a => a.slot === n));
       if (!slot) return fail("Es können höchstens 5 weitere Google-Konten verbunden werden.");
       const k = KS(slot); lsSet(k.at, b.access_token); lsSet(k.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(k.rt, b.refresh_token);
-      accSave([...L.filter(a => a.slot !== slot), { slot, email }]); try { sessionStorage.setItem("mk-g-accnew", String(slot)); } catch {} try { window.dispatchEvent(new Event("mk-gacc")); } catch {}
+      accSave([...L.filter(a => a.slot !== slot), { slot, email }]); try { localStorage.setItem("mk-g-accnew", String(slot)); } catch {} try { window.dispatchEvent(new Event("mk-gacc")); } catch {}
       if (b.refresh_token) setTimeout(() => gStore(b.refresh_token, slot, email), 0); return; }
     if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
     const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
@@ -6375,16 +6375,40 @@ function showGoogleAdd() {
     <p class="note" style="margin-top:10px">Geht es nicht? Bei Firmen- oder Schulkonten erlaubt der Arbeitgeber das Freigeben nach außen manchmal nicht.</p>`, "gadd");
 }
 // Rückkehr von Google nach „Weiteres Google-Konto verbinden“: dessen Kalender gleich auswählen
+// Rückkehr von Google nach „Weiteres Google-Konto verbinden“: fragen, welche Kalender des Kontos erscheinen sollen.
+// Google kann in einem anderen Fenster/Tab zurückkehren (Android-PWA) – darum Merker in localStorage und Abgleich über „storage“/Sichtbarkeit.
 async function gAccNew() {
-  let slot = 0; try { slot = +sessionStorage.getItem("mk-g-accnew") || 0; } catch {} if (!slot) return;
+  if (document.hidden || !mcp) return;
+  const slot = +store.get("mk-g-accnew") || 0; if (!slot) return;
   const mine = gCals.filter(c => c.acc === slot && !c.broken);
   if (!mine.length) { if (!gAccNew.tried) { gAccNew.tried = true; try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {} setTimeout(initGoogle, 50); } return; }
-  try { sessionStorage.removeItem("mk-g-accnew"); } catch {} gAccNew.tried = false;
-  const s = new Set(selectedCals()); mine.forEach(c => s.add(c.id)); gSel = s; saveGSel(s); resetGoogleWatches();
-  const em = mine[0].accEmail; toast(`${em ? em : "Weiteres Konto"} verbunden – ${mine.length} Kalender hinzugefügt`);
-  setTimeout(() => { if ($("wz")?.hidden !== false) showGoogleSheet(); }, 300);
+  gAccNew.tried = false; try { localStorage.removeItem("mk-g-accnew"); } catch {}
+  if ($("wz") && !$("wz").hidden) { const s = new Set(selectedCals()); mine.forEach(c => s.add(c.id)); gSel = s; saveGSel(s); resetGoogleWatches(); return; }
+  showGAccPick(slot);
 }
-window.addEventListener("mk-gacc", async () => { if (!mcp) return; try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {} initGoogle(); });
+function showGAccPick(slot) {
+  const mine = gCals.filter(c => c.acc === slot && !c.broken), em = mine[0]?.accEmail || (window.mkGAccounts?.() || []).find(a => a.slot === slot)?.email || "Weiteres Konto";
+  const nm = c => c.summary === c.accEmail ? "Hauptkalender" : c.summary.endsWith(` (${c.accEmail})`) ? c.summary.slice(0, -c.accEmail.length - 3) : c.summary;
+  openSheet("Verbunden ✓", em, `<p style="margin-top:8px">Welche Kalender von <b>${esc(em)}</b> sollen in PlanFlink erscheinen und abgeglichen werden?</p>
+    <div class="gcals" style="margin-top:8px">${mine.map(c => `<label class="tog setrow"><input type="checkbox" data-gapick="${esc(c.id)}" checked><i class="sw" style="background:${gColor(c.id)[0]};border-radius:50%"></i>${esc(nm(c))}${c.accessRole && !["owner", "writer"].includes(c.accessRole) ? ` <small class="muted">· nur lesen</small>` : ""}</label>`).join("")}</div>
+    <p class="note" style="margin-top:8px">Das kannst du später jederzeit unter ☰ → Google Kalender ändern.</p>
+    <div class="btnrow"><button type="button" class="btn accent wide" id="g-apick-ok" data-slot="${slot}">Übernehmen</button></div>`, "gapick");
+}
+function gAccPickSave(slot) {
+  const ids = gCals.filter(c => c.acc === slot).map(c => c.id), on = [...document.querySelectorAll("[data-gapick]")].filter(x => x.checked).map(x => x.dataset.gapick);
+  const s = new Set(selectedCals()); ids.forEach(i => s.delete(i)); on.forEach(i => s.add(i)); if (!s.size) s.add("primary");
+  gSel = s; saveGSel(s); resetGoogleWatches(); renderAll();
+  toast(on.length ? `${on.length} Kalender hinzugefügt` : "Konto verbunden – keine Kalender ausgewählt"); showGoogleSheet();
+}
+// anderes Fenster hat ein Konto verbunden oder die Auswahl geändert → hier sofort nachziehen
+let gAccSeen = store.get("mk-g-accs") || "";
+async function gAccRefresh() { gAccSeen = store.get("mk-g-accs") || ""; if (!mcp) return; try { await mcp.invalidate(GSERVER, "list_calendars"); } catch {} await initGoogle(); }
+window.addEventListener("mk-gacc", gAccRefresh);
+window.addEventListener("storage", e => {
+  if (e.key === "mk-g-accs" || e.key === "mk-g-accnew") { if (e.key === "mk-g-accs") gAccRefresh(); else if (e.newValue) gAccRefresh(); }
+  if (e.key === "ft-gcal-sel") { try { const v = JSON.parse(e.newValue || "null"); if (Array.isArray(v)) { gSel = new Set(v); resetGoogleWatches(); renderAll(); if (sheetMode === "google" && !$("sheet").hidden) showGoogleSheet(); } } catch {} } });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState !== "visible") return;
+  if ((store.get("mk-g-accs") || "") !== gAccSeen || store.get("mk-g-accnew")) gAccRefresh(); });
 async function gAccOff(slot) {
   const a = (window.mkGAccounts?.() || []).find(x => x.slot === slot);
   const ids = gCals.filter(c => c.acc === slot).map(c => c.id);
@@ -7337,6 +7361,7 @@ document.addEventListener("click", ev => {
     case "g-addacc": showGoogleAdd(); break;
     case "g-addgacc": openSheet("Weiteres Google-Konto", "Kalender einer anderen E-Mail-Adresse", `<p>Gleich öffnet sich Google. Wähle dort das <b>andere</b> Konto aus (oder „Anderes Konto verwenden“) und erlaube beide Kalender-Häkchen. Bei PlanFlink bleibst du mit deinem bisherigen Konto angemeldet.</p>${G_UNVERIFIED ? `<p class="note">${esc(G_WARN)}</p>` : ""}<div class="btnrow"><button type="button" class="btn accent wide" id="g-acc-go">Weiter zu Google</button></div>`, "gadd"); break;
     case "g-acc-go": window.mkAddGoogleAccount?.(); break;
+    case "g-apick-ok": gAccPickSave(+$("g-apick-ok").dataset.slot); break;
     case "g-addreload": gAddReload(); break;
     case "g-addcopy": try { navigator.clipboard.writeText(myMail()); toast("Adresse kopiert"); } catch { toast(myMail()); } break;
     case "next-more": goPage?.("p1"); setView("list"); break;

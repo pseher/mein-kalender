@@ -39,7 +39,7 @@ window.MK_APP = true;
       const L = accList(), ex = L.find(a => a.email && a.email === email), slot = ex ? ex.slot : [1, 2, 3, 4, 5].find(n => !L.some(a => a.slot === n));
       if (!slot) return fail("Es können höchstens 5 weitere Google-Konten verbunden werden.");
       const k = KS(slot); lsSet(k.at, b.access_token); lsSet(k.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(k.rt, b.refresh_token);
-      accSave([...L.filter(a => a.slot !== slot), { slot, email }]); try { sessionStorage.setItem("mk-g-accnew", String(slot)); } catch {} try { window.dispatchEvent(new Event("mk-gacc")); } catch {}
+      accSave([...L.filter(a => a.slot !== slot), { slot, email }]); try { localStorage.setItem("mk-g-accnew", String(slot)); } catch {} try { window.dispatchEvent(new Event("mk-gacc")); } catch {}
       if (b.refresh_token) setTimeout(() => gStore(b.refresh_token, slot, email), 0); return; }
     if (b.access_token && /calendar/.test(b.scope || "")) { lsSet(GK.at, b.access_token); lsSet(GK.exp, String(Date.now() + Math.max(60, (b.expires_in || 3600) - 300) * 1000)); if (b.refresh_token) lsSet(GK.rt, b.refresh_token); }
     const cur = (await sb.auth.getSession().catch(() => ({ data: {} }))).data?.session;
